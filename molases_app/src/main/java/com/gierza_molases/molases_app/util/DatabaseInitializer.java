@@ -9,27 +9,24 @@ import java.util.stream.Collectors;
 
 public class DatabaseInitializer {
 
-    @SuppressWarnings("resource")
+	@SuppressWarnings("resource")
 	public static void init() {
-        try (
-            Connection conn = DatabaseUtil.getConnection();
-            Statement stmt = conn.createStatement()
-        ) {
-            InputStream is = DatabaseInitializer.class
-                .getClassLoader()
-                .getResourceAsStream("database/schema.sql");
+		try {
+			Connection conn = Database.init();
+			try (Statement stmt = conn.createStatement()) {
 
-            if (is == null) {
-                throw new RuntimeException("schema.sql not found");
-            }
+				InputStream is = DatabaseInitializer.class.getClassLoader().getResourceAsStream("database/schema.sql");
 
-            String sql = new BufferedReader(new InputStreamReader(is))
-                    .lines()
-                    .collect(Collectors.joining("\n"));
+				if (is == null) {
+					throw new RuntimeException("schema.sql not found");
+				}
 
-            stmt.executeUpdate(sql);
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize database", e);
-        }
-    }
+				String sql = new BufferedReader(new InputStreamReader(is)).lines().collect(Collectors.joining("\n"));
+
+				stmt.executeUpdate(sql);
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to initialize database", e);
+		}
+	}
 }

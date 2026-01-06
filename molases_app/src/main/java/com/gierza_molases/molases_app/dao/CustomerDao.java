@@ -8,9 +8,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.gierza_molases.molases_app.model.Customer;
-import com.gierza_molases.molases_app.util.DatabaseUtil;
+import com.gierza_molases.molases_app.util.DaoUtils;
 
 public class CustomerDao {
+
+	private final Connection conn;
 
 	private static final String INSERT_INDIVIDUAL_SQL = "INSERT INTO customer (type, first_name, mid_name, last_name, display_name,  contact_number, address) "
 			+ "VALUES (?, ?, ?, ?, ?, ?, ?)";
@@ -20,11 +22,35 @@ public class CustomerDao {
 
 	// fetcher
 	private static final String SELECT_ALL_SQL = """
+			  SELECT *
+			  FROM customer
+			  ORDER BY created_at %s
+			  LIMIT ? OFFSET ?
+			""";
+	// search ranking
+	private static final String SELECT_ALL_SQL_MATCH = """
+			  SELECT c.*, bm25(customer_fts) AS score
+			  FROM customer_fts
+			  JOIN customer c ON c.id = customer_fts.rowid
+			  WHERE customer_fts MATCH ?
+			  ORDER BY score, c.created_at %s
+			  LIMIT ? OFFSET ?
+			""";
+
+	private static final String SELECT_BY_ID_SQL = """
+			  SELECT * FROM customer WHERE id = ?
+			""";
+
+	private static final String SELECT_LIMIT_20_MATCH = """
+			SELECT c.* FROM customer_fts JOIN customer c on c.id = customer_fts.rowid WHERE customer_fts MATCH ?
+			ORDER BY bm25(customer_fts) LIMIT 20
+			""";
+
+	private static final String SELECT_LIMIT_20 = """
 			    SELECT *
 			    FROM customer
-			    WHERE (? IS NULL OR display_name LIKE ?)
-			    ORDER BY created_at %s
-			    LIMIT ? OFFSET ?
+			    ORDER BY created_at DESC
+			    LIMIT 20
 			""";
 
 	private static final String COUNT_TOTAL_SQL = """
@@ -61,6 +87,10 @@ public class CustomerDao {
 			    DELETE FROM customer WHERE id = ?
 			""";
 
+	public CustomerDao(Connection conn) {
+		this.conn = conn;
+	}
+
 	public int insertAsIndividual(Customer customer, Connection conn) {
 		try (PreparedStatement ps = conn.prepareStatement(INSERT_INDIVIDUAL_SQL)) {
 			ps.setString(1, customer.getType());
@@ -79,7 +109,7 @@ public class CustomerDao {
 		}
 	}
 
-	public long insertAsCompany(Customer customer, Connection conn) {
+	public int insertAsCompany(Customer customer, Connection conn) {
 		try (PreparedStatement ps = conn.prepareStatement(INSERT_COMPANY_SQL)) {
 			ps.setString(1, customer.getType());
 			ps.setString(2, customer.getCompanyName());
@@ -101,23 +131,22 @@ public class CustomerDao {
 		List<Customer> customers = new ArrayList<>();
 
 		int offset = (page - 1) * pageSize;
-		String sql = SELECT_ALL_SQL.formatted(sortOrder);
+		boolean hasSearch = search != null && !search.isBlank();
 
-		try (Connection conn = DatabaseUtil.getConnection(); PreparedStatement ps = conn.prepareStatement(sql)) {
+		String sql = hasSearch ? SELECT_ALL_SQL_MATCH : SELECT_ALL_SQL;
 
-			if (search == null || search.isBlank()) {
-				ps.setNull(1, java.sql.Types.VARCHAR);
-				ps.setNull(2, java.sql.Types.VARCHAR);
-			} else {
-				ps.setString(1, search);
-				ps.setString(2, "%" + search + "%");
+		try (PreparedStatement ps = conn.prepareStatement(sql.formatted(sortOrder))) {
+
+			int idx = 1;
+
+			if (hasSearch) {
+				ps.setString(idx++, DaoUtils.toFtsPrefix(search));
 			}
 
-			ps.setInt(3, pageSize);
-			ps.setInt(4, offset);
+			ps.setInt(idx++, pageSize);
+			ps.setInt(idx, offset);
 
 			ResultSet rs = ps.executeQuery();
-
 			while (rs.next()) {
 				customers.add(mapRowToCustomer(rs));
 			}
@@ -130,9 +159,51 @@ public class CustomerDao {
 
 	}
 
+	public List<Customer> fetch20Customer(String search) {
+		List<Customer> customer = new ArrayList<>();
+
+		boolean hasSearch = search != null && !search.isBlank();
+		String sql = hasSearch ? SELECT_LIMIT_20_MATCH : SELECT_LIMIT_20;
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+
+			if (hasSearch) {
+				ps.setString(1, DaoUtils.toFtsPrefix(search));
+			}
+
+			try (ResultSet rs = ps.executeQuery()) {
+				while (rs.next()) {
+					customer.add(mapRowToCustomer(rs));
+				}
+			}
+
+			return customer;
+
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to fetch 20 customer", e);
+		}
+
+	}
+
+	public Customer findById(int branchId) {
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_BY_ID_SQL)) {
+
+			ps.setInt(1, branchId);
+
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					return mapRowToCustomer(rs);
+				} else {
+					return null;
+				}
+			}
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to fetch branch with ID: " + branchId, e);
+		}
+	}
+
 	public int getTotalCount(String search) {
-		try (Connection conn = DatabaseUtil.getConnection();
-				PreparedStatement ps = conn.prepareStatement(COUNT_TOTAL_SQL)) {
+		try (PreparedStatement ps = conn.prepareStatement(COUNT_TOTAL_SQL)) {
 
 			if (search == null || search.isBlank()) {
 				ps.setNull(1, java.sql.Types.VARCHAR);
@@ -161,8 +232,7 @@ public class CustomerDao {
 			throw new IllegalArgumentException("Customer ID is required");
 		}
 
-		try (Connection conn = DatabaseUtil.getConnection();
-				PreparedStatement ps = conn.prepareStatement(UPDATE_INDIVIDUAL_SQL)) {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_INDIVIDUAL_SQL)) {
 
 			ps.setString(1, customer.getFirstName());
 			ps.setString(2, customer.getMidName());
@@ -185,8 +255,7 @@ public class CustomerDao {
 			throw new IllegalArgumentException("Customer ID is required");
 		}
 
-		try (Connection conn = DatabaseUtil.getConnection();
-				PreparedStatement ps = conn.prepareStatement(UPDATE_COMPANY_SQL)) {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_COMPANY_SQL)) {
 
 			ps.setString(1, customer.getCompanyName());
 			ps.setString(2, customer.getDisplayName());
@@ -207,8 +276,7 @@ public class CustomerDao {
 			throw new IllegalArgumentException("Invalid customer ID");
 		}
 
-		try (Connection conn = DatabaseUtil.getConnection();
-				PreparedStatement ps = conn.prepareStatement(DELETE_BY_ID_SQL)) {
+		try (PreparedStatement ps = conn.prepareStatement(DELETE_BY_ID_SQL)) {
 
 			ps.setInt(1, id);
 			ps.executeUpdate();

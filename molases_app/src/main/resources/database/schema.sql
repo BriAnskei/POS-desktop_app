@@ -20,10 +20,7 @@ CREATE TABLE IF NOT EXISTS customer (
     )
 );
 
- -- csutomer indexis
-CREATE INDEX IF NOT EXISTS idx_customer_display_name
-ON customer(display_name);
-
+ -- customer indexis
 CREATE INDEX IF NOT EXISTS idx_customer_created_at
 ON customer(created_at DESC);
 
@@ -43,3 +40,57 @@ CREATE TABLE IF NOT EXISTS branches (
         ON DELETE CASCADE
         ON UPDATE CASCADE
 );
+
+
+
+
+ -- Branches indexis
+ -- For pagination
+CREATE INDEX IF NOT EXISTS idx_branches_id
+ON branches(id);
+
+-- For join
+CREATE INDEX IF NOT EXISTS idx_branches_customer_id
+ON branches(customer_id);
+
+
+
+
+-- FTS5
+CREATE VIRTUAL TABLE IF NOT EXISTS customer_fts
+USING fts5(
+    display_name,
+    content='customer',
+    content_rowid='id',
+    prefix='2 3 4'
+);
+
+-- triggers
+-- After INSERT
+CREATE TRIGGER IF NOT EXISTS customer_ai
+AFTER INSERT ON customer
+BEGIN
+  INSERT INTO customer_fts(rowid, display_name)
+  VALUES (new.id, new.display_name);
+END;
+
+-- After DELETE
+CREATE TRIGGER IF NOT EXISTS customer_ad
+AFTER DELETE ON customer
+BEGIN
+  INSERT INTO customer_fts(customer_fts, rowid)
+  VALUES ('delete', old.id);
+END;
+
+-- After UPDATE
+CREATE TRIGGER IF NOT EXISTS customer_au
+AFTER UPDATE ON customer
+BEGIN
+  INSERT INTO customer_fts(customer_fts, rowid)
+  VALUES ('delete', old.id);
+
+  INSERT INTO customer_fts(rowid, display_name)
+  VALUES (new.id, new.display_name);
+END;
+
+

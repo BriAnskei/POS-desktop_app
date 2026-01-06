@@ -8,6 +8,8 @@ public class Branch {
 	private String note;
 	private String createdAt;
 
+	private String customerName;
+
 	// No-args constructor
 	public Branch() {
 	}
@@ -25,12 +27,31 @@ public class Branch {
 	}
 
 	// Full constructor (for SELECT)
-	public Branch(int id, int customerId, String address, String note, String createdAt) {
+	public Branch(int id, int customerId, String customerName, String address, String note, String createdAt) {
 		this.id = id;
 		this.customerId = customerId;
+		this.customerName = customerName;
 		this.address = address;
 		this.note = note;
 		this.createdAt = createdAt;
+	}
+
+	/*
+	 * ===================== Validation =====================
+	 */
+	public void validate() {
+
+		if (address == null || address.trim().isEmpty()) {
+			throw new IllegalStateException("Branch address is required");
+		}
+
+		if (address.length() > 255) {
+			throw new IllegalStateException("Branch address is too long");
+		}
+
+		if (note != null && note.length() > 500) {
+			throw new IllegalStateException("Branch note is too long");
+		}
 	}
 
 	// Getters and setters
@@ -44,6 +65,10 @@ public class Branch {
 
 	public int getCustomerId() {
 		return customerId;
+	}
+
+	public String getCustomerName() {
+		return customerName;
 	}
 
 	public void setCustomerId(int customerId) {

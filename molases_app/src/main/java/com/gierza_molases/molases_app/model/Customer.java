@@ -87,6 +87,10 @@ public class Customer {
 		} else {
 			throw new IllegalStateException("Invalid customer type");
 		}
+
+		if (address.length() > 255) {
+			throw new IllegalStateException("Customer address is too long");
+		}
 	}
 
 	/*
