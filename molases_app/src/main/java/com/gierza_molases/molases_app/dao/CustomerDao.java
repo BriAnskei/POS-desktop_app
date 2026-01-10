@@ -103,7 +103,7 @@ public class CustomerDao {
 
 			ps.executeUpdate();
 
-			return this.getGeneratedId(ps);
+			return DaoUtils.getGeneratedId(ps);
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to insert customer", e);
 		}
@@ -119,7 +119,7 @@ public class CustomerDao {
 
 			ps.executeUpdate();
 
-			return this.getGeneratedId(ps);
+			return DaoUtils.getGeneratedId(ps);
 
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to insert customer", e);
@@ -287,16 +287,6 @@ public class CustomerDao {
 	}
 
 	// helper function
-	private int getGeneratedId(PreparedStatement ps) {
-		try (ResultSet rs = ps.getGeneratedKeys()) {
-			if (rs.next()) {
-				return (int) rs.getLong(1);
-			}
-			throw new SQLException("Inserting customer failed, no ID obtained.");
-		} catch (SQLException e) {
-			throw new RuntimeException("Failed to retrieve generated ID", e);
-		}
-	}
 
 	private Customer mapRowToCustomer(ResultSet rs) throws SQLException {
 		return new Customer(rs.getInt("id"), rs.getString("type"), rs.getString("first_name"), rs.getString("mid_name"),

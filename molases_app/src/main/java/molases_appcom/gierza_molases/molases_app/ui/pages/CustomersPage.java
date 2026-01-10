@@ -10,18 +10,16 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
-import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JComboBox;
+import javax.swing.JComponent;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
@@ -29,29 +27,28 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.OverlayLayout;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.SwingWorker;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.Context.AppContext;
+import com.gierza_molases.molases_app.Context.CustomerState;
+import com.gierza_molases.molases_app.UiController.CustomersController;
 import com.gierza_molases.molases_app.model.Customer;
-import com.gierza_molases.molases_app.service.CustomerService;
+import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.ui.dialogs.CustomerDialogs.AddCustomerDialog;
 import com.gierza_molases.molases_app.ui.dialogs.CustomerDialogs.UpdateCustomerDialog;
 import com.gierza_molases.molases_app.ui.dialogs.CustomerDialogs.ViewBranchDialog;
-import com.gierza_molases.molases_app.util.AppContext;
 
 public class CustomersPage {
 
-	// Color Palette - matching Main.java
-	private static final Color SIDEBAR_BG = new Color(62, 39, 35);
-	private static final Color SIDEBAR_HOVER = new Color(92, 64, 51);
+	// Color Palette
 	private static final Color SIDEBAR_ACTIVE = new Color(139, 90, 43);
-	private static final Color HEADER_BG = new Color(245, 239, 231);
 	private static final Color CONTENT_BG = new Color(250, 247, 242);
 	private static final Color TEXT_DARK = new Color(62, 39, 35);
 	private static final Color TEXT_LIGHT = new Color(245, 239, 231);
@@ -61,133 +58,68 @@ public class CustomersPage {
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 	private static final Color TABLE_HOVER = new Color(245, 239, 231);
 
-	private static int currentPage = 1;
-	private static int itemsPerPage = 20;
-	private static int totalCustomers = 0;
+	// Controller reference
+	private static final CustomersController controller = AppContext.customersController;
 
-	private static final CustomerService customerService = AppContext.customerService;
-
-	private static List<Customer> customers = new ArrayList<>();
-
-	private static String currentSearch = "";
-	private static String currentSortOrder = "DESC"; // "DESC" or "ASC"
-
-	// References to UI components
+	// UI component references
 	private static JTextField searchField;
 	private static JComboBox<String> sortCombo;
 	private static JTable table;
 	private static JLabel pageInfoLabel;
-	private static JPanel mainPanelRef; // Keep reference to main panel
+	private static JPanel mainPanelRef;
+
+	private static JPanel paginationControlsPanel;
+
+	private static JLabel loadingLabel;
+	private static JPanel loadingOverlay;
+	private static LoadingSpinner spinner;
 
 	/**
 	 * Create the Customer Page panel
 	 */
 	public static JPanel createPanel() {
-		// Reset to defaults when creating panel
-		currentPage = 1;
-		currentSearch = "";
-		currentSortOrder = "DESC";
-		customers = new ArrayList<>();
-		totalCustomers = 0;
+		// Reset state when creating panel
+		controller.resetState();
 
 		JPanel mainPanel = new JPanel(new BorderLayout(0, 20));
 		mainPanel.setBackground(CONTENT_BG);
 		mainPanel.setBorder(new EmptyBorder(0, 0, 0, 0));
-		mainPanelRef = mainPanel; // Store reference
+		mainPanelRef = mainPanel;
 
-		// Top Section (Header with buttons and filters)
+		// Create UI sections
 		JPanel topSection = createTopSection();
 		mainPanel.add(topSection, BorderLayout.NORTH);
 
-		// Center Section (Table)
 		JPanel tableSection = createTableSection();
-		mainPanel.add(tableSection, BorderLayout.CENTER);
 
-		// Bottom Section (Pagination)
+		// WRAP TABLE IN A LAYERED PANEL FOR LOADING OVERLAY
+		JPanel tableWrapper = new JPanel();
+		tableWrapper.setLayout(new OverlayLayout(tableWrapper));
+		tableWrapper.setBackground(CONTENT_BG);
+
+		// Add loading overlay FIRST (so it appears on top)
+		JPanel overlay = createLoadingOverlay();
+		tableWrapper.add(overlay);
+
+		// Add table section
+		tableWrapper.add(tableSection);
+
+		mainPanel.add(tableWrapper, BorderLayout.CENTER);
+
 		JPanel bottomSection = createPaginationSection();
 		mainPanel.add(bottomSection, BorderLayout.SOUTH);
 
-		// Load data asynchronously after UI is created
-		loadCustomerDataAsync(() -> {
+		// Load data asynchronously WITH LOADING INDICATOR
+		showLoading();
+		controller.loadCustomers(() -> {
+			hideLoading();
 			refreshTable();
+		}, () -> {
+			hideLoading();
+			JOptionPane.showMessageDialog(null, "Failed to load customers", "Error", JOptionPane.ERROR_MESSAGE);
 		});
 
 		return mainPanel;
-	}
-
-	/**
-	 * Load customer data from database with current filters (BACKGROUND THREAD)
-	 */
-	private static void loadCustomerDataAsync(Runnable onComplete) {
-		SwingWorker<Void, Void> worker = new SwingWorker<>() {
-			private List<Customer> loadedCustomers;
-			private int loadedTotalCount;
-
-			@Override
-			protected Void doInBackground() throws Exception {
-				// This runs on background thread ✔
-				loadedTotalCount = customerService.getTotalCustomerCount(currentSearch);
-				loadedCustomers = customerService.fetchAll(currentPage, itemsPerPage, currentSearch, currentSortOrder);
-				return null;
-			}
-
-			@Override
-			protected void done() {
-				// This runs on UI thread ✔
-				try {
-					get(); // Check for exceptions
-					customers = loadedCustomers;
-					totalCustomers = loadedTotalCount;
-
-					if (onComplete != null) {
-						onComplete.run();
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-					JOptionPane.showMessageDialog(null, "Failed to load customers: " + e.getMessage(), "Database Error",
-							JOptionPane.ERROR_MESSAGE);
-					customers = new ArrayList<>();
-					totalCustomers = 0;
-
-					// Still refresh UI to show empty state
-					if (onComplete != null) {
-						onComplete.run();
-					}
-				}
-			}
-		};
-		worker.execute();
-	}
-
-	/**
-	 * Delete customer asynchronously (BACKGROUND THREAD)
-	 */
-	private static void deleteCustomerAsync(int customerId, Runnable onSuccess, Runnable onError) {
-		SwingWorker<Void, Void> worker = new SwingWorker<>() {
-			@Override
-			protected Void doInBackground() throws Exception {
-				// This runs on background thread ✔
-				customerService.delete(customerId);
-				return null;
-			}
-
-			@Override
-			protected void done() {
-				// This runs on UI thread ✔
-				try {
-					get(); // Check for exceptions
-					if (onSuccess != null) {
-						onSuccess.run();
-					}
-				} catch (Exception e) {
-					e.printStackTrace();
-					if (onError != null) {
-						onError.run();
-					}
-				}
-			}
-		};
-		worker.execute();
 	}
 
 	/**
@@ -199,7 +131,7 @@ public class CustomersPage {
 		topPanel.setBackground(CONTENT_BG);
 		topPanel.setBorder(new EmptyBorder(0, 0, 20, 0));
 
-		// Row 1: Title and Add New Button
+		// Row 1: Title and Add Button
 		JPanel titleRow = new JPanel(new BorderLayout());
 		titleRow.setBackground(CONTENT_BG);
 		titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
@@ -213,9 +145,8 @@ public class CustomersPage {
 		addButton.addActionListener(e -> {
 			AddCustomerDialog dialog = new AddCustomerDialog(SwingUtilities.getWindowAncestor(addButton), () -> {
 				refreshCustomerData();
-
-				Window parent = SwingUtilities.getWindowAncestor(addButton);
-				ToastNotification.showSuccess(parent, "Customer saved successfully!");
+				ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(addButton),
+						"Customer saved successfully!");
 			});
 			dialog.setVisible(true);
 		});
@@ -224,21 +155,21 @@ public class CustomersPage {
 		topPanel.add(titleRow);
 		topPanel.add(Box.createVerticalStrut(15));
 
-		// Row 2: Filters with custom spacing
+		// Row 2: Filters
 		JPanel filtersRow = new JPanel();
 		filtersRow.setLayout(new BoxLayout(filtersRow, BoxLayout.X_AXIS));
 		filtersRow.setBackground(CONTENT_BG);
 		filtersRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 
 		// Search field
+		CustomerState state = controller.getState();
 		searchField = new JTextField(20);
 		searchField.setFont(new Font("Arial", Font.PLAIN, 14));
 		searchField.setPreferredSize(new Dimension(300, 38));
 		searchField.setMaximumSize(new Dimension(300, 38));
 		searchField.setBorder(BorderFactory.createCompoundBorder(
 				BorderFactory.createLineBorder(new Color(200, 190, 180), 1), new EmptyBorder(5, 10, 5, 10)));
-		searchField.setText(currentSearch);
-		searchField.addActionListener(e -> performSearch());
+
 		filtersRow.add(searchField);
 
 		filtersRow.add(Box.createHorizontalStrut(10));
@@ -250,7 +181,7 @@ public class CustomersPage {
 
 		filtersRow.add(Box.createHorizontalStrut(15));
 
-		// Sort label and dropdown
+		// Sort dropdown
 		JLabel sortLabel = new JLabel("Sort by:");
 		sortLabel.setFont(new Font("Arial", Font.PLAIN, 14));
 		sortLabel.setForeground(TEXT_DARK);
@@ -263,27 +194,26 @@ public class CustomersPage {
 		sortCombo.setPreferredSize(new Dimension(150, 38));
 		sortCombo.setMaximumSize(new Dimension(150, 38));
 		sortCombo.setBackground(Color.WHITE);
-		sortCombo.setSelectedIndex(currentSortOrder.equals("DESC") ? 0 : 1);
+		sortCombo.setSelectedIndex(state.getSortOrder().equals("DESC") ? 0 : 1);
 		sortCombo.addActionListener(e -> {
 			String selected = (String) sortCombo.getSelectedItem();
 			String newSortOrder = selected.equals("Newest First") ? "DESC" : "ASC";
 
-			// Only reload if sort order actually changed
-			if (!newSortOrder.equals(currentSortOrder)) {
-				currentSortOrder = newSortOrder;
-				sortCombo.setEnabled(false);
+			if (!newSortOrder.equals(state.getSortOrder())) {
+				showLoading();
+				controller.updateSortOrder(newSortOrder, () -> {
+					hideLoading();
 
-				currentPage = 1;
-				loadCustomerDataAsync(() -> {
-					// Re-enable UI
-					sortCombo.setEnabled(true);
 					refreshTable();
+				}, () -> {
+					hideLoading();
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef),
+							"Failed to update sort order");
 				});
 			}
 		});
 		filtersRow.add(sortCombo);
 
-		// Add flexible space
 		filtersRow.add(Box.createHorizontalGlue());
 
 		// Clear Filters button
@@ -296,53 +226,110 @@ public class CustomersPage {
 		return topPanel;
 	}
 
+	private static JPanel createLoadingOverlay() {
+		loadingOverlay = new JPanel(new GridBagLayout());
+		loadingOverlay.setBackground(new Color(250, 247, 242, 220));
+		loadingOverlay.setVisible(false);
+
+		JPanel centerPanel = new JPanel();
+		centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
+		centerPanel.setOpaque(false);
+
+		// Create spinner
+		spinner = new LoadingSpinner(50, new Color(139, 90, 43));
+		spinner.setAlignmentX(JComponent.CENTER_ALIGNMENT);
+		centerPanel.add(spinner);
+
+		centerPanel.add(Box.createVerticalStrut(15));
+
+		// Loading text
+		loadingLabel = new JLabel("Loading...");
+		loadingLabel.setFont(new Font("Arial", Font.BOLD, 16));
+		loadingLabel.setForeground(TEXT_DARK);
+		loadingLabel.setAlignmentX(JLabel.CENTER_ALIGNMENT);
+		centerPanel.add(loadingLabel);
+
+		loadingOverlay.add(centerPanel);
+
+		return loadingOverlay;
+	}
+
 	/**
-	 * Perform search operation
+	 * Show loading indicator
+	 */
+	private static void showLoading() {
+		if (loadingOverlay != null && table != null) {
+			if (spinner != null)
+				spinner.start();
+			loadingOverlay.setVisible(true);
+			table.setEnabled(false);
+
+			if (searchField != null)
+				searchField.setEnabled(false);
+			if (sortCombo != null)
+				sortCombo.setEnabled(false);
+		}
+	}
+
+	/**
+	 * Hide loading indicator
+	 */
+	private static void hideLoading() {
+		if (loadingOverlay != null && table != null) {
+			if (spinner != null)
+				spinner.stop();
+			loadingOverlay.setVisible(false);
+			table.setEnabled(true);
+
+			if (searchField != null)
+				searchField.setEnabled(true);
+			if (sortCombo != null)
+				sortCombo.setEnabled(true);
+		}
+	}
+
+	/**
+	 * Perform search
 	 */
 	private static void performSearch() {
-		currentSearch = searchField.getText().trim();
-		currentPage = 1; // Reset to first page when searching
+		String searchText = searchField.getText().trim();
+		showLoading();
 
-		// Show loading state
-		searchField.setEnabled(false);
-
-		loadCustomerDataAsync(() -> {
-			// Re-enable UI
-			searchField.setEnabled(true);
+		controller.search(searchText, () -> {
+			hideLoading();
 			refreshTable();
+		}, () -> {
+			hideLoading();
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Search failed");
 		});
 	}
 
 	/**
-	 * Clear all filters and reset to default state
+	 * Clear all filters
 	 */
 	private static void clearFilters() {
-		// Reset search
-		currentSearch = "";
 		searchField.setText("");
-
-		// Reset sort to default (Newest First)
-		currentSortOrder = "DESC";
 		sortCombo.setSelectedIndex(0);
 
-		// Reset to first page
-		currentPage = 1;
-
-		// Reload data and refresh table
-		refreshCustomerData();
+		showLoading();
+		controller.clearFilters(() -> {
+			hideLoading();
+			refreshTable();
+		}, () -> {
+			hideLoading();
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to clear filters");
+		});
 	}
 
 	/**
-	 * Create table section with customer data
+	 * Create table section
 	 */
 	private static JPanel createTableSection() {
 		JPanel tablePanel = new JPanel(new BorderLayout());
 		tablePanel.setBackground(CONTENT_BG);
 
-		// Table columns
 		String[] columns = { "Name", "Contact Number", "Address", "Created At", "Actions" };
 
-		// Create table model (non-editable)
 		DefaultTableModel model = new DefaultTableModel(columns, 0) {
 			@Override
 			public boolean isCellEditable(int row, int column) {
@@ -350,10 +337,8 @@ public class CustomersPage {
 			}
 		};
 
-		// Populate with current page data
 		updateTableData(model);
 
-		// Create table
 		table = new JTable(model);
 		table.setFont(new Font("Arial", Font.PLAIN, 14));
 		table.setRowHeight(50);
@@ -370,7 +355,7 @@ public class CustomersPage {
 		table.getColumnModel().getColumn(3).setPreferredWidth(150);
 		table.getColumnModel().getColumn(4).setPreferredWidth(150);
 
-		// Custom header renderer
+		// Custom header
 		JTableHeader header = table.getTableHeader();
 		header.setFont(new Font("Arial", Font.BOLD, 14));
 		header.setBackground(TABLE_HEADER);
@@ -395,48 +380,36 @@ public class CustomersPage {
 				Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
 				if (!isSelected) {
-					if (row % 2 == 0) {
-						c.setBackground(TABLE_ROW_EVEN);
-					} else {
-						c.setBackground(TABLE_ROW_ODD);
-					}
+					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
 				}
 
-				if (column == 4) { // Actions column
-					setHorizontalAlignment(SwingConstants.CENTER);
-				} else {
-					setHorizontalAlignment(SwingConstants.LEFT);
-				}
-
+				setHorizontalAlignment(column == 4 ? SwingConstants.CENTER : SwingConstants.LEFT);
 				((JLabel) c).setBorder(new EmptyBorder(5, 10, 5, 10));
 				return c;
 			}
 		});
 
-		// Add mouse listener for action buttons
+		// Mouse listener for actions
 		table.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent e) {
 				int row = table.rowAtPoint(e.getPoint());
 				int col = table.columnAtPoint(e.getPoint());
 
-				if (col == 4 && row >= 0 && row < customers.size()) { // Actions column
-					Customer customer = customers.get(row);
+				CustomerState state = controller.getState();
+				if (col == 4 && row >= 0 && row < state.getCustomers().size()) {
+					Customer customer = state.getCustomers().get(row);
 					showActionMenu(e.getComponent(), e.getX(), e.getY(), customer, row);
 				}
 			}
 		});
 
-		// Make actions column show hand cursor
+		// Hand cursor on actions column
 		table.addMouseMotionListener(new MouseAdapter() {
 			@Override
 			public void mouseMoved(MouseEvent e) {
 				int col = table.columnAtPoint(e.getPoint());
-				if (col == 4) {
-					table.setCursor(new Cursor(Cursor.HAND_CURSOR));
-				} else {
-					table.setCursor(new Cursor(Cursor.DEFAULT_CURSOR));
-				}
+				table.setCursor(new Cursor(col == 4 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
 			}
 		});
 
@@ -450,12 +423,13 @@ public class CustomersPage {
 	}
 
 	/**
-	 * Update table with current page data
+	 * Update table with current data from state
 	 */
 	private static void updateTableData(DefaultTableModel model) {
 		model.setRowCount(0);
 
-		for (Customer c : customers) {
+		CustomerState state = controller.getState();
+		for (Customer c : state.getCustomers()) {
 			model.addRow(
 					new Object[] { c.getDisplayName(), c.getFormatttedNumber() != null ? c.getFormatttedNumber() : "",
 							c.getAddress() != null ? c.getAddress() : "", formatDate(c.getCreatedAt()), "⚙ Actions" });
@@ -463,7 +437,7 @@ public class CustomersPage {
 	}
 
 	/**
-	 * Format LocalDateTime to display string
+	 * Format date
 	 */
 	private static String formatDate(LocalDateTime date) {
 		if (date == null)
@@ -472,7 +446,7 @@ public class CustomersPage {
 	}
 
 	/**
-	 * Show action menu/dialog when actions column is clicked
+	 * Show action menu
 	 */
 	private static void showActionMenu(Component parent, int x, int y, Customer customer, int row) {
 		JDialog actionDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Actions");
@@ -493,23 +467,22 @@ public class CustomersPage {
 		gbc.gridy++;
 		gbc.insets = new Insets(15, 20, 5, 20);
 
-		// Update button with icon
+		// Update button
 		JButton updateBtn = createActionButton("✏️ Update Customer", ACCENT_GOLD);
 		updateBtn.addActionListener(e -> {
 			actionDialog.dispose();
-
 			UpdateCustomerDialog dialog = new UpdateCustomerDialog(SwingUtilities.getWindowAncestor(updateBtn),
 					customer, () -> {
+						refreshCustomerData();
 						ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(updateBtn),
 								"Customer updated successfully!");
-						refreshCustomerData();
 					});
 			dialog.setVisible(true);
 		});
 		actionDialog.add(updateBtn, gbc);
 
 		gbc.gridy++;
-		// Branches button with icon
+		// Branches button
 		JButton branchesBtn = createActionButton("🏢 View Branches", SIDEBAR_ACTIVE);
 		branchesBtn.addActionListener(e -> {
 			actionDialog.dispose();
@@ -519,7 +492,7 @@ public class CustomersPage {
 		actionDialog.add(branchesBtn, gbc);
 
 		gbc.gridy++;
-		// Delete button with icon
+		// Delete button
 		JButton deleteBtn = createActionButton("🗑️ Delete Customer", new Color(180, 50, 50));
 		deleteBtn.addActionListener(e -> {
 			actionDialog.dispose();
@@ -535,12 +508,12 @@ public class CustomersPage {
 
 		actionDialog.pack();
 		actionDialog.setMinimumSize(new Dimension(350, 250));
-		actionDialog.setLocationRelativeTo(null); // Center on screen
+		actionDialog.setLocationRelativeTo(null);
 		actionDialog.setVisible(true);
 	}
 
 	/**
-	 * Show delete confirmation dialog
+	 * Show delete confirmation
 	 */
 	private static void showDeleteConfirmation(Customer customer) {
 		JDialog confirmDialog = new JDialog(SwingUtilities.getWindowAncestor(table), "Confirm Delete");
@@ -583,31 +556,24 @@ public class CustomersPage {
 		deleteBtn.setPreferredSize(new Dimension(120, 40));
 		deleteBtn.addActionListener(e -> {
 			confirmDialog.dispose();
-
-			// Disable delete button to prevent double-clicks
 			deleteBtn.setEnabled(false);
 
-			// Delete asynchronously
-			deleteCustomerAsync(customer.getId(),
-					// onSuccess
-					() -> {
-						// Refresh data
-						refreshCustomerData();
-						ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(table),
-								"Customer deleted successfully!");
-					},
-					// onError
-					() -> {
-						ToastNotification.showError(SwingUtilities.getWindowAncestor(table),
-								"Failed to delete customer!");
-						deleteBtn.setEnabled(true);
-					});
+			controller.deleteCustomer(customer.getId(), () -> {
+				refreshCustomerData();
+				ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(table),
+						"Customer deleted successfully!");
+			}, ex -> {
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(table),
+						ex.getMessage() != null ? ex.getMessage() : "Failed to delete customer!");
+				deleteBtn.setEnabled(true);
+			});
+
 		});
 		confirmDialog.add(deleteBtn, gbc);
 
 		confirmDialog.pack();
 		confirmDialog.setMinimumSize(new Dimension(400, 200));
-		confirmDialog.setLocationRelativeTo(null); // Center on screen
+		confirmDialog.setLocationRelativeTo(null);
 		confirmDialog.setVisible(true);
 	}
 
@@ -619,100 +585,153 @@ public class CustomersPage {
 		paginationPanel.setBackground(CONTENT_BG);
 		paginationPanel.setBorder(new EmptyBorder(15, 0, 0, 0));
 
-		// Info label (left side)
-		int start = totalCustomers > 0 ? ((currentPage - 1) * itemsPerPage + 1) : 0;
-		int end = Math.min(currentPage * itemsPerPage, totalCustomers);
-
-		String infoText = "Showing " + start + " to " + end + " of " + totalCustomers + " entries";
-		if (!currentSearch.isEmpty()) {
-			infoText += " (filtered by: \"" + currentSearch + "\")";
-		}
-
-		pageInfoLabel = new JLabel(infoText);
+		// Page info label
+		pageInfoLabel = new JLabel();
+		updatePaginationInfo();
 		pageInfoLabel.setFont(new Font("Arial", Font.PLAIN, 14));
 		pageInfoLabel.setForeground(TEXT_DARK);
 		paginationPanel.add(pageInfoLabel, BorderLayout.WEST);
 
-		// Pagination controls (right side)
-		JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
-		controlsPanel.setBackground(CONTENT_BG);
+		// Pagination controls - STORE REFERENCE
+		paginationControlsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 5, 0));
+		paginationControlsPanel.setBackground(CONTENT_BG);
+		updatePaginationButtons();
 
-		int totalPages = Math.max(1, (int) Math.ceil((double) totalCustomers / itemsPerPage));
-
-		// Previous button
-		JButton prevBtn = createPaginationButton("← Previous");
-		prevBtn.setEnabled(currentPage > 1);
-		prevBtn.addActionListener(e -> {
-			if (currentPage > 1) {
-				currentPage--;
-				loadCustomerDataAsync(() -> refreshTable());
-			}
-		});
-		controlsPanel.add(prevBtn);
-
-		// Page numbers (show current page and neighbors)
-		int startPage = Math.max(1, currentPage - 2);
-		int endPage = Math.min(totalPages, currentPage + 2);
-
-		for (int i = startPage; i <= endPage; i++) {
-			final int pageNum = i;
-			JButton pageBtn = createPaginationButton(String.valueOf(i));
-
-			if (i == currentPage) {
-				pageBtn.setBackground(ACCENT_GOLD);
-				pageBtn.setForeground(TEXT_LIGHT);
-			}
-
-			pageBtn.addActionListener(e -> {
-				currentPage = pageNum;
-				loadCustomerDataAsync(() -> refreshTable());
-			});
-			controlsPanel.add(pageBtn);
-		}
-
-		// Next button
-		JButton nextBtn = createPaginationButton("Next →");
-		nextBtn.setEnabled(currentPage < totalPages);
-		nextBtn.addActionListener(e -> {
-			if (currentPage < totalPages) {
-				currentPage++;
-				loadCustomerDataAsync(() -> refreshTable());
-			}
-		});
-		controlsPanel.add(nextBtn);
-
-		paginationPanel.add(controlsPanel, BorderLayout.EAST);
+		paginationPanel.add(paginationControlsPanel, BorderLayout.EAST);
 
 		return paginationPanel;
 	}
 
 	/**
-	 * Refresh customer data (called after adding/updating/deleting)
+	 * Refresh customer data
 	 */
 	public static void refreshCustomerData() {
-		loadCustomerDataAsync(() -> refreshTable());
+		showLoading();
+		controller.loadCustomers(() -> {
+			hideLoading();
+			refreshTable();
+		}, () -> {
+			hideLoading();
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to refresh data");
+		});
+	}
+
+	/**
+	 * Update pagination buttons without recreating them
+	 */
+	private static void updatePaginationButtons() {
+		if (paginationControlsPanel == null)
+			return;
+
+		// Remove old buttons
+		paginationControlsPanel.removeAll();
+
+		CustomerState state = controller.getState();
+		int totalPages = Math.max(1, (int) Math.ceil((double) state.getTotalCustomers() / state.getItemsPerPage()));
+
+		// Previous button
+		JButton prevBtn = createPaginationButton("← Previous");
+		prevBtn.setEnabled(state.getCurrentPage() > 1);
+		prevBtn.addActionListener(e -> {
+			if (state.getCurrentPage() > 1) {
+				showLoading();
+				controller.goToPage(state.getCurrentPage() - 1, () -> {
+					hideLoading();
+					refreshTable();
+				}, () -> {
+					hideLoading();
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to load page");
+				});
+			}
+		});
+		paginationControlsPanel.add(prevBtn);
+
+		// Page numbers
+		int startPage = Math.max(1, state.getCurrentPage() - 2);
+		int endPage = Math.min(totalPages, state.getCurrentPage() + 2);
+
+		for (int i = startPage; i <= endPage; i++) {
+			final int pageNum = i;
+			JButton pageBtn = createPaginationButton(String.valueOf(i));
+
+			if (i == state.getCurrentPage()) {
+				pageBtn.setBackground(ACCENT_GOLD);
+				pageBtn.setForeground(TEXT_LIGHT);
+			}
+
+			pageBtn.addActionListener(e -> {
+				showLoading();
+				controller.goToPage(pageNum, () -> {
+					hideLoading();
+					refreshTable();
+				}, () -> {
+					hideLoading();
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to load page");
+				});
+			});
+			paginationControlsPanel.add(pageBtn);
+		}
+
+		// Next button
+		JButton nextBtn = createPaginationButton("Next →");
+		nextBtn.setEnabled(state.getCurrentPage() < totalPages);
+		nextBtn.addActionListener(e -> {
+			if (state.getCurrentPage() < totalPages) {
+				showLoading();
+				controller.goToPage(state.getCurrentPage() + 1, () -> {
+					hideLoading();
+					refreshTable();
+				}, () -> {
+					hideLoading();
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to load page");
+				});
+			}
+		});
+		paginationControlsPanel.add(nextBtn);
+
+		paginationControlsPanel.revalidate();
+		paginationControlsPanel.repaint();
 	}
 
 	/**
 	 * Refresh table and pagination
 	 */
 	private static void refreshTable() {
-		if (mainPanelRef == null)
+		if (table == null || mainPanelRef == null)
 			return;
 
-		mainPanelRef.removeAll();
+		// Update table data
+		DefaultTableModel model = (DefaultTableModel) table.getModel();
+		updateTableData(model);
 
-		JPanel topSection = createTopSection();
-		mainPanelRef.add(topSection, BorderLayout.NORTH);
+		// Update pagination info label
+		updatePaginationInfo();
 
-		JPanel tableSection = createTableSection();
-		mainPanelRef.add(tableSection, BorderLayout.CENTER);
+		// Update pagination buttons
+		updatePaginationButtons();
 
-		JPanel bottomSection = createPaginationSection();
-		mainPanelRef.add(bottomSection, BorderLayout.SOUTH);
+		// Refresh the table display
+		table.revalidate();
+		table.repaint();
+	}
 
-		mainPanelRef.revalidate();
-		mainPanelRef.repaint();
+	/**
+	 * Update pagination info label
+	 */
+	private static void updatePaginationInfo() {
+		if (pageInfoLabel == null)
+			return;
+
+		CustomerState state = controller.getState();
+		int start = state.getTotalCustomers() > 0 ? ((state.getCurrentPage() - 1) * state.getItemsPerPage() + 1) : 0;
+		int end = Math.min(state.getCurrentPage() * state.getItemsPerPage(), state.getTotalCustomers());
+
+		String infoText = "Showing " + start + " to " + end + " of " + state.getTotalCustomers() + " entries";
+		if (!state.getSearch().isEmpty()) {
+			infoText += " (filtered by: \"" + state.getSearch() + "\")";
+		}
+
+		pageInfoLabel.setText(infoText);
 	}
 
 	/**
@@ -744,7 +763,7 @@ public class CustomersPage {
 	}
 
 	/**
-	 * Create action button (for dialogs)
+	 * Create action button
 	 */
 	private static JButton createActionButton(String text, Color bgColor) {
 		JButton button = new JButton(text);

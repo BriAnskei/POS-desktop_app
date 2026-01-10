@@ -19,7 +19,6 @@ CREATE TABLE IF NOT EXISTS customer (
         (type = 'company' AND company_name IS NOT NULL)
     )
 );
-
  -- customer indexis
 CREATE INDEX IF NOT EXISTS idx_customer_created_at
 ON customer(created_at DESC);
@@ -41,9 +40,6 @@ CREATE TABLE IF NOT EXISTS branches (
         ON UPDATE CASCADE
 );
 
-
-
-
  -- Branches indexis
  -- For pagination
 CREATE INDEX IF NOT EXISTS idx_branches_id
@@ -56,7 +52,7 @@ ON branches(customer_id);
 
 
 
--- FTS5
+-- FTS5 (Customer, Branch)
 CREATE VIRTUAL TABLE IF NOT EXISTS customer_fts
 USING fts5(
     display_name,
@@ -64,6 +60,9 @@ USING fts5(
     content_rowid='id',
     prefix='2 3 4'
 );
+
+
+
 
 -- triggers
 -- After INSERT
@@ -92,5 +91,57 @@ BEGIN
   INSERT INTO customer_fts(rowid, display_name)
   VALUES (new.id, new.display_name);
 END;
+
+
+
+
+
+-- Product table
+CREATE TABLE IF NOT EXISTS product (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,          -- UniqueID (PK)
+
+
+    product_name TEXT NOT NULL,
+    selling_price REAL NOT NULL CHECK (selling_price >= 0),
+    capital REAL NOT NULL CHECK (capital >= 0),
+
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+ 
+);
+
+
+CREATE INDEX IF NOT EXISTS idx_product_name ON product(product_name);
+CREATE INDEX IF NOT EXISTS idx_product_created_at ON product(created_at);
+
+
+
+
+
+-- Procduct association
+CREATE TABLE IF NOT EXISTS product_association (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+    customer_id INTEGER NOT NULL,
+    product_id INTEGER NOT NULL,
+    
+    UNIQUE (customer_id, product_id), -- customer cannot be asscociated on the same product more than once
+
+
+    FOREIGN KEY (customer_id)
+        REFERENCES customer(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+    FOREIGN KEY (product_id)
+        REFERENCES product(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_assoc_customer ON product_association(customer_id);
+CREATE INDEX IF NOT EXISTS idx_product_assoc_product ON product_association(product_id);
+
+
+
 
 

@@ -1,14 +1,12 @@
 package com.gierza_molases.molases_app.service;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.List;
 
 import com.gierza_molases.molases_app.dao.BranchDao;
 import com.gierza_molases.molases_app.dao.CustomerDao;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
-import com.gierza_molases.molases_app.util.Database;
+import com.gierza_molases.molases_app.util.TransactionHelper;
 
 public class CustomerService {
 
@@ -24,72 +22,24 @@ public class CustomerService {
 			String address, List<Branch> branches) {
 
 		Customer customer = Customer.newIndividual(firstName, midName, lastName, contactNumber, address);
-
 		customer.validate();
 
-		Connection conn = Database.init();
-		boolean originalAutoCommit = false;
-
-		try {
-			originalAutoCommit = conn.getAutoCommit();
-			conn.setAutoCommit(false);
-
+		TransactionHelper.executeInTransaction(conn -> {
 			int customerId = customerDao.insertAsIndividual(customer, conn);
-
 			branchDao.insertBranches(customerId, branches, conn);
-
-			conn.commit();
-
-		} catch (Exception e) {
-			try {
-				conn.rollback();
-			} catch (SQLException ex) {
-				throw new RuntimeException("Rollback failed", ex);
-			}
-			throw new RuntimeException("Failed to create customer", e);
-
-		} finally {
-			try {
-				conn.setAutoCommit(originalAutoCommit);
-			} catch (SQLException e) {
-				throw new RuntimeException(e);
-			}
-		}
+		});
 	}
 
 	public void addCustomerAsCompanyType(String companyName, String contactNumber, String address,
 			List<Branch> branches) {
-		Customer customer = Customer.newCompany(companyName, contactNumber, address);
 
+		Customer customer = Customer.newCompany(companyName, contactNumber, address);
 		customer.validate();
 
-		Connection conn = Database.init();
-		boolean originalAutoCommit = false;
-
-		try {
-			originalAutoCommit = conn.getAutoCommit();
-			conn.setAutoCommit(false); // BEGIN TRANSACTION
-
-			int insertedCustomerId = customerDao.insertAsCompany(customer, conn);
-
-			branchDao.insertBranches(insertedCustomerId, branches, conn);
-
-			conn.commit(); // COMMIT
-		} catch (Exception e) {
-			try {
-				conn.rollback();
-			} catch (SQLException ex) {
-				throw new RuntimeException("Rollback failed", ex);
-			}
-			throw new RuntimeException("Failed to create customer", e);
-		} finally {
-			try {
-				conn.setAutoCommit(originalAutoCommit);
-			} catch (SQLException e) {
-				throw new RuntimeException(e);
-			}
-		}
-
+		TransactionHelper.executeInTransaction(conn -> {
+			int customerId = customerDao.insertAsCompany(customer, conn);
+			branchDao.insertBranches(customerId, branches, conn);
+		});
 	}
 
 	public List<Customer> fetchAll(int page, int pageSize, String search, String sortOrder) {

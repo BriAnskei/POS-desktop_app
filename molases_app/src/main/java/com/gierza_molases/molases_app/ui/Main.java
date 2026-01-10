@@ -27,7 +27,7 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
-import com.gierza_molases.molases_app.util.AppContext;
+import com.gierza_molases.molases_app.Context.AppContext;
 
 public class Main extends JFrame {
 
@@ -314,6 +314,10 @@ public class Main extends JFrame {
 			break;
 		case "Branches":
 			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.BranchesPage.createPanel(),
+					BorderLayout.CENTER);
+			break;
+		case "Product":
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.ProductsPage.createPanel(),
 					BorderLayout.CENTER);
 			break;
 
