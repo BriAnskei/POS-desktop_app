@@ -18,7 +18,7 @@ public class ProductAssociationService {
 	}
 
 	public List<Customer> fetchByProductId(int productId) {
-		System.out.println("fetching associated by product: " + productId);
+
 		return productAssociationDao.fetchAssociationByProductId(productId);
 	}
 

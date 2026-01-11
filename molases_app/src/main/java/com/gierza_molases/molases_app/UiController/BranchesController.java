@@ -4,8 +4,8 @@ import java.util.List;
 
 import javax.swing.SwingWorker;
 
-import com.gierza_molases.molases_app.Context.BranchState;
-import com.gierza_molases.molases_app.Context.BranchState.PageState;
+import com.gierza_molases.molases_app.context.BranchState;
+import com.gierza_molases.molases_app.context.BranchState.PageState;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.service.BranchService;
 

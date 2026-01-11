@@ -34,9 +34,9 @@ import javax.swing.OverlayLayout;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
-import com.gierza_molases.molases_app.Context.AppContext;
-import com.gierza_molases.molases_app.Context.ProductState;
 import com.gierza_molases.molases_app.UiController.ProductsController;
+import com.gierza_molases.molases_app.context.AppContext;
+import com.gierza_molases.molases_app.context.ProductState;
 import com.gierza_molases.molases_app.model.Product;
 import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
@@ -657,7 +657,7 @@ public class ProductsPage {
 		com.gierza_molases.molases_app.ui.dialogs.ProductDialogs.UpdateProductDialog.show(getParentWindow(), product,
 				productsController, // Add the controller here
 				() -> {
-					// Remove the success toast from here since it's already shown in the dialog
+
 					updateCardsFromState();
 				});
 	}

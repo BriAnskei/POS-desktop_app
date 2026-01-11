@@ -1,4 +1,4 @@
-package com.gierza_molases.molases_app.Context;
+package com.gierza_molases.molases_app.context;
 
 import java.sql.Connection;
 

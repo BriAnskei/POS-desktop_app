@@ -33,7 +33,7 @@ import javax.swing.border.EmptyBorder;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 
-import com.gierza_molases.molases_app.Context.AppContext;
+import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.service.CustomerService;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;

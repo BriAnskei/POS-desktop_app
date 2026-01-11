@@ -35,8 +35,8 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
-import com.gierza_molases.molases_app.Context.AppContext;
 import com.gierza_molases.molases_app.UiController.ProductsController;
+import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.Product;
 import com.gierza_molases.molases_app.service.CustomerService;

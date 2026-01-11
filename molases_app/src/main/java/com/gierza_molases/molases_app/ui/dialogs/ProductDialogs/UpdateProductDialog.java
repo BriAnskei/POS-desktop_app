@@ -251,7 +251,13 @@ public class UpdateProductDialog extends JDialog {
 	 * Handle add customer association button click
 	 */
 	private void handleAddCustomerAssociation() {
-		AddCustomerAssociationDialog.show(this, product.getId(), product.getName(), null);
+		AddCustomerAssociationDialog.show(this, product.getId(), product.getName(), () -> {
+
+			// Notify parent if callback exists
+			if (onSuccessCallback != null) {
+				onSuccessCallback.run();
+			}
+		});
 		dispose();
 	}
 

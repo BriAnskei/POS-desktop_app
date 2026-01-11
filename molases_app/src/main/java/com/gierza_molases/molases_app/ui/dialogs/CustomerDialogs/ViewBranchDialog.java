@@ -24,7 +24,7 @@ import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
 import javax.swing.border.EmptyBorder;
 
-import com.gierza_molases.molases_app.Context.AppContext;
+import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.service.BranchService;

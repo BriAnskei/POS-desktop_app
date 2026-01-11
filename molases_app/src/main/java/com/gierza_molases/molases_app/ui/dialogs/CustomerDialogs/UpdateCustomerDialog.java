@@ -21,8 +21,8 @@ import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.border.EmptyBorder;
 
-import com.gierza_molases.molases_app.Context.AppContext;
 import com.gierza_molases.molases_app.UiController.CustomersController;
+import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.util.Listener;

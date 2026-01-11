@@ -27,14 +27,13 @@ import javax.swing.JPanel;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
-import com.gierza_molases.molases_app.Context.AppContext;
+import com.gierza_molases.molases_app.context.AppContext;
 
 public class Main extends JFrame {
 
 	private static final long serialVersionUID = 1L;
 	private JPanel contentPane;
 	private JPanel mainContentArea;
-	private JLabel currentPageLabel;
 
 	// Color Palette - Professional Molasses Theme
 	private static final Color SIDEBAR_BG = new Color(62, 39, 35); // Dark brown
@@ -308,6 +307,11 @@ public class Main extends JFrame {
 		mainContentArea.removeAll();
 
 		switch (pageName) {
+
+		case "Delivery":
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveriesPage.createPanel(),
+					BorderLayout.CENTER);
+			break;
 		case "Customer":
 			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.CustomersPage.createPanel(),
 					BorderLayout.CENTER);

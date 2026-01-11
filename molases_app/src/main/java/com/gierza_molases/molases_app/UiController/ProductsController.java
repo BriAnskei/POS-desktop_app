@@ -5,7 +5,7 @@ import java.util.function.Consumer;
 
 import javax.swing.SwingWorker;
 
-import com.gierza_molases.molases_app.Context.ProductState;
+import com.gierza_molases.molases_app.context.ProductState;
 import com.gierza_molases.molases_app.model.Product;
 import com.gierza_molases.molases_app.service.ProductAssociationService;
 import com.gierza_molases.molases_app.service.ProductService;
