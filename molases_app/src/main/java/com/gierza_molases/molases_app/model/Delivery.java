@@ -20,6 +20,8 @@ public class Delivery {
 	private Map<String, Double> expenses;
 
 	private String status; // scheduled, delivered, cancelled
+
+	private Double totalGross;
 	private Double overAllCapital;
 	private Double overAllProfit;
 
@@ -35,19 +37,21 @@ public class Delivery {
 
 	// create
 	public Delivery(Integer id, LocalDateTime scheduleDate, String name, Map<String, Double> expenses, String status,
-			Double overAllProfit, Double overAllCapital, LocalDateTime createdAt) {
-		this(id, scheduleDate, name, expenses, status, overAllProfit, overAllCapital, createdAt, 0, 0);
+			Double totalGross, Double overAllProfit, Double overAllCapital, LocalDateTime createdAt) {
+		this(id, scheduleDate, name, expenses, status, totalGross, overAllProfit, overAllCapital, createdAt, 0, 0);
 	}
 
 	// fetch
 	public Delivery(Integer id, LocalDateTime scheduleDate, String name, Map<String, Double> expenses, String status,
-			double overAllProfit, Double overAllCapital, LocalDateTime createdAt, int totalCustomers,
+			Double totalGross, double overAllProfit, Double overAllCapital, LocalDateTime createdAt, int totalCustomers,
 			int totalBranches) {
 		this.id = id;
 		this.scheduleDate = scheduleDate;
 		this.name = name;
 		this.expenses = expenses != null ? new HashMap<>(expenses) : new HashMap<>();
 		this.status = status;
+
+		this.totalGross = totalGross;
 		this.overAllProfit = overAllProfit;
 		this.overAllCapital = overAllCapital;
 		this.createdAt = createdAt;
@@ -155,6 +159,10 @@ public class Delivery {
 
 	public String getStatus() {
 		return status;
+	}
+
+	public Double getTotalGross() {
+		return totalGross;
 	}
 
 	public Double getOverAllProfit() {

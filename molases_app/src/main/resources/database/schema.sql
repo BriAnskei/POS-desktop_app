@@ -165,8 +165,6 @@ ON delivery(created_at);
 CREATE TABLE IF NOT EXISTS customer_delivery (
     id INTEGER PRIMARY KEY AUTOINCREMENT,   -- UniqueID (PK)
     
-
-
     customer_id INTEGER NOT NULL,           -- FK
     delivery_id INTEGER NOT NULL,           -- FK
     

@@ -309,8 +309,15 @@ public class Main extends JFrame {
 		switch (pageName) {
 
 		case "Delivery":
-			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveriesPage.createPanel(),
-					BorderLayout.CENTER);
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveriesPage
+					.createPanel(() -> showPage("AddDelivery"), () -> showPage("Delivery")), BorderLayout.CENTER);
+			break;
+
+		case "AddDelivery":
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveryFormPage.createPanel(
+					() -> showPage("Delivery"), // onCancel
+					() -> showPage("Delivery") // onSave
+			), BorderLayout.CENTER);
 			break;
 		case "Customer":
 			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.CustomersPage.createPanel(),

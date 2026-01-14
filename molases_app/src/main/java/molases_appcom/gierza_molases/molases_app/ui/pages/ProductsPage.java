@@ -731,10 +731,6 @@ public class ProductsPage {
 		confirmDialog.setVisible(true);
 	}
 
-	/*
-	 * ========================= BUTTON FACTORIES =========================
-	 */
-
 	/**
 	 * Create styled button
 	 */

@@ -101,28 +101,28 @@ public class DeliveriesPage {
 
 		// Create mock deliveries
 		mockDeliveries.add(new Delivery(1, LocalDateTime.of(2026, 1, 15, 9, 0), "Morning Route A", expenses1,
-				"scheduled", 2500.0, 5000.0, LocalDateTime.of(2026, 1, 10, 14, 30), 5, 3));
+				"scheduled", 2500.0, 5000.0, null, LocalDateTime.of(2026, 1, 10, 14, 30), 5, 3));
 
 		mockDeliveries.add(new Delivery(2, LocalDateTime.of(2026, 1, 14, 14, 0), "Afternoon Route B", expenses2,
-				"complete", 3200.0, 6000.0, LocalDateTime.of(2026, 1, 9, 10, 15), 8, 5));
+				"complete", 3200.0, 6000.0, null, LocalDateTime.of(2026, 1, 9, 10, 15), 8, 5));
 
 		mockDeliveries.add(new Delivery(3, LocalDateTime.of(2026, 1, 16, 8, 30), "Downtown Delivery", expenses3,
-				"scheduled", 1800.0, 4000.0, LocalDateTime.of(2026, 1, 11, 16, 45), 3, 2));
+				"scheduled", 1800.0, 4000.0, null, LocalDateTime.of(2026, 1, 11, 16, 45), 3, 2));
 
 		mockDeliveries.add(new Delivery(4, LocalDateTime.of(2026, 1, 13, 10, 0), "Express Route", expenses4, "complete",
-				4100.0, 7500.0, LocalDateTime.of(2026, 1, 8, 11, 20), 12, 7));
+				4100.0, 7500.0, null, LocalDateTime.of(2026, 1, 8, 11, 20), 12, 7));
 
 		mockDeliveries.add(new Delivery(5, LocalDateTime.of(2026, 1, 17, 13, 0), "Weekend Special", expenses5,
-				"scheduled", 2900.0, 5500.0, LocalDateTime.of(2026, 1, 12, 9, 30), 6, 4));
+				"scheduled", 2900.0, 5500.0, null, LocalDateTime.of(2026, 1, 12, 9, 30), 6, 4));
 
 		mockDeliveries.add(new Delivery(6, LocalDateTime.of(2026, 1, 12, 15, 30), "Evening Route C", expenses1,
-				"complete", 2200.0, 4500.0, LocalDateTime.of(2026, 1, 7, 13, 10), 4, 3));
+				"complete", 2200.0, 4500.0, null, LocalDateTime.of(2026, 1, 7, 13, 10), 4, 3));
 
 		mockDeliveries.add(new Delivery(7, LocalDateTime.of(2026, 1, 18, 7, 0), "Early Bird Route", expenses2,
-				"scheduled", 3500.0, 6500.0, LocalDateTime.of(2026, 1, 13, 15, 0), 9, 6));
+				"scheduled", 3500.0, 6500.0, null, LocalDateTime.of(2026, 1, 13, 15, 0), 9, 6));
 
 		mockDeliveries.add(new Delivery(8, LocalDateTime.of(2026, 1, 11, 11, 0), "Midday Express", expenses3,
-				"complete", 2700.0, 5200.0, LocalDateTime.of(2026, 1, 6, 12, 45), 7, 4));
+				"complete", 2700.0, 5200.0, null, LocalDateTime.of(2026, 1, 6, 12, 45), 7, 4));
 
 		// Initially show all deliveries
 		filteredDeliveries = new ArrayList<>(mockDeliveries);
@@ -131,7 +131,7 @@ public class DeliveriesPage {
 	/**
 	 * Create the Deliveries Page panel
 	 */
-	public static JPanel createPanel() {
+	public static JPanel createPanel(Runnable onAddNew, Runnable onRefresh) {
 		initMockData();
 
 		JPanel mainPanel = new JPanel(new BorderLayout(0, 20));
@@ -139,8 +139,8 @@ public class DeliveriesPage {
 		mainPanel.setBorder(new EmptyBorder(0, 0, 0, 0));
 		mainPanelRef = mainPanel;
 
-		// Top Section
-		JPanel topSection = createTopSection();
+		// Top Section - pass the callback
+		JPanel topSection = createTopSection(onAddNew);
 		mainPanel.add(topSection, BorderLayout.NORTH);
 
 		// Center Section (table with overlay)
@@ -243,7 +243,7 @@ public class DeliveriesPage {
 	/**
 	 * Create top section
 	 */
-	private static JPanel createTopSection() {
+	private static JPanel createTopSection(Runnable onAddNew) {
 		JPanel topPanel = new JPanel();
 		topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.Y_AXIS));
 		topPanel.setBackground(CONTENT_BG);
@@ -261,8 +261,9 @@ public class DeliveriesPage {
 
 		JButton addButton = createStyledButton("+ Add New", ACCENT_GOLD);
 		addButton.addActionListener(e -> {
-			ToastNotification.showInfo(SwingUtilities.getWindowAncestor(addButton),
-					"Add Delivery dialog - Coming soon!");
+			if (onAddNew != null) {
+				onAddNew.run(); // Call the navigation callback
+			}
 		});
 		titleRow.add(addButton, BorderLayout.EAST);
 
