@@ -62,6 +62,43 @@ public class CustomersController {
 		}.execute();
 	}
 
+	public void loadTop20Customers(Runnable onDone, Consumer<String> onError) {
+		// reset first
+		this.resetState();
+
+		new SwingWorker<Void, Void>() {
+			private List<Customer> loaded;
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					loaded = service.fetch20Customer(state.getSearch());
+
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null)
+						onError.accept(error.getMessage());
+
+				} else {
+					state.setCustomers(loaded);
+
+					if (onDone != null)
+						onDone.run();
+				}
+			}
+
+		}.execute();
+	}
+
 	/**
 	 * Delete customer by ID
 	 */
@@ -228,6 +265,14 @@ public class CustomersController {
 	public void goToPage(int page, Runnable onDone, Runnable onError) {
 		state.setCurrentPage(page);
 		loadCustomers(onDone, onError);
+	}
+
+	/**
+	 * Update search and reload load 20 customer
+	 */
+	public void search20(String searchText, Runnable onDone, Consumer<String> onError) {
+		state.setSearch(searchText);
+		this.loadTop20Customers(onDone, onError);
 	}
 
 	/**

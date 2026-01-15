@@ -38,7 +38,7 @@ public class BranchesController {
 			protected List<Branch> doInBackground() {
 				try {
 					String filter = state.getSearch().isEmpty() ? null : state.getSearch();
-					loaded = service.getBranchesByCustomerId(state.getLastSeenBranchId(), filter, state.getPageSize());
+					loaded = service.fetchBranchCursor(state.getLastSeenBranchId(), filter, state.getPageSize());
 				} catch (Exception e) {
 					error = e;
 				}
@@ -74,6 +74,51 @@ public class BranchesController {
 						onDone.run();
 				}
 			}
+		}.execute();
+	}
+
+	/**
+	 * Load branch by customer id
+	 * 
+	 */
+
+	public void loadBranchByCustomerId(int customerId, Runnable onSuccess, Runnable onError) {
+		new SwingWorker<List<Branch>, Void>() {
+			private List<Branch> customerBranches;
+			private Exception error;
+
+			@Override
+			protected List<Branch> doInBackground() {
+				try {
+					customerBranches = service.getBranchesByCustomerId(customerId);
+				} catch (Exception e) {
+					error = e;
+				}
+
+				return customerBranches;
+
+			}
+
+			@Override
+			protected void done() {
+
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null)
+						onError.run();
+				} else {
+
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+
+					state.reset();
+					state.setBranches(customerBranches);
+
+				}
+
+			}
+
 		}.execute();
 	}
 

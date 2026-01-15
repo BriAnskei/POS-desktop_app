@@ -13,6 +13,8 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.border.EmptyBorder;
 
+import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep1;
 import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep2;
 import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep3;
@@ -42,6 +44,9 @@ public class DeliveryFormPage {
 	// Main panel reference for navigation
 	private static JPanel mainContentPanel;
 	private static JScrollPane mainScrollPane;
+
+	// controller
+	NewDeliveryController newDeliveryController = AppContext.newDeliveryController;
 
 	public static JPanel createPanel(Runnable onCancel, Runnable onSave) {
 		// Reset to step 1

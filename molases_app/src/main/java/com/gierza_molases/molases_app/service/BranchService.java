@@ -31,7 +31,7 @@ public class BranchService {
 	/**
 	 * Get all branches with search
 	 */
-	public List<Branch> getBranchesByCustomerId(Long lastSeenBranchId, String customerFilterName, int pageSize) {
+	public List<Branch> fetchBranchCursor(Long lastSeenBranchId, String customerFilterName, int pageSize) {
 		return branchDao.fetchNextPage(lastSeenBranchId, customerFilterName, pageSize);
 	}
 
