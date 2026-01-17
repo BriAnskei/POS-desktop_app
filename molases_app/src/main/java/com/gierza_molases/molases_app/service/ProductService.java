@@ -40,6 +40,11 @@ public class ProductService {
 		return productDao.findAll(search, newestFirst);
 	}
 
+	public List<Product> getallProductsForSelection(int customerId, String search) {
+		System.out.println("Fetching product + " + customerId + search);
+		return productDao.getProductsAndAssocitedByCustomerId(customerId, search);
+	}
+
 	public void updateProduct(Product product) {
 		product.validate();
 

@@ -24,10 +24,10 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.border.EmptyBorder;
 
-import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep2.BranchData;
-import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep2.CustomerDeliveryData;
+import com.gierza_molases.molases_app.model.Branch;
+import com.gierza_molases.molases_app.model.Customer;
+import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep2.Step2Data;
-import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep3.ProductOrderData;
 import com.gierza_molases.molases_app.ui.components.delivery.UIComponentFactory;
 
 public class CustomerDeliveryDetailsDialog extends JDialog {
@@ -43,23 +43,23 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 	private static final Color PROFIT_GREEN = new Color(34, 139, 34);
 
 	private Step2Data step2Data;
-	private Map<String, Boolean> customerExpandedState = new HashMap<>();
-	private Map<String, Boolean> branchExpandedState = new HashMap<>();
-	private Map<String, String> branchAddressMockData = new HashMap<>();
+	private Map<Integer, Boolean> customerExpandedState = new HashMap<>(); // customerId -> expanded
+	private Map<String, Boolean> branchExpandedState = new HashMap<>(); // customerId_branchId -> expanded
 	private JPanel contentPanel;
 
 	public CustomerDeliveryDetailsDialog(JFrame parent, Step2Data step2Data) {
 		super(parent, "Customer Delivery Details", true);
 		this.step2Data = step2Data;
 
-		// Initialize mock addresses for branches
-		initializeMockAddresses();
-
 		// Initialize all customers and branches as collapsed
-		for (CustomerDeliveryData customer : step2Data.customers) {
-			customerExpandedState.put(customer.customerName, false);
-			for (BranchData branch : customer.branches) {
-				String branchKey = customer.customerName + "_" + getBranchAddress(customer.customerName, branch);
+		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> customerEntry : step2Data.customerDeliveries
+				.entrySet()) {
+			Customer customer = customerEntry.getKey();
+			customerExpandedState.put(customer.getId(), false);
+
+			Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
+			for (Branch branch : branches.keySet()) {
+				String branchKey = customer.getId() + "_" + branch.getId();
 				branchExpandedState.put(branchKey, false);
 			}
 		}
@@ -89,50 +89,6 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		// Dialog settings
 		setSize(1000, 700);
 		setLocationRelativeTo(parent);
-	}
-
-	private void initializeMockAddresses() {
-		// Mock addresses for different customers and branches
-		// Format: "customerName_branchIndex" -> "address"
-		branchAddressMockData.put("ABC_0", "123 Main St, Butuan City");
-		branchAddressMockData.put("ABC_1", "456 Commerce Ave, Butuan City");
-
-		branchAddressMockData.put("XYZ_0", "789 Industrial Rd, Butuan City");
-		branchAddressMockData.put("XYZ_1", "321 Business Park, Butuan City");
-		branchAddressMockData.put("XYZ_2", "555 Trade Center, Butuan City");
-
-		branchAddressMockData.put("Golden_0", "888 Golden Plaza, Butuan City");
-		branchAddressMockData.put("Golden_1", "999 Sunshine Blvd, Butuan City");
-
-		// Default addresses for other customers
-		branchAddressMockData.put("default_0", "100 Central St, Butuan City");
-		branchAddressMockData.put("default_1", "200 Downtown Ave, Butuan City");
-	}
-
-	private String getBranchAddress(String customerName, BranchData branch) {
-		// Get branch index from customer's branch list
-		CustomerDeliveryData customer = step2Data.customers.stream().filter(c -> c.customerName.equals(customerName))
-				.findFirst().orElse(null);
-
-		if (customer != null) {
-			int branchIndex = customer.branches.indexOf(branch);
-
-			// Try to find mock address based on customer name pattern
-			String addressKey = null;
-			if (customerName.contains("ABC")) {
-				addressKey = "ABC_" + branchIndex;
-			} else if (customerName.contains("XYZ")) {
-				addressKey = "XYZ_" + branchIndex;
-			} else if (customerName.contains("Golden")) {
-				addressKey = "Golden_" + branchIndex;
-			} else {
-				addressKey = "default_" + branchIndex;
-			}
-
-			return branchAddressMockData.getOrDefault(addressKey, "Unknown Address, Butuan City");
-		}
-
-		return "Unknown Address, Butuan City";
 	}
 
 	private JPanel createHeader() {
@@ -181,8 +137,10 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 	private void buildContent() {
 		contentPanel.removeAll();
 
-		for (CustomerDeliveryData customer : step2Data.customers) {
-			contentPanel.add(createCustomerPanel(customer));
+		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : step2Data.customerDeliveries
+				.entrySet()) {
+			Customer customer = entry.getKey();
+			contentPanel.add(createCustomerPanel(customer, entry.getValue()));
 			contentPanel.add(Box.createVerticalStrut(4));
 		}
 
@@ -190,7 +148,7 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		contentPanel.repaint();
 	}
 
-	private JPanel createCustomerPanel(CustomerDeliveryData customer) {
+	private JPanel createCustomerPanel(Customer customer, Map<Branch, List<ProductWithQuantity>> branches) {
 		JPanel customerPanel = new JPanel();
 		customerPanel.setLayout(new BoxLayout(customerPanel, BoxLayout.Y_AXIS));
 		customerPanel.setBackground(CUSTOMER_BG);
@@ -198,18 +156,20 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 				new EmptyBorder(0, 0, 0, 0)));
 
 		// Customer Header (clickable)
-		JPanel customerHeader = createCustomerHeader(customer);
+		JPanel customerHeader = createCustomerHeader(customer, branches);
 		customerPanel.add(customerHeader);
 
 		// Customer Content (branches) - only shown if expanded
-		if (customerExpandedState.get(customer.customerName)) {
+		if (customerExpandedState.get(customer.getId())) {
 			JPanel branchesContainer = new JPanel();
 			branchesContainer.setLayout(new BoxLayout(branchesContainer, BoxLayout.Y_AXIS));
 			branchesContainer.setBackground(CUSTOMER_BG);
 			branchesContainer.setBorder(new EmptyBorder(5, 15, 10, 10));
 
-			for (BranchData branch : customer.branches) {
-				branchesContainer.add(createBranchPanel(customer.customerName, branch));
+			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
+				Branch branch = branchEntry.getKey();
+				List<ProductWithQuantity> products = branchEntry.getValue();
+				branchesContainer.add(createBranchPanel(customer, branch, products));
 				branchesContainer.add(Box.createVerticalStrut(5));
 			}
 
@@ -219,26 +179,26 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		return customerPanel;
 	}
 
-	private JPanel createCustomerHeader(CustomerDeliveryData customer) {
+	private JPanel createCustomerHeader(Customer customer, Map<Branch, List<ProductWithQuantity>> branches) {
 		JPanel header = new JPanel(new BorderLayout());
 		header.setBackground(CUSTOMER_BG);
 		header.setBorder(new EmptyBorder(10, 10, 10, 10));
 		header.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
 
 		// Calculate customer totals
-		double customerSales = calculateCustomerSales(customer);
+		double customerSales = calculateCustomerSales(branches);
 
 		// Left side - Icon and name
 		JPanel leftPanel = new JPanel(new BorderLayout());
 		leftPanel.setBackground(CUSTOMER_BG);
 
-		boolean isExpanded = customerExpandedState.get(customer.customerName);
+		boolean isExpanded = customerExpandedState.get(customer.getId());
 		JLabel expandIcon = new JLabel(isExpanded ? "▼" : "▶");
 		expandIcon.setFont(new Font("Arial", Font.BOLD, 14));
 		expandIcon.setForeground(SIDEBAR_ACTIVE);
 		expandIcon.setBorder(new EmptyBorder(0, 0, 0, 10));
 
-		JLabel nameLabel = new JLabel(customer.customerName);
+		JLabel nameLabel = new JLabel(customer.getDisplayName());
 		nameLabel.setFont(new Font("Arial", Font.BOLD, 16));
 		nameLabel.setForeground(TEXT_DARK);
 
@@ -254,7 +214,7 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		gbc.insets = new Insets(0, 20, 0, 0);
 
 		// Total Branches
-		JLabel branchesLabel = new JLabel("Branches: " + customer.getBranchCount());
+		JLabel branchesLabel = new JLabel("Branches: " + branches.size());
 		branchesLabel.setFont(new Font("Arial", Font.BOLD, 14));
 		branchesLabel.setForeground(SIDEBAR_ACTIVE);
 		statsPanel.add(branchesLabel, gbc);
@@ -273,7 +233,7 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		header.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent e) {
-				customerExpandedState.put(customer.customerName, !customerExpandedState.get(customer.customerName));
+				customerExpandedState.put(customer.getId(), !customerExpandedState.get(customer.getId()));
 				buildContent();
 			}
 
@@ -295,7 +255,7 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		return header;
 	}
 
-	private JPanel createBranchPanel(String customerName, BranchData branch) {
+	private JPanel createBranchPanel(Customer customer, Branch branch, List<ProductWithQuantity> products) {
 		JPanel branchPanel = new JPanel();
 		branchPanel.setLayout(new BoxLayout(branchPanel, BoxLayout.Y_AXIS));
 		branchPanel.setBackground(BRANCH_BG);
@@ -303,22 +263,18 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 				BorderFactory.createLineBorder(new Color(200, 190, 180), 1), new EmptyBorder(0, 0, 0, 0)));
 
 		// Branch Header (clickable)
-		JPanel branchHeader = createBranchHeader(customerName, branch);
+		JPanel branchHeader = createBranchHeader(customer, branch, products);
 		branchPanel.add(branchHeader);
 
 		// Branch Content (products) - only shown if expanded
-		String branchAddress = getBranchAddress(customerName, branch);
-		String branchKey = customerName + "_" + branchAddress;
+		String branchKey = customer.getId() + "_" + branch.getId();
 		if (branchExpandedState.get(branchKey)) {
 			JPanel productsContainer = new JPanel();
 			productsContainer.setLayout(new BoxLayout(productsContainer, BoxLayout.Y_AXIS));
 			productsContainer.setBackground(BRANCH_BG);
 			productsContainer.setBorder(new EmptyBorder(5, 20, 10, 10));
 
-			// Get mock products for this branch
-			List<ProductOrderData> products = getMockProductsForBranch(customerName, branch);
-
-			for (ProductOrderData product : products) {
+			for (ProductWithQuantity product : products) {
 				productsContainer.add(createProductPanel(product));
 				productsContainer.add(Box.createVerticalStrut(3));
 			}
@@ -329,28 +285,27 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		return branchPanel;
 	}
 
-	private JPanel createBranchHeader(String customerName, BranchData branch) {
+	private JPanel createBranchHeader(Customer customer, Branch branch, List<ProductWithQuantity> products) {
 		JPanel header = new JPanel(new BorderLayout());
 		header.setBackground(BRANCH_BG);
 		header.setBorder(new EmptyBorder(12, 15, 12, 15));
 		header.setCursor(new java.awt.Cursor(java.awt.Cursor.HAND_CURSOR));
 
 		// Calculate branch totals
-		BranchTotals totals = calculateBranchTotals(customerName, branch);
+		BranchTotals totals = calculateBranchTotals(products);
 
 		// Left side - Icon and address
 		JPanel leftPanel = new JPanel(new BorderLayout());
 		leftPanel.setBackground(BRANCH_BG);
 
-		String branchAddress = getBranchAddress(customerName, branch);
-		String branchKey = customerName + "_" + branchAddress;
+		String branchKey = customer.getId() + "_" + branch.getId();
 		boolean isExpanded = branchExpandedState.get(branchKey);
 		JLabel expandIcon = new JLabel(isExpanded ? "▼" : "▶");
 		expandIcon.setFont(new Font("Arial", Font.BOLD, 12));
 		expandIcon.setForeground(SIDEBAR_ACTIVE);
 		expandIcon.setBorder(new EmptyBorder(0, 0, 0, 10));
 
-		JLabel addressLabel = new JLabel("📍 " + branchAddress);
+		JLabel addressLabel = new JLabel("📍 " + branch.getAddress());
 		addressLabel.setFont(new Font("Arial", Font.BOLD, 14));
 		addressLabel.setForeground(TEXT_DARK);
 
@@ -411,7 +366,7 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		return header;
 	}
 
-	private JPanel createProductPanel(ProductOrderData product) {
+	private JPanel createProductPanel(ProductWithQuantity productWithQty) {
 		JPanel productPanel = new JPanel(new GridBagLayout());
 		productPanel.setBackground(PRODUCT_BG);
 		productPanel.setBorder(BorderFactory.createCompoundBorder(
@@ -425,7 +380,7 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		// Product Name (larger, first row)
 		gbc.gridx = 0;
 		gbc.gridwidth = 7;
-		JLabel nameLabel = new JLabel("📦 " + product.productName);
+		JLabel nameLabel = new JLabel("📦 " + productWithQty.getProduct().getName());
 		nameLabel.setFont(new Font("Arial", Font.BOLD, 14));
 		nameLabel.setForeground(TEXT_DARK);
 		productPanel.add(nameLabel, gbc);
@@ -436,29 +391,34 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 
 		// Quantity
 		gbc.gridx = 0;
-		productPanel.add(createDetailLabel("Qty:", String.valueOf(product.quantity)), gbc);
+		productPanel.add(createDetailLabel("Qty:", String.valueOf(productWithQty.getQuantity())), gbc);
 
 		// Selling Price
 		gbc.gridx = 1;
-		productPanel.add(createDetailLabel("Price:", String.format("₱%.2f", product.sellingPrice)), gbc);
+		productPanel.add(
+				createDetailLabel("Price:", String.format("₱%.2f", productWithQty.getProduct().getSellingPrice())),
+				gbc);
 
 		// Capital
 		gbc.gridx = 2;
-		productPanel.add(createDetailLabel("Capital:", String.format("₱%.2f", product.capital)), gbc);
+		productPanel.add(
+				createDetailLabel("Capital:", String.format("₱%.2f", productWithQty.getProduct().getCapital())), gbc);
 
 		// Total Price
 		gbc.gridx = 3;
-		double totalPrice = product.quantity * product.sellingPrice;
-		productPanel.add(createDetailLabel("Total Price:", String.format("₱%.2f", totalPrice)), gbc);
+		productPanel.add(
+				createDetailLabel("Total Price:", String.format("₱%.2f", productWithQty.getTotalSellingPrice())), gbc);
 
 		// Profit per Unit
 		gbc.gridx = 4;
-		productPanel.add(createDetailLabel("Profit/Unit:", String.format("₱%.2f", product.profitPerUnit)), gbc);
+		productPanel.add(
+				createDetailLabel("Profit/Unit:", String.format("₱%.2f", productWithQty.getProduct().getProfit())),
+				gbc);
 
 		// Total Profit
 		gbc.gridx = 5;
-		double totalProfit = product.quantity * product.profitPerUnit;
-		JPanel profitPanel = createDetailLabel("Total Profit:", String.format("₱%.2f", totalProfit));
+		JPanel profitPanel = createDetailLabel("Total Profit:",
+				String.format("₱%.2f", productWithQty.getTotalProfit()));
 		// Make total profit stand out
 		((JLabel) profitPanel.getComponent(1)).setForeground(PROFIT_GREEN);
 		((JLabel) profitPanel.getComponent(1)).setFont(new Font("Arial", Font.BOLD, 13));
@@ -486,48 +446,26 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 	}
 
 	// Calculation methods
-	private double calculateCustomerSales(CustomerDeliveryData customer) {
+	private double calculateCustomerSales(Map<Branch, List<ProductWithQuantity>> branches) {
 		double total = 0.0;
-		for (BranchData branch : customer.branches) {
-			List<ProductOrderData> products = getMockProductsForBranch(customer.customerName, branch);
-			for (ProductOrderData product : products) {
-				total += product.quantity * product.sellingPrice;
+		for (List<ProductWithQuantity> products : branches.values()) {
+			for (ProductWithQuantity product : products) {
+				total += product.getTotalSellingPrice();
 			}
 		}
 		return total;
 	}
 
-	private BranchTotals calculateBranchTotals(String customerName, BranchData branch) {
+	private BranchTotals calculateBranchTotals(List<ProductWithQuantity> products) {
 		BranchTotals totals = new BranchTotals();
-		List<ProductOrderData> products = getMockProductsForBranch(customerName, branch);
 
-		for (ProductOrderData product : products) {
-			totals.sales += product.quantity * product.sellingPrice;
-			totals.capital += product.quantity * product.capital;
+		for (ProductWithQuantity product : products) {
+			totals.sales += product.getTotalSellingPrice();
+			totals.capital += product.getTotalCapital();
 		}
 		totals.profit = totals.sales - totals.capital;
 
 		return totals;
-	}
-
-	// MOCK DATA - Same as DeliveryFormStep3
-	private List<ProductOrderData> getMockProductsForBranch(String customerName, BranchData branch) {
-		java.util.List<ProductOrderData> products = new java.util.ArrayList<>();
-
-		if (customerName.contains("ABC")) {
-			products.add(new ProductOrderData(1, "Premium Molasses A", 10, 100.0, 70.0));
-			products.add(new ProductOrderData(2, "Standard Molasses B", 5, 200.0, 150.0));
-		} else if (customerName.contains("XYZ")) {
-			products.add(new ProductOrderData(3, "Organic Molasses C", 8, 150.0, 100.0));
-			products.add(new ProductOrderData(4, "Dark Molasses D", 12, 120.0, 85.0));
-			products.add(new ProductOrderData(5, "Light Molasses E", 6, 180.0, 130.0));
-		} else if (customerName.contains("Golden")) {
-			products.add(new ProductOrderData(6, "Golden Molasses F", 15, 90.0, 60.0));
-		} else {
-			products.add(new ProductOrderData(7, "Standard Molasses", 10, 110.0, 75.0));
-		}
-
-		return products;
 	}
 
 	// Helper class for branch totals
@@ -535,6 +473,5 @@ public class CustomerDeliveryDetailsDialog extends JDialog {
 		double sales = 0.0;
 		double capital = 0.0;
 		double profit = 0.0;
-
 	}
 }

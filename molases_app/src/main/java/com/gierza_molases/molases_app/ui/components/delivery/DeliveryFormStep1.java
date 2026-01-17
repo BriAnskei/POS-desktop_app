@@ -9,8 +9,12 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -18,15 +22,16 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.JTextField;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.toedter.calendar.JDateChooser;
 
 public class DeliveryFormStep1 {
@@ -153,16 +158,37 @@ public class DeliveryFormStep1 {
 			return removeBtn;
 		});
 
+		// Add Remove button renderer and editor
+		expenseTable.getColumnModel().getColumn(2).setCellRenderer((table, value, isSelected, hasFocus, row, col) -> {
+			JButton removeBtn = UIComponentFactory.createStyledButton("Remove", new Color(180, 50, 50));
+			removeBtn.setPreferredSize(new Dimension(90, 28));
+			return removeBtn;
+		});
+
 		expenseTable.getColumnModel().getColumn(2).setCellEditor(new javax.swing.DefaultCellEditor(new JTextField()) {
 			private JButton button = UIComponentFactory.createStyledButton("Remove", new Color(180, 50, 50));
+			private ActionListener currentListener = null;
 
 			@Override
 			public Component getTableCellEditorComponent(JTable table, Object value, boolean isSelected, int row,
 					int column) {
-				button.addActionListener(e -> {
-					removeExpenseRow(row);
-					fireEditingStopped();
-				});
+				// Remove previous action listener if exists
+				if (currentListener != null) {
+					button.removeActionListener(currentListener);
+				}
+
+				// Create new listener for this specific row
+				currentListener = new ActionListener() {
+					@Override
+					public void actionPerformed(ActionEvent e) {
+						// IMPORTANT: Stop editing first
+						fireEditingStopped();
+						// Now remove the row
+						removeExpenseRow(row);
+					}
+				};
+
+				button.addActionListener(currentListener);
 				return button;
 			}
 
@@ -171,7 +197,6 @@ public class DeliveryFormStep1 {
 				return "";
 			}
 		});
-
 		JScrollPane scrollPane = new JScrollPane(expenseTable);
 		scrollPane.setBorder(null);
 		tablePanel.add(scrollPane, BorderLayout.CENTER);
@@ -269,16 +294,16 @@ public class DeliveryFormStep1 {
 		String amountStr = getTextFieldValue(expenseAmountInput, "0.00");
 
 		if (name.isEmpty() || amountStr.isEmpty()) {
-			JOptionPane.showMessageDialog(null, "Please fill in both expense name and amount", "Input Required",
-					JOptionPane.WARNING_MESSAGE);
+			ToastNotification.showWarning(SwingUtilities.getWindowAncestor(expenseNameInput),
+					"Please fill in both expense name and amount");
 			return;
 		}
 
 		try {
 			double amount = Double.parseDouble(amountStr);
 			if (amount <= 0) {
-				JOptionPane.showMessageDialog(null, "Amount must be greater than 0", "Invalid Amount",
-						JOptionPane.ERROR_MESSAGE);
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(expenseNameInput),
+						"Amount must be greater than 0");
 				return;
 			}
 
@@ -293,8 +318,8 @@ public class DeliveryFormStep1 {
 			updateTotal();
 
 		} catch (NumberFormatException e) {
-			JOptionPane.showMessageDialog(null, "Please enter a valid number for amount", "Invalid Amount",
-					JOptionPane.ERROR_MESSAGE);
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(expenseNameInput),
+					"Please enter a valid number for amount");
 		}
 	}
 
@@ -317,24 +342,51 @@ public class DeliveryFormStep1 {
 		totalLabel.setText(String.format("₱%.2f", total));
 	}
 
+	private boolean isDateBeforeToday(Date date) {
+		if (date == null)
+			return false;
+
+		Calendar today = Calendar.getInstance();
+		today.set(Calendar.HOUR_OF_DAY, 0);
+		today.set(Calendar.MINUTE, 0);
+		today.set(Calendar.SECOND, 0);
+		today.set(Calendar.MILLISECOND, 0);
+
+		Calendar selectedDate = Calendar.getInstance();
+		selectedDate.setTime(date);
+		selectedDate.set(Calendar.HOUR_OF_DAY, 0);
+		selectedDate.set(Calendar.MINUTE, 0);
+		selectedDate.set(Calendar.SECOND, 0);
+		selectedDate.set(Calendar.MILLISECOND, 0);
+
+		return selectedDate.before(today);
+	}
+
 	public boolean validate() {
 		String deliveryName = getTextFieldValue(deliveryNameField, "e.g., Manila Delivery #001");
 		if (deliveryName.isEmpty()) {
-			JOptionPane.showMessageDialog(null, "Please enter a delivery name", "Validation Error",
-					JOptionPane.ERROR_MESSAGE);
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(deliveryNameField),
+					"Please enter a delivery name");
 			deliveryNameField.requestFocus();
 			return false;
 		}
 
 		if (deliveryDateChooser.getDate() == null) {
-			JOptionPane.showMessageDialog(null, "Please select a delivery date", "Validation Error",
-					JOptionPane.ERROR_MESSAGE);
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(deliveryDateChooser),
+					"Please select a delivery date");
+			return false;
+		}
+
+		if (isDateBeforeToday(deliveryDateChooser.getDate())) {
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(deliveryDateChooser),
+					"Delivery date cannot be in the past");
+			deliveryDateChooser.requestFocus();
 			return false;
 		}
 
 		if (expenseTableModel.getRowCount() == 0) {
-			JOptionPane.showMessageDialog(null, "Please add at least one expense", "Validation Error",
-					JOptionPane.ERROR_MESSAGE);
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(expenseTable),
+					"Please add at least one expense");
 			return false;
 		}
 

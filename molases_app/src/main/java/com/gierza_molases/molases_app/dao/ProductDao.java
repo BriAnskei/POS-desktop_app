@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +42,36 @@ public class ProductDao {
 			 GROUP BY p.id
 			 ORDER BY p.created_at %s
 			""";
+
+	// Read for product selection
+	private static final String SELECT_PRODUCT_WITH_ASSOCIATION = """
+						SELECT
+			    p.id,
+			    p.product_name,
+			    p.selling_price,
+			    p.capital,
+			    p.created_at
+			FROM product p
+			WHERE
+			    (
+			        NOT EXISTS (
+			            SELECT 1
+			            FROM product_association pa
+			            WHERE pa.product_id = p.id
+			        )
+			        OR EXISTS (
+			            SELECT 1
+			            FROM product_association pa
+			            WHERE pa.product_id = p.id
+			              AND pa.customer_id = ?
+			        )
+			    )
+			    AND (
+			        ? IS NULL
+			        OR p.product_name LIKE ?
+			    )
+			ORDER BY p.product_name;
+									""";
 
 	private final String FIND_BY_ID_SQL = """
 			    SELECT
@@ -130,6 +161,32 @@ public class ProductDao {
 		}
 	}
 
+	/**
+	 * fetch all non-associate products and associated by customerId
+	 */
+	public List<Product> getProductsAndAssocitedByCustomerId(int customerId, String search) {
+
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_PRODUCT_WITH_ASSOCIATION)) {
+
+			// customer_id
+			ps.setInt(1, customerId);
+
+			if (search == null || search.trim().isEmpty()) {
+				ps.setNull(2, Types.VARCHAR);
+				ps.setNull(3, Types.VARCHAR);
+			} else {
+				String like = search.trim() + "%";
+				ps.setString(2, like);
+				ps.setString(3, like);
+			}
+
+			ResultSet rs = ps.executeQuery();
+			return this.mapRowProductForSelection(rs);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to fetch products", e);
+		}
+	}
+
 	public void update(Product product) {
 
 		if (product.getId() <= 0) {
@@ -181,6 +238,19 @@ public class ProductDao {
 		boolean isAssociated = associatedCount > 0;
 
 		return new Product(id, name, sellingPrice, capital, createdAt, isAssociated, associatedCount);
+	}
+
+	private List<Product> mapRowProductForSelection(ResultSet rs) throws SQLException {
+		List<Product> products = new ArrayList<>();
+
+		while (rs.next()) {
+
+			Product p = new Product(rs.getInt("id"), rs.getString("product_name"), rs.getDouble("selling_price"),
+					rs.getDouble("capital"), rs.getTimestamp("created_at").toLocalDateTime());
+			products.add(p);
+		}
+
+		return products;
 	}
 
 }

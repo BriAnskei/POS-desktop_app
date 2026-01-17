@@ -5,12 +5,20 @@ import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
+import java.awt.Insets;
+import java.text.SimpleDateFormat;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
+import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
 import com.gierza_molases.molases_app.UiController.NewDeliveryController;
@@ -46,7 +54,7 @@ public class DeliveryFormPage {
 	private static JScrollPane mainScrollPane;
 
 	// controller
-	NewDeliveryController newDeliveryController = AppContext.newDeliveryController;
+	private static final NewDeliveryController newDeliveryController = AppContext.newDeliveryController;
 
 	public static JPanel createPanel(Runnable onCancel, Runnable onSave) {
 		// Reset to step 1
@@ -56,8 +64,8 @@ public class DeliveryFormPage {
 
 		// Initialize step instances
 		step1 = new DeliveryFormStep1();
-		step2 = new DeliveryFormStep2();
-		step3 = new DeliveryFormStep3();
+		step2 = new DeliveryFormStep2(newDeliveryController);
+		step3 = new DeliveryFormStep3(newDeliveryController);
 
 		JPanel mainPanel = new JPanel(new BorderLayout());
 		mainPanel.setBackground(CONTENT_BG);
@@ -259,6 +267,9 @@ public class DeliveryFormPage {
 				System.out.println("Delivery Date: " + step1Data.deliveryDate);
 				System.out.println("Expenses: " + step1Data.expenses);
 
+				newDeliveryController.getState().setStepOneForm(step1Data.deliveryName, step1Data.deliveryDate,
+						step1Data.expenses);
+
 				loadStep2(onCancel, onSave);
 			}
 		});
@@ -328,23 +339,87 @@ public class DeliveryFormPage {
 		JButton saveBtn = UIComponentFactory.createStyledButton("💾 Save Delivery", ACCENT_GOLD);
 		saveBtn.setPreferredSize(new Dimension(160, 40));
 		saveBtn.addActionListener(e -> {
-//			// TODO: Implement actual save logic
-//			int confirm = JOptionPane.showConfirmDialog(null,
-//					"Are you sure you want to save this delivery?\n\n" + "Delivery: " + step1Data.deliveryName + "\n"
-//							+ "Date: " + step1Data.deliveryDate + "\n" + "Customers: "
-//							+ step2Data.customerBranches.size(),
-//					"Confirm Save", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-//
-//			if (confirm == JOptionPane.YES_OPTION) {
-//				// Call the save callback
-//				onSave.run();
-//				JOptionPane.showMessageDialog(null,
-//						"Delivery saved successfully!\n\nThis will be integrated with the database in the next iteration.",
-//						"Success", JOptionPane.INFORMATION_MESSAGE);
-//			}
+			showSaveConfirmation(onSave);
 		});
 		buttonPanel.add(saveBtn);
 
 		return buttonPanel;
+	}
+
+	private static void showSaveConfirmation(Runnable onSave) {
+		JDialog confirmDialog = new JDialog(SwingUtilities.getWindowAncestor(mainContentPanel), "Confirm Save");
+		confirmDialog.setModal(true);
+		confirmDialog.setLayout(new GridBagLayout());
+		confirmDialog.getContentPane().setBackground(Color.WHITE);
+
+		GridBagConstraints gbc = new GridBagConstraints();
+		gbc.gridx = 0;
+		gbc.gridy = 0;
+		gbc.gridwidth = 2;
+		gbc.insets = new Insets(20, 30, 10, 30);
+
+		JLabel messageLabel = new JLabel("<html><center>Are you sure you want to save<br><b>" + step1Data.deliveryName
+				+ "</b>?</center></html>");
+		messageLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+		messageLabel.setForeground(TEXT_DARK);
+		messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		confirmDialog.add(messageLabel, gbc);
+
+		gbc.gridy++;
+		gbc.insets = new Insets(5, 30, 10, 30);
+		JLabel warningLabel = new JLabel("This action will create a new delivery record.");
+		warningLabel.setFont(new Font("Arial", Font.ITALIC, 13));
+		warningLabel.setForeground(new Color(180, 50, 50));
+		warningLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		confirmDialog.add(warningLabel, gbc);
+
+		gbc.gridy++;
+		gbc.gridwidth = 1;
+		gbc.insets = new Insets(20, 30, 20, 10);
+
+		JButton cancelBtn = UIComponentFactory.createStyledButton("Cancel", new Color(120, 120, 120));
+		cancelBtn.setPreferredSize(new Dimension(120, 40));
+		cancelBtn.addActionListener(e -> confirmDialog.dispose());
+		confirmDialog.add(cancelBtn, gbc);
+
+		gbc.gridx = 1;
+		gbc.insets = new Insets(20, 10, 20, 30);
+		JButton saveButton = UIComponentFactory.createStyledButton("Save", ACCENT_GOLD);
+		saveButton.setPreferredSize(new Dimension(120, 40));
+		saveButton.addActionListener(e -> {
+			// Disable button and show loading state
+			saveButton.setEnabled(false);
+			saveButton.setText("Saving...");
+
+			// Call controller to save
+			newDeliveryController.saveDelivery(
+					// onSuccess
+					() -> {
+						SwingUtilities.invokeLater(() -> {
+							confirmDialog.dispose();
+							JOptionPane.showMessageDialog(null, "Delivery saved successfully!", "Success",
+									JOptionPane.INFORMATION_MESSAGE);
+
+							// Call the onSave callback (navigates back to list)
+							onSave.run();
+						});
+					},
+					// onError
+					error -> {
+						SwingUtilities.invokeLater(() -> {
+							saveButton.setEnabled(true);
+							saveButton.setText("Save");
+
+							JOptionPane.showMessageDialog(confirmDialog, "Failed to save delivery:\n" + error, "Error",
+									JOptionPane.ERROR_MESSAGE);
+						});
+					});
+		});
+		confirmDialog.add(saveButton, gbc);
+
+		confirmDialog.pack();
+		confirmDialog.setMinimumSize(new Dimension(400, 200));
+		confirmDialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(mainContentPanel));
+		confirmDialog.setVisible(true);
 	}
 }

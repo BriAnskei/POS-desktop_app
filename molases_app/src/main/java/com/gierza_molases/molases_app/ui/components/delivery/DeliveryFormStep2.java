@@ -11,15 +11,14 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
-import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
@@ -30,7 +29,13 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.model.Branch;
+import com.gierza_molases.molases_app.model.Customer;
+import com.gierza_molases.molases_app.model.ProductWithQuantity;
+import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.ui.dialogs.Delivery.AddCustomerBranchDialog;
+import com.gierza_molases.molases_app.ui.dialogs.Delivery.ViewCustomerDeliveryDetails;
 
 public class DeliveryFormStep2 {
 
@@ -45,10 +50,11 @@ public class DeliveryFormStep2 {
 
 	private DefaultTableModel customerTableModel;
 	private JTable customerTable;
-	private List<CustomerDeliveryData> customers;
 
-	public DeliveryFormStep2() {
-		customers = new ArrayList<>();
+	private NewDeliveryController newDeliveryController;
+
+	public DeliveryFormStep2(NewDeliveryController newDeliveryController) {
+		this.newDeliveryController = newDeliveryController;
 	}
 
 	public JPanel createPanel() {
@@ -74,17 +80,10 @@ public class DeliveryFormStep2 {
 		JButton addCustomerBtn = UIComponentFactory.createStyledButton("+ Add Customer", ACCENT_GOLD);
 		addCustomerBtn.setPreferredSize(new Dimension(150, 35));
 		addCustomerBtn.addActionListener(e -> {
-			// Open your custom dialog
-
 			AddCustomerBranchDialog.show(SwingUtilities.getWindowAncestor(formPanel), () -> {
-				// This callback runs when the dialog is saved successfully
-//						AddCustomerBranchDialog.CustomerBranchResult result = AddCustomerBranchDialog.getResult();
-//
-//						if (result != null) {
-//							// Process the result and add to your table
-//							handleCustomerBranchResult(result);
-//						}
-			});
+				// Reload table after customer is added
+				loadCustomersFromState();
+			}, newDeliveryController);
 		});
 		titleSection.add(addCustomerBtn, BorderLayout.EAST);
 
@@ -102,6 +101,9 @@ public class DeliveryFormStep2 {
 		gbc.weighty = 1.0;
 		formPanel.add(Box.createVerticalGlue(), gbc);
 
+		// Load data from state
+		loadCustomersFromState();
+
 		return formPanel;
 	}
 
@@ -112,16 +114,13 @@ public class DeliveryFormStep2 {
 		tablePanel.setPreferredSize(new Dimension(900, 400));
 
 		// Create table model with new columns
-		String[] columnNames = { "Customer Name", "Branch Count", "Actions" };
+		String[] columnNames = { "Customer Name", "Branch Count", "Product Count", "Actions" };
 		customerTableModel = new DefaultTableModel(columnNames, 0) {
 			@Override
 			public boolean isCellEditable(int row, int column) {
 				return false;
 			}
 		};
-
-		// Add mock data
-		addMockCustomerData();
 
 		customerTable = new JTable(customerTableModel);
 		customerTable.setFont(new Font("Arial", Font.PLAIN, 14));
@@ -132,17 +131,18 @@ public class DeliveryFormStep2 {
 		customerTable.setSelectionBackground(new Color(245, 239, 231));
 		customerTable.setSelectionForeground(TEXT_DARK);
 
+		// Set column widths
+		customerTable.getColumnModel().getColumn(0).setPreferredWidth(350);
+		customerTable.getColumnModel().getColumn(1).setPreferredWidth(150);
+		customerTable.getColumnModel().getColumn(2).setPreferredWidth(150);
+		customerTable.getColumnModel().getColumn(3).setPreferredWidth(150);
+
 		// Style table header
 		JTableHeader header = customerTable.getTableHeader();
 		header.setFont(new Font("Arial", Font.BOLD, 14));
 		header.setBackground(SIDEBAR_ACTIVE);
 		header.setForeground(TEXT_LIGHT);
 		header.setPreferredSize(new Dimension(header.getPreferredSize().width, 45));
-
-		// Set column widths
-		customerTable.getColumnModel().getColumn(0).setPreferredWidth(400);
-		customerTable.getColumnModel().getColumn(1).setPreferredWidth(200);
-		customerTable.getColumnModel().getColumn(2).setPreferredWidth(300);
 
 		// Custom header renderer
 		DefaultTableCellRenderer headerRenderer = new DefaultTableCellRenderer();
@@ -166,7 +166,14 @@ public class DeliveryFormStep2 {
 					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
 				}
 
-				setHorizontalAlignment(column == 2 ? SwingConstants.CENTER : SwingConstants.LEFT);
+				if (column == 3) {
+					setHorizontalAlignment(SwingConstants.CENTER);
+				} else if (column == 1 || column == 2) {
+					setHorizontalAlignment(SwingConstants.CENTER);
+				} else {
+					setHorizontalAlignment(SwingConstants.LEFT);
+				}
+
 				((JLabel) c).setBorder(new EmptyBorder(5, 10, 5, 10));
 				return c;
 			}
@@ -179,9 +186,11 @@ public class DeliveryFormStep2 {
 				int row = customerTable.rowAtPoint(e.getPoint());
 				int col = customerTable.columnAtPoint(e.getPoint());
 
-				if (col == 2 && row >= 0 && row < customers.size()) {
-					CustomerDeliveryData data = customers.get(row);
-					showCustomerActionMenu(e.getComponent(), data, row);
+				if (col == 3 && row >= 0) {
+					Customer customer = getCustomerAtRow(row);
+					if (customer != null) {
+						showCustomerActionMenu(e.getComponent(), customer);
+					}
 				}
 			}
 		});
@@ -190,7 +199,7 @@ public class DeliveryFormStep2 {
 			@Override
 			public void mouseMoved(MouseEvent e) {
 				int col = customerTable.columnAtPoint(e.getPoint());
-				customerTable.setCursor(new Cursor(col == 2 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+				customerTable.setCursor(new Cursor(col == 3 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
 			}
 		});
 
@@ -201,41 +210,52 @@ public class DeliveryFormStep2 {
 		return tablePanel;
 	}
 
-	private void addMockCustomerData() {
-		customers.clear();
-
-		// ABC Corporation with 2 branches
-		CustomerDeliveryData abc = new CustomerDeliveryData("ABC Corporation");
-		abc.addBranch(new BranchData("123 Rizal Avenue, Makati City, Metro Manila",
-				List.of("Molasses Type A", "Molasses Type B")));
-		abc.addBranch(new BranchData("456 Ayala Avenue, Makati City, Metro Manila", List.of("Molasses Type C")));
-		customers.add(abc);
-
-		// XYZ Trading Company with 1 branch
-		CustomerDeliveryData xyz = new CustomerDeliveryData("XYZ Trading Company");
-		xyz.addBranch(new BranchData("456 Bonifacio Drive, Taguig City, Metro Manila",
-				List.of("Molasses Type A", "Molasses Type B", "Molasses Type D")));
-		customers.add(xyz);
-
-		// Golden Sun Industries with 3 branches
-		CustomerDeliveryData golden = new CustomerDeliveryData("Golden Sun Industries");
-		golden.addBranch(
-				new BranchData("789 Commonwealth Avenue, Quezon City, Metro Manila", List.of("Molasses Type A")));
-		golden.addBranch(new BranchData("321 Ortigas Avenue, Pasig City, Metro Manila",
-				List.of("Molasses Type B", "Molasses Type C")));
-		golden.addBranch(new BranchData("555 España Boulevard, Manila City, Metro Manila", List.of("Molasses Type D")));
-		customers.add(golden);
-
-		// Populate table
+	/**
+	 * Load customers from state and populate table
+	 */
+	private void loadCustomersFromState() {
 		customerTableModel.setRowCount(0);
-		for (CustomerDeliveryData customer : customers) {
-			customerTableModel.addRow(new Object[] { customer.customerName,
-					customer.getBranchCount() + " " + (customer.getBranchCount() == 1 ? "Branch" : "Branches"),
-					"⚙ Actions" });
+
+		Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries = newDeliveryController
+				.getCustomerDeliveries();
+
+		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : customerDeliveries.entrySet()) {
+			Customer customer = entry.getKey();
+			Map<Branch, List<ProductWithQuantity>> branches = entry.getValue();
+
+			int branchCount = branches.size();
+
+			// Calculate total product count across all branches
+			int productCount = branches.values().stream().mapToInt(products -> products != null ? products.size() : 0)
+					.sum();
+
+			customerTableModel.addRow(new Object[] { customer.getDisplayName(),
+					branchCount + (branchCount == 1 ? " Branch" : " Branches"),
+					productCount + (productCount == 1 ? " Product" : " Products"), "⚙ Actions" });
 		}
 	}
 
-	private void showCustomerActionMenu(Component parent, CustomerDeliveryData data, int row) {
+	/**
+	 * Get customer at specific row index
+	 */
+	private Customer getCustomerAtRow(int row) {
+		Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries = newDeliveryController
+				.getCustomerDeliveries();
+
+		int currentRow = 0;
+		for (Customer customer : customerDeliveries.keySet()) {
+			if (currentRow == row) {
+				return customer;
+			}
+			currentRow++;
+		}
+		return null;
+	}
+
+	/**
+	 * Show action menu for customer
+	 */
+	private void showCustomerActionMenu(Component parent, Customer customer) {
 		JDialog actionDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Actions");
 		actionDialog.setLayout(new GridBagLayout());
 		actionDialog.getContentPane().setBackground(Color.WHITE);
@@ -246,7 +266,7 @@ public class DeliveryFormStep2 {
 		gbc.insets = new Insets(10, 20, 5, 20);
 		gbc.fill = GridBagConstraints.HORIZONTAL;
 
-		JLabel titleLabel = new JLabel("Actions for: " + data.customerName);
+		JLabel titleLabel = new JLabel("Actions for: " + customer.getDisplayName());
 		titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
 		titleLabel.setForeground(TEXT_DARK);
 		actionDialog.add(titleLabel, gbc);
@@ -254,21 +274,18 @@ public class DeliveryFormStep2 {
 		gbc.gridy++;
 		gbc.insets = new Insets(15, 20, 5, 20);
 
-		JButton viewProductsBtn = UIComponentFactory.createActionButton("👁️ View Selected Products",
-				new Color(70, 130, 180));
-		viewProductsBtn.addActionListener(e -> {
+		JButton viewDetailsBtn = UIComponentFactory.createActionButton("👁️ View Details", new Color(70, 130, 180));
+		viewDetailsBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			JOptionPane.showMessageDialog(parent,
-					"View Selected Products functionality will be implemented in the next iteration.", "Coming Soon",
-					JOptionPane.INFORMATION_MESSAGE);
+			showCustomerDetails(customer);
 		});
-		actionDialog.add(viewProductsBtn, gbc);
+		actionDialog.add(viewDetailsBtn, gbc);
 
 		gbc.gridy++;
 		JButton removeBtn = UIComponentFactory.createActionButton("🗑️ Remove from Delivery", new Color(180, 50, 50));
 		removeBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			removeCustomer(row);
+			removeCustomer(customer);
 		});
 		actionDialog.add(removeBtn, gbc);
 
@@ -284,75 +301,66 @@ public class DeliveryFormStep2 {
 		actionDialog.setVisible(true);
 	}
 
-	private void removeCustomer(int row) {
-		if (row >= 0 && row < customers.size()) {
-			customers.remove(row);
-			customerTableModel.removeRow(row);
-		}
+	/**
+	 * Show customer details (branches and products)
+	 */
+	private void showCustomerDetails(Customer customer) {
+		Map<Branch, List<ProductWithQuantity>> branches = newDeliveryController.getCustomerBranches(customer);
+		ViewCustomerDeliveryDetails.show(SwingUtilities.getWindowAncestor(customerTable), customer, branches);
 	}
 
+	/**
+	 * Remove customer from delivery
+	 */
+	private void removeCustomer(Customer customer) {
+		newDeliveryController.removeCustomerDelivery(customer);
+		loadCustomersFromState();
+
+		ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(customerTable),
+				customer.getDisplayName() + " removed from delivery");
+	}
+
+	/**
+	 * Validate that at least one customer is added
+	 */
 	public boolean validate() {
-		if (customers.isEmpty()) {
-			JOptionPane.showMessageDialog(null, "Please add at least one customer/branch to the delivery",
-					"Validation Error", JOptionPane.ERROR_MESSAGE);
+		Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries = newDeliveryController
+				.getCustomerDeliveries();
+
+		if (customerDeliveries.isEmpty()) {
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(customerTable),
+					"Please add at least one customer/branch to the delivery");
 			return false;
 		}
 
 		return true;
 	}
 
+	/**
+	 * Data transfer object for Step 2. Holds a REFERENCE to the customer deliveries
+	 * map stored in the controller.
+	 * 
+	 * Note: This doesn't copy the data - it references the same map object stored
+	 * in NewDeliveryController state.
+	 */
 	public Step2Data getData() {
 		Step2Data data = new Step2Data();
-		data.customers = new ArrayList<>(customers);
+		data.customerDeliveries = newDeliveryController.getCustomerDeliveries();
 		return data;
 	}
 
+	/**
+	 * Load data - loads from state (for back navigation)
+	 */
 	public void loadData(Step2Data data) {
-		if (data == null || data.customers == null)
-			return;
-
-		customers.clear();
-		customers.addAll(data.customers);
-
-		customerTableModel.setRowCount(0);
-		for (CustomerDeliveryData customer : customers) {
-			customerTableModel.addRow(new Object[] { customer.customerName,
-					customer.getBranchCount() + " " + (customer.getBranchCount() == 1 ? "Branch" : "Branches"),
-					"⚙ Actions" });
-		}
+		// Data is already in state, just reload the table
+		loadCustomersFromState();
 	}
 
-	// New data structure for customer with multiple branches
-	public static class CustomerDeliveryData {
-		public String customerName;
-		public List<BranchData> branches;
-
-		public CustomerDeliveryData(String customerName) {
-			this.customerName = customerName;
-			this.branches = new ArrayList<>();
-		}
-
-		public void addBranch(BranchData branch) {
-			this.branches.add(branch);
-		}
-
-		public int getBranchCount() {
-			return branches.size();
-		}
-	}
-
-	// Branch data with address and products
-	public static class BranchData {
-		public String branchAddress;
-		public List<String> products;
-
-		public BranchData(String branchAddress, List<String> products) {
-			this.branchAddress = branchAddress;
-			this.products = new ArrayList<>(products);
-		}
-	}
-
+	/**
+	 * Step 2 data structure
+	 */
 	public static class Step2Data {
-		public List<CustomerDeliveryData> customers;
+		public Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries;
 	}
 }

@@ -15,6 +15,7 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
@@ -31,6 +32,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.model.ProductWithQuantity;
+
 public class ViewBranchProductsDialog extends JDialog {
 
 	// Color Palette
@@ -43,21 +47,10 @@ public class ViewBranchProductsDialog extends JDialog {
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 	private static final Color CONTENT_BG = new Color(250, 247, 242);
 
-	// Mock Data Class
-	public static class BranchProduct {
-		String productName;
-		int quantity;
-
-		public BranchProduct(String productName, int quantity) {
-			this.productName = productName;
-			this.quantity = quantity;
-		}
-	}
-
 	// UI Components
 	private JTable productTable;
 	private DefaultTableModel productTableModel;
-	private List<BranchProduct> products = new ArrayList<>();
+	private List<ProductWithQuantity> products = new ArrayList<>();
 	private JButton addProductBtn;
 	private JButton closeBtn;
 	private JLabel branchAddressLabel;
@@ -65,17 +58,31 @@ public class ViewBranchProductsDialog extends JDialog {
 
 	// Data
 	private String branchAddress;
-	private Runnable onDataChangedCallback;
+	private Consumer<List<ProductWithQuantity>> onProductsChangedCallback;
+
+	// Controller
+	private final NewDeliveryController newDeliveryController;
+	private final int selectedCustomerId;
 
 	/**
 	 * Constructor
 	 */
-	public ViewBranchProductsDialog(Window parent, String branchAddress, Runnable onDataChanged) {
+	public ViewBranchProductsDialog(Window parent, String branchAddress, List<ProductWithQuantity> existingProducts,
+			Consumer<List<ProductWithQuantity>> onProductsChanged, NewDeliveryController newDeliveryController,
+			int selectedCustomerId) {
 		super(parent, "Branch Products", ModalityType.APPLICATION_MODAL);
 		this.branchAddress = branchAddress;
-		this.onDataChangedCallback = onDataChanged;
+		this.onProductsChangedCallback = onProductsChanged;
+		this.newDeliveryController = newDeliveryController;
+		this.selectedCustomerId = selectedCustomerId;
+
+		// Load existing products
+		if (existingProducts != null && !existingProducts.isEmpty()) {
+			this.products = new ArrayList<>(existingProducts);
+		}
+
 		initializeUI();
-		loadMockProducts(); // Load mock data for testing
+		updateProductTable();
 	}
 
 	/**
@@ -102,8 +109,8 @@ public class ViewBranchProductsDialog extends JDialog {
 		add(mainContent);
 
 		// Dialog settings
-		setSize(800, 600);
-		setMinimumSize(new Dimension(800, 600));
+		setSize(900, 600);
+		setMinimumSize(new Dimension(900, 600));
 		setLocationRelativeTo(getParent());
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
 	}
@@ -199,7 +206,7 @@ public class ViewBranchProductsDialog extends JDialog {
 	 * Create and configure product table
 	 */
 	private void createProductTable() {
-		String[] columns = { "Product Name", "Quantity", "Actions" };
+		String[] columns = { "Product Name", "Selling Price", "Quantity", "Total Price", "Actions" };
 		productTableModel = new DefaultTableModel(columns, 0) {
 			@Override
 			public boolean isCellEditable(int row, int column) {
@@ -217,9 +224,11 @@ public class ViewBranchProductsDialog extends JDialog {
 		productTable.setSelectionForeground(TEXT_DARK);
 
 		// Set column widths
-		productTable.getColumnModel().getColumn(0).setPreferredWidth(400);
-		productTable.getColumnModel().getColumn(1).setPreferredWidth(150);
-		productTable.getColumnModel().getColumn(2).setPreferredWidth(150);
+		productTable.getColumnModel().getColumn(0).setPreferredWidth(300);
+		productTable.getColumnModel().getColumn(1).setPreferredWidth(120);
+		productTable.getColumnModel().getColumn(2).setPreferredWidth(100);
+		productTable.getColumnModel().getColumn(3).setPreferredWidth(120);
+		productTable.getColumnModel().getColumn(4).setPreferredWidth(120);
 
 		// Style table header
 		JTableHeader header = productTable.getTableHeader();
@@ -238,7 +247,7 @@ public class ViewBranchProductsDialog extends JDialog {
 			productTable.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
 		}
 
-		// Alternating row colors
+		// Alternating row colors and alignment
 		productTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
 			@Override
 			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
@@ -249,10 +258,13 @@ public class ViewBranchProductsDialog extends JDialog {
 					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
 				}
 
-				if (column == 2) {
+				// Column 0: Product Name - Left aligned
+				// Column 1, 2, 3: Prices and quantity - Right aligned
+				// Column 4: Actions - Center aligned
+				if (column == 4) {
 					setHorizontalAlignment(SwingConstants.CENTER);
-				} else if (column == 1) {
-					setHorizontalAlignment(SwingConstants.CENTER);
+				} else if (column >= 1 && column <= 3) {
+					setHorizontalAlignment(SwingConstants.RIGHT);
 				} else {
 					setHorizontalAlignment(SwingConstants.LEFT);
 				}
@@ -269,8 +281,8 @@ public class ViewBranchProductsDialog extends JDialog {
 				int row = productTable.rowAtPoint(e.getPoint());
 				int col = productTable.columnAtPoint(e.getPoint());
 
-				if (col == 2 && row >= 0 && row < products.size()) {
-					BranchProduct product = products.get(row);
+				if (col == 4 && row >= 0 && row < products.size()) {
+					ProductWithQuantity product = products.get(row);
 					showProductActionMenu(productTable, product, row);
 				}
 			}
@@ -280,24 +292,9 @@ public class ViewBranchProductsDialog extends JDialog {
 			@Override
 			public void mouseMoved(MouseEvent e) {
 				int col = productTable.columnAtPoint(e.getPoint());
-				productTable.setCursor(new Cursor(col == 2 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+				productTable.setCursor(new Cursor(col == 4 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
 			}
 		});
-	}
-
-	/**
-	 * Load mock products for testing
-	 */
-	private void loadMockProducts() {
-		products.clear();
-
-		// Mock products with quantities
-		products.add(new BranchProduct("Molasses Premium Grade sdfsdfA", 50));
-		products.add(new BranchProduct("Molasses Standard Grade B", 75));
-		products.add(new BranchProduct("Organic Molasses", 30));
-		products.add(new BranchProduct("Industrial Molasses", 100));
-
-		updateProductTable();
 	}
 
 	/**
@@ -306,8 +303,10 @@ public class ViewBranchProductsDialog extends JDialog {
 	private void updateProductTable() {
 		productTableModel.setRowCount(0);
 
-		for (BranchProduct product : products) {
-			productTableModel.addRow(new Object[] { product.productName, product.quantity, "⚙ Actions" });
+		for (ProductWithQuantity product : products) {
+			productTableModel.addRow(new Object[] { product.getProduct().getName(),
+					String.format("₱%.2f", product.getProduct().getSellingPrice()), product.getQuantity(),
+					String.format("₱%.2f", product.getTotalSellingPrice()), "⚙ Actions" });
 		}
 
 		// Update total products label
@@ -320,8 +319,8 @@ public class ViewBranchProductsDialog extends JDialog {
 	private void handleAddProduct() {
 		SelectProductDialog.show(this, result -> {
 			// Check if product already exists
-			for (BranchProduct existingProduct : products) {
-				if (existingProduct.productName.equals(result.product.name)) {
+			for (ProductWithQuantity existingProduct : products) {
+				if (existingProduct.getProduct().getId() == result.product.getId()) {
 					JOptionPane.showMessageDialog(this,
 							"This product is already added to this branch.\n"
 									+ "Use 'Edit Quantity' to modify the quantity.",
@@ -330,25 +329,20 @@ public class ViewBranchProductsDialog extends JDialog {
 				}
 			}
 
-			// Add new product
-			BranchProduct newProduct = new BranchProduct(result.product.name, result.quantity);
+			// Add new product with quantity
+			ProductWithQuantity newProduct = new ProductWithQuantity(result.product, result.quantity);
 			products.add(newProduct);
 			updateProductTable();
 
-			// Notify parent of changes
-			if (onDataChangedCallback != null) {
-				onDataChangedCallback.run();
-			}
-
 			JOptionPane.showMessageDialog(this, "Product added successfully!", "Success",
 					JOptionPane.INFORMATION_MESSAGE);
-		});
+		}, this.newDeliveryController, this.selectedCustomerId);
 	}
 
 	/**
 	 * Show action menu for product
 	 */
-	private void showProductActionMenu(Component parent, BranchProduct product, int row) {
+	private void showProductActionMenu(Component parent, ProductWithQuantity product, int row) {
 		JDialog actionDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Actions");
 		actionDialog.setLayout(new GridBagLayout());
 		actionDialog.getContentPane().setBackground(Color.WHITE);
@@ -366,7 +360,7 @@ public class ViewBranchProductsDialog extends JDialog {
 
 		gbc.gridy++;
 		gbc.insets = new Insets(5, 20, 5, 20);
-		JLabel productNameLabel = new JLabel("<html>" + product.productName + "</html>");
+		JLabel productNameLabel = new JLabel("<html>" + product.getProduct().getName() + "</html>");
 		productNameLabel.setFont(new Font("Arial", Font.PLAIN, 13));
 		productNameLabel.setForeground(new Color(100, 100, 100));
 		actionDialog.add(productNameLabel, gbc);
@@ -404,9 +398,9 @@ public class ViewBranchProductsDialog extends JDialog {
 	/**
 	 * Handle edit quantity
 	 */
-	private void handleEditQuantity(BranchProduct product, int row) {
-		String input = JOptionPane.showInputDialog(this, "Enter new quantity for " + product.productName + ":",
-				product.quantity);
+	private void handleEditQuantity(ProductWithQuantity product, int row) {
+		String input = JOptionPane.showInputDialog(this,
+				"Enter new quantity for " + product.getProduct().getName() + ":", product.getQuantity());
 
 		if (input != null && !input.trim().isEmpty()) {
 			try {
@@ -417,12 +411,8 @@ public class ViewBranchProductsDialog extends JDialog {
 					return;
 				}
 
-				product.quantity = newQuantity;
+				product.setQuantity(newQuantity);
 				updateProductTable();
-
-				if (onDataChangedCallback != null) {
-					onDataChangedCallback.run();
-				}
 
 			} catch (NumberFormatException e) {
 				JOptionPane.showMessageDialog(this, "Please enter a valid number", "Invalid Input",
@@ -443,10 +433,6 @@ public class ViewBranchProductsDialog extends JDialog {
 			if (row >= 0 && row < products.size()) {
 				products.remove(row);
 				updateProductTable();
-
-				if (onDataChangedCallback != null) {
-					onDataChangedCallback.run();
-				}
 			}
 		}
 	}
@@ -459,13 +445,24 @@ public class ViewBranchProductsDialog extends JDialog {
 		panel.setBackground(Color.WHITE);
 		panel.setBorder(new EmptyBorder(20, 0, 0, 0));
 
-		closeBtn = createStyledButton("Close", new Color(120, 120, 120));
-		closeBtn.setPreferredSize(new Dimension(120, 42));
-		closeBtn.addActionListener(e -> dispose());
+		closeBtn = createStyledButton("Save & Close", ACCENT_GOLD);
+		closeBtn.setPreferredSize(new Dimension(140, 42));
+		closeBtn.addActionListener(e -> handleSaveAndClose());
 
 		panel.add(closeBtn);
 
 		return panel;
+	}
+
+	/**
+	 * Handle save and close
+	 */
+	private void handleSaveAndClose() {
+		// Notify parent with updated products list
+		if (onProductsChangedCallback != null) {
+			onProductsChangedCallback.accept(new ArrayList<>(products));
+		}
+		dispose();
 	}
 
 	/**
@@ -532,15 +529,18 @@ public class ViewBranchProductsDialog extends JDialog {
 	/**
 	 * Get current products data
 	 */
-	public List<BranchProduct> getProducts() {
+	public List<ProductWithQuantity> getProducts() {
 		return new ArrayList<>(products);
 	}
 
 	/**
 	 * Show the dialog
 	 */
-	public static void show(Window parent, String branchAddress, Runnable onDataChanged) {
-		ViewBranchProductsDialog dialog = new ViewBranchProductsDialog(parent, branchAddress, onDataChanged);
+	public static void show(Window parent, String branchAddress, List<ProductWithQuantity> existingProducts,
+			Consumer<List<ProductWithQuantity>> onProductsChanged, NewDeliveryController newDeliveryController,
+			int selectedCustomerId) {
+		ViewBranchProductsDialog dialog = new ViewBranchProductsDialog(parent, branchAddress, existingProducts,
+				onProductsChanged, newDeliveryController, selectedCustomerId);
 		dialog.setVisible(true);
 	}
 }

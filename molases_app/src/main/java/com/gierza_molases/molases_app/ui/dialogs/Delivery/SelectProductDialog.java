@@ -39,6 +39,10 @@ import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 
+import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.model.Product;
+import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
+
 public class SelectProductDialog extends JDialog {
 
 	// Color Palette
@@ -51,18 +55,8 @@ public class SelectProductDialog extends JDialog {
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 	private static final Color CONTENT_BG = new Color(250, 247, 242);
 
-	// Mock Product Data Class
-	public static class Product {
-		int id;
-		String name;
-		double sellingPrice;
-
-		public Product(int id, String name, double sellingPrice) {
-			this.id = id;
-			this.name = name;
-			this.sellingPrice = sellingPrice;
-		}
-	}
+	private JPanel loadingOverlay;
+	private LoadingSpinner loadingSpinner;
 
 	// Result class
 	public static class ProductSelectionResult {
@@ -82,6 +76,7 @@ public class SelectProductDialog extends JDialog {
 	private JTextField searchField;
 	private JTextField quantityField;
 	private JButton searchButton;
+	private JButton clearFilterButton;
 	private JButton addButton;
 	private JButton cancelButton;
 	private Product selectedProduct = null;
@@ -90,14 +85,24 @@ public class SelectProductDialog extends JDialog {
 	// Callback
 	private Consumer<ProductSelectionResult> onProductSelectedCallback;
 
+	// controller
+	private final NewDeliveryController newDeliveryController;
+
+	// customer id
+	private final int customerId;
+
 	/**
 	 * Constructor
 	 */
-	public SelectProductDialog(Window parent, Consumer<ProductSelectionResult> onProductSelected) {
+	public SelectProductDialog(Window parent, Consumer<ProductSelectionResult> onProductSelected,
+			NewDeliveryController newDeliveryController, int customerId) {
 		super(parent, "Select Product", ModalityType.APPLICATION_MODAL);
 		this.onProductSelectedCallback = onProductSelected;
+		this.newDeliveryController = newDeliveryController;
+		this.customerId = customerId;
+
 		initializeUI();
-		loadMockProducts();
+		loadProductsAsync();
 	}
 
 	/**
@@ -164,11 +169,17 @@ public class SelectProductDialog extends JDialog {
 
 		gbc.gridx = 1;
 		gbc.weightx = 0;
-		gbc.insets = new Insets(0, 0, 0, 0);
 		searchButton = createStyledButton("Search", SIDEBAR_ACTIVE);
 		searchButton.setPreferredSize(new Dimension(100, 38));
 		searchButton.addActionListener(e -> performSearch());
 		searchPanel.add(searchButton, gbc);
+
+		gbc.gridx = 2;
+		gbc.insets = new Insets(0, 0, 0, 0);
+		clearFilterButton = createStyledButton("Clear Filter", new Color(100, 100, 100));
+		clearFilterButton.setPreferredSize(new Dimension(120, 38));
+		clearFilterButton.addActionListener(e -> clearFilter());
+		searchPanel.add(clearFilterButton, gbc);
 
 		headerPanel.add(searchPanel, BorderLayout.CENTER);
 
@@ -349,23 +360,55 @@ public class SelectProductDialog extends JDialog {
 		updateAddButtonState();
 	}
 
+	private void showLoading() {
+		if (loadingOverlay == null) {
+			// Create semi-transparent overlay
+			loadingOverlay = new JPanel(new GridBagLayout());
+			loadingOverlay.setBackground(new Color(255, 255, 255, 180));
+			loadingOverlay.setOpaque(false);
+
+			// Create spinner
+			loadingSpinner = new LoadingSpinner(50, SIDEBAR_ACTIVE);
+
+			// Add spinner to overlay
+			GridBagConstraints gbc = new GridBagConstraints();
+			loadingOverlay.add(loadingSpinner, gbc);
+		}
+
+		// Add overlay to glass pane
+		setGlassPane(loadingOverlay);
+		getGlassPane().setVisible(true);
+
+		// Start animation
+		loadingSpinner.start();
+	}
+
+	private void hideLoading() {
+		if (loadingSpinner != null) {
+			loadingSpinner.stop();
+		}
+
+		getGlassPane().setVisible(false);
+	}
+
 	/**
 	 * Load mock products
 	 */
-	private void loadMockProducts() {
+	private void loadProductsAsync() {
 		availableProducts.clear();
 
-		// Mock products
-		availableProducts.add(new Product(1, "Molasses Premium Grade A", 450.00));
-		availableProducts.add(new Product(2, "Molasses Standard Grade B", 380.00));
-		availableProducts.add(new Product(3, "Organic Molasses", 520.00));
-		availableProducts.add(new Product(4, "Industrial Molasses", 320.00));
-		availableProducts.add(new Product(5, "Blackstrap Molasses", 480.00));
-		availableProducts.add(new Product(6, "Light Molasses", 420.00));
-		availableProducts.add(new Product(7, "Dark Molasses", 460.00));
-		availableProducts.add(new Product(8, "Refined Molasses", 500.00));
+		this.showLoading();
 
-		updateProductTable();
+		this.newDeliveryController.loadProductSelection(() -> {
+			this.availableProducts = this.newDeliveryController.getProductState().getProducts();
+
+			hideLoading();
+			updateProductTable();
+		}, err -> {
+			System.out.println("Failed to load" + err);
+			hideLoading();
+		}, customerId);
+
 	}
 
 	/**
@@ -375,30 +418,30 @@ public class SelectProductDialog extends JDialog {
 		String searchText = searchField.getText().trim().toLowerCase();
 
 		if (searchText.isEmpty()) {
-			loadMockProducts();
 			return;
 		}
 
-		availableProducts.clear();
+		this.showLoading();
 
-		// Mock search - filter by name
-		List<Product> allProducts = new ArrayList<>();
-		allProducts.add(new Product(1, "Molasses Premium Grade A", 450.00));
-		allProducts.add(new Product(2, "Molasses Standard Grade B", 380.00));
-		allProducts.add(new Product(3, "Organic Molasses", 520.00));
-		allProducts.add(new Product(4, "Industrial Molasses", 320.00));
-		allProducts.add(new Product(5, "Blackstrap Molasses", 480.00));
-		allProducts.add(new Product(6, "Light Molasses", 420.00));
-		allProducts.add(new Product(7, "Dark Molasses", 460.00));
-		allProducts.add(new Product(8, "Refined Molasses", 500.00));
+		this.newDeliveryController.searchProducts(searchText, customerId, () -> {
+			this.availableProducts = this.newDeliveryController.getProductState().getProducts();
 
-		for (Product product : allProducts) {
-			if (product.name.toLowerCase().contains(searchText)) {
-				availableProducts.add(product);
-			}
-		}
+			this.hideLoading();
+			updateProductTable();
 
-		updateProductTable();
+		}, err -> System.out.println("Failed to search product " + err));
+
+	}
+
+	/**
+	 * Clear filter and reload all products
+	 */
+	private void clearFilter() {
+		// Clear search field
+		searchField.setText("");
+
+		// Reload all products
+		loadProductsAsync();
 	}
 
 	/**
@@ -409,7 +452,7 @@ public class SelectProductDialog extends JDialog {
 
 		for (Product product : availableProducts) {
 			productTableModel.addRow(new Object[] { false, // Checkbox unchecked by default
-					product.name, "₱" + String.format("%.2f", product.sellingPrice) });
+					product.getName(), "₱" + String.format("%.2f", product.getSellingPrice()) });
 		}
 
 		selectedProduct = null;
@@ -601,8 +644,10 @@ public class SelectProductDialog extends JDialog {
 	/**
 	 * Show the dialog
 	 */
-	public static void show(Window parent, Consumer<ProductSelectionResult> onProductSelected) {
-		SelectProductDialog dialog = new SelectProductDialog(parent, onProductSelected);
+	public static void show(Window parent, Consumer<ProductSelectionResult> onProductSelected,
+			NewDeliveryController newDeliveryController, int customerId) {
+		SelectProductDialog dialog = new SelectProductDialog(parent, onProductSelected, newDeliveryController,
+				customerId);
 		dialog.setVisible(true);
 	}
 }

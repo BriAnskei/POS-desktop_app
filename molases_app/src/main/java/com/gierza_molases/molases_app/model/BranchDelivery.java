@@ -8,7 +8,7 @@ public class BranchDelivery {
 	private int productId;
 
 	private int quantity;
-	private String status; // cancelled, delivered;
+	private String status; // scheduled, cancelled, delivered;
 
 	// create
 	public BranchDelivery(int customerDeliveryId, int branchId, int productId, int quantity, String status) {

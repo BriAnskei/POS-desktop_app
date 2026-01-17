@@ -158,9 +158,14 @@ CREATE TABLE IF NOT EXISTS delivery (
     name TEXT NOT NULL,
     expenses TEXT,
     status TEXT,
+    
+    
     total_gross REAL NOT NULL,
-    overAll_profit REAL NOT NULL,
-	overAll_capital REAL NOT NULL,
+    total_capital REAL NOT NULL,
+    gross_profit REAL NOT NULL,
+    total_expenses REAL NOT NUll,
+    net_profit REAL NOT NULL,
+
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 

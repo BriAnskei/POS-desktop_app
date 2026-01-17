@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.function.Consumer;
 
 import javax.swing.BorderFactory;
+import javax.swing.Box;
+import javax.swing.BoxLayout;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
@@ -28,12 +30,16 @@ import javax.swing.JTable;
 import javax.swing.JTextField;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 
+import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.model.Customer;
+import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 
 public class SelectCustomerDialog extends JDialog {
@@ -47,21 +53,6 @@ public class SelectCustomerDialog extends JDialog {
 	private static final Color TABLE_ROW_EVEN = new Color(255, 255, 255);
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 
-	// Mock Customer Data Class
-	public static class Customer {
-		int id;
-		String name;
-		String address;
-		String contact;
-
-		public Customer(int id, String name, String address, String contact) {
-			this.id = id;
-			this.name = name;
-			this.address = address;
-			this.contact = contact;
-		}
-	}
-
 	// UI Components
 	private JTable customerTable;
 	private DefaultTableModel customerTableModel;
@@ -74,17 +65,28 @@ public class SelectCustomerDialog extends JDialog {
 	private Customer selectedCustomer = null;
 	private int selectedRowIndex = -1;
 
+	// Loading UI Components
+	private JPanel loadingPanel;
+	private LoadingSpinner loadingSpinner;
+	private JPanel customerSelectionPanel;
+
 	// Callback
 	private Consumer<Customer> onCustomerSelectedCallback;
+
+	// controller
+	private NewDeliveryController newDeliveryController;
 
 	/**
 	 * Constructor
 	 */
-	public SelectCustomerDialog(Window parent, Consumer<Customer> onCustomerSelected) {
+	public SelectCustomerDialog(Window parent, Consumer<Customer> onCustomerSelected,
+			NewDeliveryController newDeliveryController) {
 		super(parent, "Select Customer", ModalityType.APPLICATION_MODAL);
 		this.onCustomerSelectedCallback = onCustomerSelected;
+		this.newDeliveryController = newDeliveryController;
+
 		initializeUI();
-		loadMockCustomers();
+		loadCustomersAsync();
 	}
 
 	/**
@@ -102,8 +104,8 @@ public class SelectCustomerDialog extends JDialog {
 		// Header
 		mainContent.add(createHeaderSection(), BorderLayout.NORTH);
 
-		// Center - Customer Selection
-		mainContent.add(createCustomerSelectionSection(), BorderLayout.CENTER);
+		// Center - Customer Selection (with loading overlay)
+		mainContent.add(createCenterPanelWithLoading(), BorderLayout.CENTER);
 
 		// Bottom - Buttons
 		mainContent.add(createBottomSection(), BorderLayout.SOUTH);
@@ -115,6 +117,128 @@ public class SelectCustomerDialog extends JDialog {
 		setMinimumSize(new Dimension(800, 600));
 		setLocationRelativeTo(getParent());
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+	}
+
+	/**
+	 * Create center panel with loading overlay capability
+	 */
+	private JPanel createCenterPanelWithLoading() {
+		JPanel containerPanel = new JPanel(new java.awt.CardLayout());
+		containerPanel.setBackground(Color.WHITE);
+
+		// Customer selection panel
+		customerSelectionPanel = createCustomerSelectionSection();
+		customerSelectionPanel.setName("CUSTOMER_PANEL");
+
+		// Loading panel
+		loadingPanel = createLoadingPanel();
+		loadingPanel.setName("LOADING_PANEL");
+
+		// Add both panels with names
+		containerPanel.add(loadingPanel, "LOADING_PANEL");
+		containerPanel.add(customerSelectionPanel, "CUSTOMER_PANEL");
+
+		return containerPanel;
+	}
+
+	/**
+	 * Create loading panel
+	 */
+	private JPanel createLoadingPanel() {
+		JPanel panel = new JPanel();
+		panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+		panel.setBackground(Color.WHITE);
+		panel.setOpaque(true);
+
+		// Add vertical glue to center content
+		panel.add(Box.createVerticalGlue());
+
+		// Loading spinner
+		loadingSpinner = new LoadingSpinner(60, SIDEBAR_ACTIVE);
+		loadingSpinner.setAlignmentX(Component.CENTER_ALIGNMENT);
+		panel.add(loadingSpinner);
+
+		// Spacing
+		panel.add(Box.createRigidArea(new Dimension(0, 20)));
+
+		// Loading text
+		JLabel loadingLabel = new JLabel("Loading customers...");
+		loadingLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+		loadingLabel.setForeground(TEXT_DARK);
+		loadingLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+		panel.add(loadingLabel);
+
+		// Add vertical glue to center content
+		panel.add(Box.createVerticalGlue());
+
+		return panel;
+	}
+
+	/**
+	 * Show loading state
+	 */
+	private void showLoading() {
+		SwingUtilities.invokeLater(() -> {
+			JPanel container = (JPanel) loadingPanel.getParent();
+			java.awt.CardLayout cl = (java.awt.CardLayout) container.getLayout();
+			cl.show(container, "LOADING_PANEL");
+			loadingSpinner.start();
+
+			// Disable buttons during loading
+			searchButton.setEnabled(false);
+			clearFiltersButton.setEnabled(false);
+			selectButton.setEnabled(false);
+			searchField.setEnabled(false);
+		});
+	}
+
+	/**
+	 * Hide loading state
+	 */
+	private void hideLoading() {
+		SwingUtilities.invokeLater(() -> {
+			loadingSpinner.stop();
+			JPanel container = (JPanel) loadingPanel.getParent();
+			java.awt.CardLayout cl = (java.awt.CardLayout) container.getLayout();
+			cl.show(container, "CUSTOMER_PANEL");
+
+			// Re-enable buttons
+			searchButton.setEnabled(true);
+			clearFiltersButton.setEnabled(true);
+			searchField.setEnabled(true);
+			updateSelectButtonState();
+		});
+	}
+
+	/**
+	 * Load customers asynchronously with loading UI
+	 */
+	private void loadCustomersAsync() {
+		showLoading();
+
+		newDeliveryController.load20CustomerData(() -> {
+			SwingUtilities.invokeLater(() -> {
+
+				this.availableCustomers = newDeliveryController.getCustomerState().getCustomers();
+				updateCustomerTable();
+				hideLoading();
+
+				System.out.println("Loaded " + availableCustomers.size() + " customers"); // Debug
+			});
+		}, error -> {
+			hideLoading();
+			// showError(error);
+		});
+
+	}
+
+	/**
+	 * Perform search asynchronously
+	 */
+	private void performSearchAsync(String searchText) {
+
+		newDeliveryController.getCustomerState().setSearch(searchText);
+		this.loadCustomersAsync();
 	}
 
 	/**
@@ -173,8 +297,11 @@ public class SelectCustomerDialog extends JDialog {
 	 * Clear all filters and reset the customer list
 	 */
 	private void clearFilters() {
+
 		searchField.setText("");
-		loadMockCustomers();
+		newDeliveryController.getCustomerState().setSearch(null);
+
+		loadCustomersAsync();
 	}
 
 	/**
@@ -264,7 +391,7 @@ public class SelectCustomerDialog extends JDialog {
 				checkBox.setHorizontalAlignment(SwingConstants.CENTER);
 				checkBox.setBackground(
 						isSelected ? table.getSelectionBackground() : (row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD));
-				checkBox.setEnabled(false); // Visual only, clicks handled by mouse listener
+				checkBox.setEnabled(false);
 				return checkBox;
 			}
 		});
@@ -305,11 +432,9 @@ public class SelectCustomerDialog extends JDialog {
 				if (row >= 0) {
 					// Toggle selection
 					if (selectedRowIndex == row) {
-						// Deselect if clicking the same row
 						customerTable.clearSelection();
 						handleRowSelection(-1);
 					} else {
-						// Select the clicked row
 						customerTable.setRowSelectionInterval(row, row);
 						handleRowSelection(row);
 					}
@@ -346,59 +471,17 @@ public class SelectCustomerDialog extends JDialog {
 	}
 
 	/**
-	 * Load mock customers
-	 */
-	private void loadMockCustomers() {
-		availableCustomers.clear();
-
-		// Mock customers
-		availableCustomers.add(new Customer(1, "ABC Corporation", "123 Rizal Avenue, Makati City", "09171234567"));
-		availableCustomers
-				.add(new Customer(2, "XYZ Trading Company", "456 Bonifacio Drive, Taguig City", "09187654321"));
-		availableCustomers
-				.add(new Customer(3, "Golden Sun Industries", "789 Commonwealth Ave, Quezon City", "09191112233"));
-		availableCustomers
-				.add(new Customer(4, "Metro Manila Distributors", "321 Ortigas Avenue, Pasig City", "09201234567"));
-		availableCustomers
-				.add(new Customer(5, "Pacific Foods Inc.", "654 Shaw Boulevard, Mandaluyong City", "09217654321"));
-		availableCustomers.add(new Customer(6, "Premier Trading Co.", "987 Quezon Avenue, Quezon City", "09221112233"));
-		availableCustomers.add(new Customer(7, "Southeast Merchants", "147 EDSA, Makati City", "09231234567"));
-		availableCustomers.add(new Customer(8, "Global Supplies Ltd.", "258 Ayala Avenue, Makati City", "09247654321"));
-
-		updateCustomerTable();
-	}
-
-	/**
 	 * Perform search
 	 */
 	private void performSearch() {
-		String searchText = searchField.getText().trim().toLowerCase();
+		String searchText = searchField.getText().trim();
 
 		if (searchText.isEmpty()) {
-			loadMockCustomers();
+			loadCustomersAsync();
 			return;
 		}
 
-		availableCustomers.clear();
-
-		// Mock search - filter by name only
-		List<Customer> allCustomers = new ArrayList<>();
-		allCustomers.add(new Customer(1, "ABC Corporation", "123 Rizal Avenue, Makati City", "09171234567"));
-		allCustomers.add(new Customer(2, "XYZ Trading Company", "456 Bonifacio Drive, Taguig City", "09187654321"));
-		allCustomers.add(new Customer(3, "Golden Sun Industries", "789 Commonwealth Ave, Quezon City", "09191112233"));
-		allCustomers.add(new Customer(4, "Metro Manila Distributors", "321 Ortigas Avenue, Pasig City", "09201234567"));
-		allCustomers.add(new Customer(5, "Pacific Foods Inc.", "654 Shaw Boulevard, Mandaluyong City", "09217654321"));
-		allCustomers.add(new Customer(6, "Premier Trading Co.", "987 Quezon Avenue, Quezon City", "09221112233"));
-		allCustomers.add(new Customer(7, "Southeast Merchants", "147 EDSA, Makati City", "09231234567"));
-		allCustomers.add(new Customer(8, "Global Supplies Ltd.", "258 Ayala Avenue, Makati City", "09247654321"));
-
-		for (Customer customer : allCustomers) {
-			if (customer.name.toLowerCase().contains(searchText)) {
-				availableCustomers.add(customer);
-			}
-		}
-
-		updateCustomerTable();
+		performSearchAsync(searchText);
 	}
 
 	/**
@@ -408,8 +491,7 @@ public class SelectCustomerDialog extends JDialog {
 		customerTableModel.setRowCount(0);
 
 		for (Customer customer : availableCustomers) {
-			customerTableModel.addRow(new Object[] { false, // Checkbox unchecked by default
-					customer.name, customer.address });
+			customerTableModel.addRow(new Object[] { false, customer.getDisplayName(), customer.getAddress() });
 		}
 
 		selectedCustomer = null;
@@ -454,7 +536,6 @@ public class SelectCustomerDialog extends JDialog {
 			return;
 		}
 
-		// Call callback with selected customer
 		if (onCustomerSelectedCallback != null) {
 			onCustomerSelectedCallback.accept(selectedCustomer);
 		}
@@ -494,8 +575,9 @@ public class SelectCustomerDialog extends JDialog {
 	/**
 	 * Show the dialog
 	 */
-	public static void show(Window parent, Consumer<Customer> onCustomerSelected) {
-		SelectCustomerDialog dialog = new SelectCustomerDialog(parent, onCustomerSelected);
+	public static void show(Window parent, Consumer<Customer> onCustomerSelected,
+			NewDeliveryController newDeliveryController) {
+		SelectCustomerDialog dialog = new SelectCustomerDialog(parent, onCustomerSelected, newDeliveryController);
 		dialog.setVisible(true);
 	}
 }

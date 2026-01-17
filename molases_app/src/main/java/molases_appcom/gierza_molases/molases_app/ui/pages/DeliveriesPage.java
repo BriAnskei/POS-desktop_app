@@ -55,8 +55,11 @@ public class DeliveriesPage {
 	private static final Color TABLE_ROW_EVEN = new Color(255, 255, 255);
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 	private static final Color TABLE_HOVER = new Color(245, 239, 231);
+
+	// Status colors - updated for 3 statuses
 	private static final Color STATUS_SCHEDULED = new Color(255, 165, 0); // Orange
-	private static final Color STATUS_COMPLETE = new Color(46, 125, 50); // Green
+	private static final Color STATUS_DELIVERED = new Color(46, 125, 50); // Green
+	private static final Color STATUS_CANCELLED = new Color(198, 40, 40); // Red
 
 	// UI component references
 	private static JTextField searchField;
@@ -99,30 +102,36 @@ public class DeliveriesPage {
 		expenses5.put("Gas", 700.0);
 		expenses5.put("Toll", 200.0);
 
-		// Create mock deliveries
+		// Create mock deliveries with all 3 statuses
 		mockDeliveries.add(new Delivery(1, LocalDateTime.of(2026, 1, 15, 9, 0), "Morning Route A", expenses1,
-				"scheduled", 2500.0, 5000.0, null, LocalDateTime.of(2026, 1, 10, 14, 30), 5, 3));
+				"scheduled", 2500.0, 5000.0, null, null, LocalDateTime.of(2026, 1, 10, 14, 30), 5, 3));
 
 		mockDeliveries.add(new Delivery(2, LocalDateTime.of(2026, 1, 14, 14, 0), "Afternoon Route B", expenses2,
-				"complete", 3200.0, 6000.0, null, LocalDateTime.of(2026, 1, 9, 10, 15), 8, 5));
+				"delivered", 3200.0, 6000.0, null, null, LocalDateTime.of(2026, 1, 9, 10, 15), 8, 5));
 
 		mockDeliveries.add(new Delivery(3, LocalDateTime.of(2026, 1, 16, 8, 30), "Downtown Delivery", expenses3,
-				"scheduled", 1800.0, 4000.0, null, LocalDateTime.of(2026, 1, 11, 16, 45), 3, 2));
+				"scheduled", 1800.0, 4000.0, null, null, LocalDateTime.of(2026, 1, 11, 16, 45), 3, 2));
 
-		mockDeliveries.add(new Delivery(4, LocalDateTime.of(2026, 1, 13, 10, 0), "Express Route", expenses4, "complete",
-				4100.0, 7500.0, null, LocalDateTime.of(2026, 1, 8, 11, 20), 12, 7));
+		mockDeliveries.add(new Delivery(4, LocalDateTime.of(2026, 1, 13, 10, 0), "Express Route", expenses4,
+				"delivered", 4100.0, 7500.0, null, null, LocalDateTime.of(2026, 1, 8, 11, 20), 12, 7));
 
 		mockDeliveries.add(new Delivery(5, LocalDateTime.of(2026, 1, 17, 13, 0), "Weekend Special", expenses5,
-				"scheduled", 2900.0, 5500.0, null, LocalDateTime.of(2026, 1, 12, 9, 30), 6, 4));
+				"cancelled", 2900.0, 5500.0, null, null, LocalDateTime.of(2026, 1, 12, 9, 30), 6, 4));
 
 		mockDeliveries.add(new Delivery(6, LocalDateTime.of(2026, 1, 12, 15, 30), "Evening Route C", expenses1,
-				"complete", 2200.0, 4500.0, null, LocalDateTime.of(2026, 1, 7, 13, 10), 4, 3));
+				"delivered", 2200.0, 4500.0, null, null, LocalDateTime.of(2026, 1, 7, 13, 10), 4, 3));
 
 		mockDeliveries.add(new Delivery(7, LocalDateTime.of(2026, 1, 18, 7, 0), "Early Bird Route", expenses2,
-				"scheduled", 3500.0, 6500.0, null, LocalDateTime.of(2026, 1, 13, 15, 0), 9, 6));
+				"scheduled", 3500.0, 6500.0, null, null, LocalDateTime.of(2026, 1, 13, 15, 0), 9, 6));
 
 		mockDeliveries.add(new Delivery(8, LocalDateTime.of(2026, 1, 11, 11, 0), "Midday Express", expenses3,
-				"complete", 2700.0, 5200.0, null, LocalDateTime.of(2026, 1, 6, 12, 45), 7, 4));
+				"cancelled", 2700.0, 5200.0, null, null, LocalDateTime.of(2026, 1, 6, 12, 45), 7, 4));
+
+		mockDeliveries.add(new Delivery(9, LocalDateTime.of(2026, 1, 10, 16, 0), "Late Afternoon Run", expenses2,
+				"delivered", 3100.0, 5800.0, null, null, LocalDateTime.of(2026, 1, 5, 14, 0), 6, 4));
+
+		mockDeliveries.add(new Delivery(10, LocalDateTime.of(2026, 1, 19, 10, 30), "North District Route", expenses4,
+				"scheduled", 2800.0, 5300.0, null, null, LocalDateTime.of(2026, 1, 14, 11, 0), 7, 5));
 
 		// Initially show all deliveries
 		filteredDeliveries = new ArrayList<>(mockDeliveries);
@@ -464,6 +473,7 @@ public class DeliveriesPage {
 		}
 
 		// Custom cell renderer for status column with colors
+		// Custom cell renderer for status column with colors for all 3 statuses
 		table.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
 			@Override
 			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
@@ -478,8 +488,11 @@ public class DeliveriesPage {
 					if (status.equals("scheduled")) {
 						setForeground(STATUS_SCHEDULED);
 						setFont(new Font("Arial", Font.BOLD, 14));
-					} else if (status.equals("complete")) {
-						setForeground(STATUS_COMPLETE);
+					} else if (status.equals("delivered")) {
+						setForeground(STATUS_DELIVERED);
+						setFont(new Font("Arial", Font.BOLD, 14));
+					} else if (status.equals("cancelled")) {
+						setForeground(STATUS_CANCELLED);
 						setFont(new Font("Arial", Font.BOLD, 14));
 					}
 				}
@@ -648,8 +661,8 @@ public class DeliveriesPage {
 				{ "Status:", delivery.getStatus().substring(0, 1).toUpperCase() + delivery.getStatus().substring(1) },
 				{ "Customers:", String.valueOf(delivery.getTotalCustomers()) },
 				{ "Branches:", String.valueOf(delivery.getTotalBranches()) },
-				{ "Overall Profit:", "₱" + String.format("%,.2f", delivery.getOverAllProfit()) },
-				{ "Overall Capital:", "₱" + String.format("%,.2f", delivery.getOverAllCapital()) },
+				{ "Overall Profit:", "₱" + String.format("%,.2f", delivery.getNetProfit()) },
+				{ "Overall Capital:", "₱" + String.format("%,.2f", delivery.getTotalCapital()) },
 				{ "Total Expenses:", "₱" + String.format("%,.2f", delivery.getTotalExpenses()) },
 				{ "Created At:", delivery.getCreatedAt().format(formatter) } };
 

@@ -7,6 +7,8 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.GridBagConstraints;
+import java.awt.GridBagLayout;
 import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
@@ -19,17 +21,22 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
+import javax.swing.JLayeredPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.ListSelectionModel;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableCellRenderer;
 
+import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.model.Branch;
+import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 
 public class SelectBranchDialog extends JDialog {
@@ -42,15 +49,6 @@ public class SelectBranchDialog extends JDialog {
 	private static final Color TABLE_ROW_EVEN = new Color(255, 255, 255);
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 
-	// Branch Data Class
-	public static class Branch {
-		String address;
-
-		public Branch(String address) {
-			this.address = address;
-		}
-	}
-
 	// UI Components
 	private JTable branchTable;
 	private DefaultTableModel branchTableModel;
@@ -59,18 +57,32 @@ public class SelectBranchDialog extends JDialog {
 	private JButton addBranchButton;
 	private JButton cancelButton;
 
+	// Loading components
+	private JPanel loadingOverlay;
+	private LoadingSpinner loadingSpinner;
+	private JLabel loadingLabel;
+	private JPanel mainContent;
+
 	// Callback
 	private Consumer<List<Branch>> onBranchesSelectedCallback;
 
+	// controller
+	private final NewDeliveryController newDeliveryController;
+
+	private final int selectedCustomerId;
+
 	/**
-	 * Constructor
+	 * Constructor - now accepts the list of branches to display
 	 */
 	public SelectBranchDialog(Window parent, List<String> alreadyAddedBranchAddresses,
-			Consumer<List<Branch>> onBranchesSelected) {
+			Consumer<List<Branch>> onBranchesSelected, int selectedCustomerId,
+			NewDeliveryController newDeliveryController) {
 		super(parent, "Select Branches", ModalityType.APPLICATION_MODAL);
 		this.onBranchesSelectedCallback = onBranchesSelected;
+		this.newDeliveryController = newDeliveryController;
+		this.selectedCustomerId = selectedCustomerId;
 		initializeUI();
-		loadMockBranches(alreadyAddedBranchAddresses);
+		loadBranches(alreadyAddedBranchAddresses);
 	}
 
 	/**
@@ -81,7 +93,7 @@ public class SelectBranchDialog extends JDialog {
 		getContentPane().setBackground(Color.WHITE);
 
 		// Main content panel with padding
-		JPanel mainContent = new JPanel(new BorderLayout(0, 20));
+		mainContent = new JPanel(new BorderLayout(0, 20));
 		mainContent.setBackground(Color.WHITE);
 		mainContent.setBorder(new EmptyBorder(25, 30, 25, 30));
 
@@ -94,13 +106,33 @@ public class SelectBranchDialog extends JDialog {
 		// Bottom - Buttons
 		mainContent.add(createBottomSection(), BorderLayout.SOUTH);
 
-		add(mainContent);
+		// Create layered pane for overlay support
+		JLayeredPane layeredPane = new JLayeredPane();
+		layeredPane.setLayout(null); // Use null layout for manual positioning
+
+		// Add components
+		layeredPane.add(mainContent, JLayeredPane.DEFAULT_LAYER);
+
+		// Create loading overlay
+		createLoadingOverlay();
+		layeredPane.add(loadingOverlay, JLayeredPane.POPUP_LAYER);
+
+		add(layeredPane, BorderLayout.CENTER);
 
 		// Dialog settings
 		setSize(700, 550);
 		setMinimumSize(new Dimension(700, 550));
 		setLocationRelativeTo(getParent());
 		setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+
+		// Set bounds after sizing
+		layeredPane.addComponentListener(new java.awt.event.ComponentAdapter() {
+			@Override
+			public void componentResized(java.awt.event.ComponentEvent e) {
+				mainContent.setBounds(0, 0, layeredPane.getWidth(), layeredPane.getHeight());
+				loadingOverlay.setBounds(0, 0, layeredPane.getWidth(), layeredPane.getHeight());
+			}
+		});
 	}
 
 	/**
@@ -261,31 +293,33 @@ public class SelectBranchDialog extends JDialog {
 		updateAddButtonState();
 	}
 
-	/**
-	 * Load mock branches (filtered by already added branches)
-	 */
-	private void loadMockBranches(List<String> alreadyAddedBranchAddresses) {
+	private void loadBranches(List<String> alreadyAddedBranchAddresses) {
+
 		availableBranches.clear();
 
-		// Mock branch data
-		List<Branch> allBranches = new ArrayList<>();
-		allBranches.add(new Branch("Branch 1 - 123 Main Street, Manila"));
-		allBranches.add(new Branch("Branch 2 - 456 Secondary Road, Quezon City"));
-		allBranches.add(new Branch("Branch 3 - 789 Tertiary Avenue, Makati"));
-		allBranches.add(new Branch("Branch 4 - 101 Commerce Street, Pasig City"));
-		allBranches.add(new Branch("Branch 5 - 202 Business Park, Taguig City"));
-		allBranches.add(new Branch("Branch 6 - 303 Industrial Road, Mandaluyong City"));
-		allBranches.add(new Branch("Branch 7 - 404 Trading Avenue, Caloocan City"));
-		allBranches.add(new Branch("Branch 8 - 505 Market Street, Paranaque City"));
+		SwingUtilities.invokeLater(() -> showLoading("Loading branches..."));
 
-		// Filter out already added branches
-		for (Branch branch : allBranches) {
-			if (!alreadyAddedBranchAddresses.contains(branch.address)) {
-				availableBranches.add(branch);
-			}
-		}
+		this.newDeliveryController.loadCustomerBranches(this.selectedCustomerId, () -> {
+			SwingUtilities.invokeLater(() -> {
+				List<Branch> customerBranches = this.newDeliveryController.getBranchesState().getBranches();
 
-		updateBranchTable();
+				availableBranches.clear();
+
+				for (Branch branch : customerBranches) {
+					if (!alreadyAddedBranchAddresses.contains(branch.getAddress())) {
+						availableBranches.add(branch);
+					}
+				}
+				hideLoading();
+				updateBranchTable();
+
+			});
+		}, err -> {
+			SwingUtilities.invokeLater(() -> {
+				hideLoading();
+				ToastNotification.showError(this, "Failed to fetch branches");
+			});
+		});
 	}
 
 	/**
@@ -296,7 +330,7 @@ public class SelectBranchDialog extends JDialog {
 
 		for (Branch branch : availableBranches) {
 			branchTableModel.addRow(new Object[] { false, // Checkbox unchecked by default
-					branch.address });
+					branch.getAddress() });
 		}
 
 		selectedBranches.clear();
@@ -378,11 +412,101 @@ public class SelectBranchDialog extends JDialog {
 	}
 
 	/**
+	 * Create loading overlay
+	 */
+	/**
+	 * Create loading overlay
+	 */
+	private void createLoadingOverlay() {
+		loadingOverlay = new JPanel();
+		loadingOverlay.setLayout(new GridBagLayout());
+		loadingOverlay.setBackground(new Color(255, 255, 255, 240));
+		loadingOverlay.setVisible(false);
+
+		// Container for spinner and label
+		JPanel loadingContainer = new JPanel(new BorderLayout(0, 15));
+		loadingContainer.setOpaque(false);
+
+		// Spinner
+		loadingSpinner = new LoadingSpinner(50, ACCENT_GOLD);
+		JPanel spinnerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER));
+		spinnerPanel.setOpaque(false);
+		spinnerPanel.add(loadingSpinner);
+		loadingContainer.add(spinnerPanel, BorderLayout.CENTER);
+
+		// Label
+		loadingLabel = new JLabel("Loading...");
+		loadingLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+		loadingLabel.setForeground(TEXT_DARK);
+		loadingLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		loadingContainer.add(loadingLabel, BorderLayout.SOUTH);
+
+		GridBagConstraints gbc = new GridBagConstraints();
+		loadingOverlay.add(loadingContainer, gbc);
+	}
+
+	/**
+	 * Show loading overlay
+	 * 
+	 * @param message Optional custom loading message (null for default
+	 *                "Loading...")
+	 */
+	public void showLoading(String message) {
+		if (message != null && !message.isEmpty()) {
+			loadingLabel.setText(message);
+		} else {
+			loadingLabel.setText("Loading...");
+		}
+
+		loadingSpinner.start();
+		loadingOverlay.setVisible(true);
+		mainContent.setEnabled(false);
+
+		// Disable buttons
+		addBranchButton.setEnabled(false);
+		cancelButton.setEnabled(false);
+		branchTable.setEnabled(false);
+
+		// Bring overlay to front
+		getContentPane().setComponentZOrder(loadingOverlay, 0);
+
+		revalidate();
+		repaint();
+	}
+
+	/**
+	 * Show loading overlay with default message
+	 */
+	public void showLoading() {
+		showLoading(null);
+	}
+
+	/**
+	 * Hide loading overlay
+	 */
+	public void hideLoading() {
+		loadingSpinner.stop();
+		loadingOverlay.setVisible(false);
+		mainContent.setEnabled(true);
+
+		// Re-enable components
+		cancelButton.setEnabled(true);
+		branchTable.setEnabled(true);
+		updateAddButtonState(); // This will properly enable/disable based on selection
+
+		revalidate();
+		repaint();
+	}
+
+	/**
 	 * Show the dialog
 	 */
 	public static void show(Window parent, List<String> alreadyAddedBranchAddresses,
-			Consumer<List<Branch>> onBranchesSelected) {
-		SelectBranchDialog dialog = new SelectBranchDialog(parent, alreadyAddedBranchAddresses, onBranchesSelected);
+			Consumer<List<Branch>> onBranchesSelected, int selectedCustomerId,
+			NewDeliveryController newDeliveryController) {
+		System.out.println("Fetching cutomer bracnehs: " + selectedCustomerId);
+		SelectBranchDialog dialog = new SelectBranchDialog(parent, alreadyAddedBranchAddresses, onBranchesSelected,
+				selectedCustomerId, newDeliveryController);
 		dialog.setVisible(true);
 	}
 }

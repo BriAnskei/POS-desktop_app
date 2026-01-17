@@ -79,6 +79,36 @@ public class ProductsController {
 		}.execute();
 	}
 
+	public void loadProductsSelection(Runnable onDone, Consumer<String> onError, int customerId) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+
+				List<Product> producs = service.getallProductsForSelection(customerId, state.getSearch());
+
+				state.setProducts(producs);
+				return null;
+			}
+
+			@Override
+			protected void done() {
+
+				if (error != null) {
+					error.printStackTrace();
+
+					if (onError != null)
+						onError.accept(error.getMessage());
+				} else {
+					if (onDone != null)
+						onDone.run();
+				}
+
+			}
+		}.execute();
+	}
+
 	/*
 	 * ========================= CRUD Operations =========================
 	 */
@@ -236,6 +266,11 @@ public class ProductsController {
 	public void search(String searchText, Runnable onDone, Consumer<String> onError) {
 		state.setSearch(searchText);
 		loadProducts(onDone, onError);
+	}
+
+	public void searchSelection(String searchText, int customerId, Runnable onDone, Consumer<String> onError) {
+		state.setSearch(searchText);
+		this.loadProductsSelection(onDone, onError, customerId);
 	}
 
 	public void changeSortOrder(String sortOrder, Runnable onDone, Consumer<String> onError) {

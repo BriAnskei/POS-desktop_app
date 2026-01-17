@@ -12,7 +12,7 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.print.PrinterException;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -31,9 +31,11 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.model.Branch;
+import com.gierza_molases.molases_app.model.Customer;
+import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep1.Step1Data;
-import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep2.BranchData;
-import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep2.CustomerDeliveryData;
 import com.gierza_molases.molases_app.ui.components.delivery.DeliveryFormStep2.Step2Data;
 import com.gierza_molases.molases_app.ui.dialogs.Delivery.CustomerDeliveryDetailsDialog;
 
@@ -53,8 +55,9 @@ public class DeliveryFormStep3 {
 	private Step1Data step1Data;
 	private Step2Data step2Data;
 	private JPanel mainPanel;
+	private NewDeliveryController newDeliveryController;
 
-	// Financial totals
+	// Financial totals (calculated from real data)
 	private double grossSales = 0.0;
 	private double totalCapital = 0.0;
 	private double grossProfit = 0.0;
@@ -62,7 +65,11 @@ public class DeliveryFormStep3 {
 	private double netProfit = 0.0;
 
 	// Customer summary data
-	private Map<String, CustomerSummary> customerSummaries;
+	private Map<Customer, CustomerSummary> customerSummaries;
+
+	public DeliveryFormStep3(NewDeliveryController newDeliveryController) {
+		this.newDeliveryController = newDeliveryController;
+	}
 
 	public JPanel createPanel(Step1Data step1Data, Step2Data step2Data) {
 		this.step1Data = step1Data;
@@ -86,7 +93,7 @@ public class DeliveryFormStep3 {
 		summaryTitle.setBorder(new EmptyBorder(0, 0, 15, 0));
 		mainPanel.add(summaryTitle, gbc);
 
-		// Delivery Details Section (unchanged)
+		// Delivery Details Section
 		gbc.gridy++;
 		mainPanel.add(createDeliveryDetailsSection(), gbc);
 
@@ -310,23 +317,28 @@ public class DeliveryFormStep3 {
 	}
 
 	private void calculateCustomerSummaries() {
-		customerSummaries = new java.util.LinkedHashMap<>();
+		customerSummaries = new LinkedHashMap<>();
 		grossSales = 0.0;
 		totalCapital = 0.0;
 
-		// Loop through customers (already grouped in new structure)
-		for (CustomerDeliveryData customer : step2Data.customers) {
+		// Loop through all customers from state
+		Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries = step2Data.customerDeliveries;
+
+		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> customerEntry : customerDeliveries
+				.entrySet()) {
+			Customer customer = customerEntry.getKey();
+			Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
+
 			double customerSales = 0.0;
 			double customerCapital = 0.0;
 
 			// Loop through branches for this customer
-			for (BranchData branch : customer.branches) {
-				// Get mock products for this branch
-				List<ProductOrderData> products = getMockProductsForBranch(customer.customerName, branch);
+			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
+				List<ProductWithQuantity> products = branchEntry.getValue();
 
-				for (ProductOrderData product : products) {
-					double totalPrice = product.quantity * product.sellingPrice;
-					double totalCapitalCost = product.quantity * product.capital;
+				for (ProductWithQuantity product : products) {
+					double totalPrice = product.getTotalSellingPrice();
+					double totalCapitalCost = product.getTotalCapital();
 
 					customerSales += totalPrice;
 					customerCapital += totalCapitalCost;
@@ -335,11 +347,11 @@ public class DeliveryFormStep3 {
 
 			// Create customer summary
 			CustomerSummary summary = new CustomerSummary();
-			summary.customerName = customer.customerName;
-			summary.totalBranches = customer.getBranchCount();
+			summary.customerName = customer.getDisplayName();
+			summary.totalBranches = branches.size();
 			summary.totalSales = customerSales;
 
-			customerSummaries.put(customer.customerName, summary);
+			customerSummaries.put(customer, summary);
 
 			grossSales += customerSales;
 			totalCapital += customerCapital;
@@ -515,28 +527,6 @@ public class DeliveryFormStep3 {
 		return row;
 	}
 
-	// MOCK DATA - Generate products based on customer name and branch
-	private List<ProductOrderData> getMockProductsForBranch(String customerName, BranchData branch) {
-		List<ProductOrderData> products = new ArrayList<>();
-
-		// Generate mock products based on customer name
-		if (customerName.contains("ABC")) {
-			products.add(new ProductOrderData(1, "Premium Molasses A", 10, 100.0, 70.0));
-			products.add(new ProductOrderData(2, "Standard Molasses B", 5, 200.0, 150.0));
-		} else if (customerName.contains("XYZ")) {
-			products.add(new ProductOrderData(3, "Organic Molasses C", 8, 150.0, 100.0));
-			products.add(new ProductOrderData(4, "Dark Molasses D", 12, 120.0, 85.0));
-			products.add(new ProductOrderData(5, "Light Molasses E", 6, 180.0, 130.0));
-		} else if (customerName.contains("Golden")) {
-			products.add(new ProductOrderData(6, "Golden Molasses F", 15, 90.0, 60.0));
-		} else {
-			// Default products for any other customer
-			products.add(new ProductOrderData(7, "Standard Molasses", 10, 110.0, 75.0));
-		}
-
-		return products;
-	}
-
 	public void printSummary() {
 		// Create a print job
 		java.awt.print.PrinterJob printerJob = java.awt.print.PrinterJob.getPrinterJob();
@@ -591,25 +581,5 @@ public class DeliveryFormStep3 {
 		public String customerName;
 		public int totalBranches;
 		public double totalSales;
-	}
-
-	// TEMPORARY Mock Product Order Data Class
-	// TODO: Replace with actual implementation in Step 2
-	public static class ProductOrderData {
-		public int productId;
-		public String productName;
-		public int quantity;
-		public double sellingPrice;
-		public double capital;
-		public double profitPerUnit;
-
-		public ProductOrderData(int productId, String productName, int quantity, double sellingPrice, double capital) {
-			this.productId = productId;
-			this.productName = productName;
-			this.quantity = quantity;
-			this.sellingPrice = sellingPrice;
-			this.capital = capital;
-			this.profitPerUnit = sellingPrice - capital;
-		}
 	}
 }

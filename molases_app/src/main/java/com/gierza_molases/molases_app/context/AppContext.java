@@ -38,6 +38,7 @@ public class AppContext {
 	public static NewDeliveryController newDeliveryController;
 
 	public static void init() {
+		// DB connection
 		conn = Database.init();
 		DatabaseInitializer.init();
 
@@ -64,7 +65,7 @@ public class AppContext {
 		branchesController = new BranchesController(new BranchState(), branchService);
 		productsController = new ProductsController(new ProductState(), productService, productAssociationService);
 		newDeliveryController = new NewDeliveryController(new NewDeliveryState(), customersController,
-				productsController);
+				branchesController, productsController, deliveryService);
 
 	}
 

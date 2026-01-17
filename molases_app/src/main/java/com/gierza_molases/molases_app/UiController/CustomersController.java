@@ -63,8 +63,6 @@ public class CustomersController {
 	}
 
 	public void loadTop20Customers(Runnable onDone, Consumer<String> onError) {
-		// reset first
-		this.resetState();
 
 		new SwingWorker<Void, Void>() {
 			private List<Customer> loaded;

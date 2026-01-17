@@ -1,6 +1,7 @@
 package com.gierza_molases.molases_app.UiController;
 
 import java.util.List;
+import java.util.function.Consumer;
 
 import javax.swing.SwingWorker;
 
@@ -82,7 +83,7 @@ public class BranchesController {
 	 * 
 	 */
 
-	public void loadBranchByCustomerId(int customerId, Runnable onSuccess, Runnable onError) {
+	public void loadBranchByCustomerId(int customerId, Runnable onSuccess, Consumer<String> onError) {
 		new SwingWorker<List<Branch>, Void>() {
 			private List<Branch> customerBranches;
 			private Exception error;
@@ -91,6 +92,8 @@ public class BranchesController {
 			protected List<Branch> doInBackground() {
 				try {
 					customerBranches = service.getBranchesByCustomerId(customerId);
+					System.out.println("customer branches coount: " + customerBranches.size());
+
 				} catch (Exception e) {
 					error = e;
 				}
@@ -105,15 +108,13 @@ public class BranchesController {
 				if (error != null) {
 					error.printStackTrace();
 					if (onError != null)
-						onError.run();
+						onError.accept(error.getMessage());
 				} else {
-
+					state.reset();
+					state.setBranches(customerBranches);
 					if (onSuccess != null) {
 						onSuccess.run();
 					}
-
-					state.reset();
-					state.setBranches(customerBranches);
 
 				}
 

@@ -14,7 +14,9 @@ import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -32,30 +34,24 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.model.Branch;
+import com.gierza_molases.molases_app.model.Customer;
+import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
-import com.gierza_molases.molases_app.ui.dialogs.Delivery.SelectCustomerDialog.Customer;
 
+@SuppressWarnings("serial")
 public class AddCustomerBranchDialog extends JDialog {
 
 	// Color Palette
 	private static final Color TEXT_DARK = new Color(62, 39, 35);
 	private static final Color TEXT_LIGHT = new Color(245, 239, 231);
 	private static final Color ACCENT_GOLD = new Color(184, 134, 11);
-	private static final Color SIDEBAR_ACTIVE = new Color(139, 90, 43);
+
 	private static final Color TABLE_HEADER = new Color(139, 90, 43);
 	private static final Color TABLE_ROW_EVEN = new Color(255, 255, 255);
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 	private static final Color CONTENT_BG = new Color(250, 247, 242);
-
-	private static class BranchData {
-		String branchAddress;
-		int productTypeCount;
-
-		BranchData(String branchAddress, int productTypeCount) {
-			this.branchAddress = branchAddress;
-			this.productTypeCount = productTypeCount;
-		}
-	}
 
 	// UI Components
 	private JPanel customerDetailsPanel;
@@ -66,7 +62,9 @@ public class AddCustomerBranchDialog extends JDialog {
 	private JButton addBranchBtn;
 	private JTable branchTable;
 	private DefaultTableModel branchTableModel;
-	private List<BranchData> branches = new ArrayList<>();
+
+	// Data storage - Map of Branch to its products
+	private Map<Branch, List<ProductWithQuantity>> branchProductsMap = new LinkedHashMap<>();
 	private Customer selectedCustomer = null;
 
 	// Buttons
@@ -76,12 +74,16 @@ public class AddCustomerBranchDialog extends JDialog {
 	// Callback
 	private Runnable onSuccessCallback;
 
+	// Controller
+	private NewDeliveryController newDeliveryController;
+
 	/**
 	 * Constructor
 	 */
-	public AddCustomerBranchDialog(Window parent, Runnable onSuccess) {
+	public AddCustomerBranchDialog(Window parent, Runnable onSuccess, NewDeliveryController newDeliveryController) {
 		super(parent, "Add Customer & Branches", ModalityType.APPLICATION_MODAL);
 		this.onSuccessCallback = onSuccess;
+		this.newDeliveryController = newDeliveryController;
 		initializeUI();
 	}
 
@@ -263,6 +265,8 @@ public class AddCustomerBranchDialog extends JDialog {
 
 				if (column == 2) {
 					setHorizontalAlignment(SwingConstants.CENTER);
+				} else if (column == 1) {
+					setHorizontalAlignment(SwingConstants.CENTER);
 				} else {
 					setHorizontalAlignment(SwingConstants.LEFT);
 				}
@@ -279,8 +283,8 @@ public class AddCustomerBranchDialog extends JDialog {
 				int row = branchTable.rowAtPoint(e.getPoint());
 				int col = branchTable.columnAtPoint(e.getPoint());
 
-				if (col == 2 && row >= 0 && row < branches.size()) {
-					BranchData branch = branches.get(row);
+				if (col == 2 && row >= 0 && row < getBranchList().size()) {
+					Branch branch = getBranchList().get(row);
 					showActionMenu(branchTable, branch, row);
 				}
 			}
@@ -302,8 +306,13 @@ public class AddCustomerBranchDialog extends JDialog {
 		SelectCustomerDialog.show(this, customer -> {
 			selectedCustomer = customer;
 			updateCustomerDetailsDisplay();
+
+			// Clear branches when changing customer
+			branchProductsMap.clear();
+			updateBranchTable();
+
 			addBranchBtn.setEnabled(true);
-		});
+		}, this.newDeliveryController);
 	}
 
 	/**
@@ -338,7 +347,7 @@ public class AddCustomerBranchDialog extends JDialog {
 			customerDetailsPanel.add(nameTitle, gbc);
 
 			gbc.gridy++;
-			customerNameLabel = new JLabel(selectedCustomer.name);
+			customerNameLabel = new JLabel(selectedCustomer.getDisplayName());
 			customerNameLabel.setFont(new Font("Arial", Font.PLAIN, 14));
 			customerNameLabel.setForeground(TEXT_DARK);
 			customerDetailsPanel.add(customerNameLabel, gbc);
@@ -353,7 +362,7 @@ public class AddCustomerBranchDialog extends JDialog {
 
 			gbc.gridy++;
 			gbc.insets = new Insets(8, 10, 8, 10);
-			customerAddressLabel = new JLabel("<html>" + selectedCustomer.address + "</html>");
+			customerAddressLabel = new JLabel("<html>" + selectedCustomer.getAddress() + "</html>");
 			customerAddressLabel.setFont(new Font("Arial", Font.PLAIN, 14));
 			customerAddressLabel.setForeground(TEXT_DARK);
 			customerDetailsPanel.add(customerAddressLabel, gbc);
@@ -368,7 +377,7 @@ public class AddCustomerBranchDialog extends JDialog {
 
 			gbc.gridy++;
 			gbc.insets = new Insets(8, 10, 8, 10);
-			customerContactLabel = new JLabel(selectedCustomer.contact);
+			customerContactLabel = new JLabel(selectedCustomer.getContactNumber());
 			customerContactLabel.setFont(new Font("Arial", Font.PLAIN, 14));
 			customerContactLabel.setForeground(TEXT_DARK);
 			customerDetailsPanel.add(customerContactLabel, gbc);
@@ -384,19 +393,18 @@ public class AddCustomerBranchDialog extends JDialog {
 	private void handleAddBranch() {
 		// Get list of already added branch addresses to filter them out
 		List<String> alreadyAddedAddresses = new ArrayList<>();
-		for (BranchData branch : branches) {
-			alreadyAddedAddresses.add(branch.branchAddress);
+		for (Branch branch : branchProductsMap.keySet()) {
+			alreadyAddedAddresses.add(branch.getAddress());
 		}
 
 		// Show the SelectBranchDialog
 		SelectBranchDialog.show(this, alreadyAddedAddresses, selectedBranches -> {
-			// Add all selected branches with product count of 0
-			for (SelectBranchDialog.Branch branch : selectedBranches) {
-				BranchData newBranch = new BranchData(branch.address, 0);
-				branches.add(newBranch);
+			// Add all selected branches with empty product lists
+			for (Branch branch : selectedBranches) {
+				branchProductsMap.put(branch, new ArrayList<>());
 			}
 			updateBranchTable();
-		});
+		}, this.selectedCustomer.getId(), this.newDeliveryController);
 	}
 
 	/**
@@ -405,15 +413,26 @@ public class AddCustomerBranchDialog extends JDialog {
 	private void updateBranchTable() {
 		branchTableModel.setRowCount(0);
 
-		for (BranchData branch : branches) {
-			branchTableModel.addRow(new Object[] { branch.branchAddress, branch.productTypeCount, "⚙ Actions" });
+		for (Map.Entry<Branch, List<ProductWithQuantity>> entry : branchProductsMap.entrySet()) {
+			Branch branch = entry.getKey();
+			List<ProductWithQuantity> products = entry.getValue();
+			int productCount = products != null ? products.size() : 0;
+
+			branchTableModel.addRow(new Object[] { branch.getAddress(), productCount, "⚙ Actions" });
 		}
+	}
+
+	/**
+	 * Get list of branches in order (for row index mapping)
+	 */
+	private List<Branch> getBranchList() {
+		return new ArrayList<>(branchProductsMap.keySet());
 	}
 
 	/**
 	 * Show action menu for branch
 	 */
-	private void showActionMenu(Component parent, BranchData branch, int row) {
+	private void showActionMenu(Component parent, Branch branch, int row) {
 		JDialog actionDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Actions");
 		actionDialog.setLayout(new GridBagLayout());
 		actionDialog.getContentPane().setBackground(Color.WHITE);
@@ -435,11 +454,7 @@ public class AddCustomerBranchDialog extends JDialog {
 		JButton viewProductsBtn = createActionButton("➕ Product Selection", new Color(70, 130, 180));
 		viewProductsBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			ViewBranchProductsDialog.show(SwingUtilities.getWindowAncestor(parent), branch.branchAddress, () -> {
-				// Callback when products are changed
-				// Update the product count in the table
-				System.out.println("Products updated for branch: " + branch.branchAddress);
-			});
+			handleProductSelection(branch);
 		});
 		actionDialog.add(viewProductsBtn, gbc);
 
@@ -447,7 +462,7 @@ public class AddCustomerBranchDialog extends JDialog {
 		JButton removeBtn = createActionButton("🗑️ Remove Branch", new Color(180, 50, 50));
 		removeBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			removeBranch(row);
+			removeBranch(branch);
 		});
 		actionDialog.add(removeBtn, gbc);
 
@@ -464,13 +479,25 @@ public class AddCustomerBranchDialog extends JDialog {
 	}
 
 	/**
+	 * Handle product selection for a branch
+	 */
+	private void handleProductSelection(Branch branch) {
+		List<ProductWithQuantity> existingProducts = branchProductsMap.get(branch);
+
+		ViewBranchProductsDialog.show(SwingUtilities.getWindowAncestor(this), branch.getAddress(), existingProducts,
+				updatedProducts -> {
+					// Update the products for this branch
+					branchProductsMap.put(branch, updatedProducts);
+					updateBranchTable();
+				}, this.newDeliveryController, this.selectedCustomer.getId());
+	}
+
+	/**
 	 * Remove branch from list
 	 */
-	private void removeBranch(int row) {
-		if (row >= 0 && row < branches.size()) {
-			branches.remove(row);
-			updateBranchTable();
-		}
+	private void removeBranch(Branch branch) {
+		branchProductsMap.remove(branch);
+		updateBranchTable();
 	}
 
 	/**
@@ -505,30 +532,24 @@ public class AddCustomerBranchDialog extends JDialog {
 			return;
 		}
 
-		if (branches.isEmpty()) {
+		if (branchProductsMap.isEmpty()) {
 			ToastNotification.showError(this, "Please add at least one branch.");
 			return;
 		}
 
 		// Check if all branches have at least one product
-		for (int i = 0; i < branches.size(); i++) {
-			if (branches.get(i).productTypeCount == 0) {
+		for (Map.Entry<Branch, List<ProductWithQuantity>> entry : branchProductsMap.entrySet()) {
+			if (entry.getValue() == null || entry.getValue().isEmpty()) {
 				ToastNotification.showError(this,
-						"Branch '" + branches.get(i).branchAddress + "' has no products, please add products.");
+						"Branch '" + entry.getKey().getAddress() + "' has no products. Please add products.");
 				return;
 			}
 		}
 
-		// If validation passes, save data and close
-		System.out.println("=== Saving Customer & Branches Data ===");
-		System.out.println("Customer: " + selectedCustomer.name);
-		System.out.println("Total Branches: " + branches.size());
-		for (int i = 0; i < branches.size(); i++) {
-			BranchData branch = branches.get(i);
-			System.out.println("  Branch " + (i + 1) + ": " + branch.branchAddress + " (Product Types: "
-					+ branch.productTypeCount + ")");
-		}
+		// Save to state via controller
+		newDeliveryController.addCustomerDelivery(selectedCustomer, branchProductsMap);
 
+		// Call success callback
 		if (onSuccessCallback != null) {
 			onSuccessCallback.run();
 		}
@@ -600,31 +621,8 @@ public class AddCustomerBranchDialog extends JDialog {
 	/**
 	 * Show the dialog
 	 */
-	public static void show(Window parent, Runnable onSuccess) {
-		AddCustomerBranchDialog dialog = new AddCustomerBranchDialog(parent, onSuccess);
+	public static void show(Window parent, Runnable onSuccess, NewDeliveryController newDeliveryController) {
+		AddCustomerBranchDialog dialog = new AddCustomerBranchDialog(parent, onSuccess, newDeliveryController);
 		dialog.setVisible(true);
-	}
-
-	/**
-	 * Get the selected customer and branches data
-	 */
-	public CustomerBranchResult getResult() {
-		if (selectedCustomer == null) {
-			return null;
-		}
-		return new CustomerBranchResult(selectedCustomer, branches);
-	}
-
-	/**
-	 * Result class to return data
-	 */
-	public static class CustomerBranchResult {
-		public final Customer customer;
-		public final List<BranchData> branches;
-
-		public CustomerBranchResult(Customer customer, List<BranchData> branches) {
-			this.customer = customer;
-			this.branches = new ArrayList<>(branches);
-		}
 	}
 }
