@@ -1,5 +1,6 @@
 package com.gierza_molases.molases_app.service;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Map;
 
@@ -39,6 +40,10 @@ public class DeliveryService {
 				branchDeliveryDao.insertAll(conn, customerDeliveryId, branchList);
 			}
 		});
+	}
+
+	public List<Delivery> fetchNextPage(Long lastSeenId, String search, Date startAt, Date endAt) {
+		return deliveryDao.fetchNextPageNewest(lastSeenId, search, startAt, endAt, 15); // page size fixed to 15
 	}
 
 }

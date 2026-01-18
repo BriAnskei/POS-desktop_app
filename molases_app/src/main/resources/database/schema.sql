@@ -154,10 +154,13 @@ CREATE INDEX IF NOT EXISTS idx_product_assoc_product ON product_association(prod
 CREATE TABLE IF NOT EXISTS delivery (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-    schedule_date DATETIME DEFAULT CURRENT_TIMESTAMP,
+    schedule_date DATETIME,
     name TEXT NOT NULL,
     expenses TEXT,
     status TEXT,
+    
+    total_customers REAL NOT NULL,
+    total_branches REAL NOT NULL,
     
     
     total_gross REAL NOT NULL,
@@ -171,6 +174,16 @@ CREATE TABLE IF NOT EXISTS delivery (
 
 CREATE INDEX  IF NOT EXISTS  idx_deliveries_created_at
 ON delivery(created_at);
+
+CREATE INDEX IF NOT EXISTS idx_delivery_name
+ON delivery(name);
+
+CREATE INDEX IF NOT EXISTS idx_delivery_schedule_date
+ON delivery(schedule_date);
+
+
+
+
 
 
 

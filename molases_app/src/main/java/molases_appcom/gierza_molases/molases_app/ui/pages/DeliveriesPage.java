@@ -5,18 +5,16 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
+import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Date;
 import java.util.List;
-import java.util.Map;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -32,12 +30,13 @@ import javax.swing.JTextField;
 import javax.swing.OverlayLayout;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
-import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.UiController.DeliveryController;
+import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Delivery;
 import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
@@ -56,7 +55,7 @@ public class DeliveriesPage {
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 	private static final Color TABLE_HOVER = new Color(245, 239, 231);
 
-	// Status colors - updated for 3 statuses
+	// Status colors
 	private static final Color STATUS_SCHEDULED = new Color(255, 165, 0); // Orange
 	private static final Color STATUS_DELIVERED = new Color(46, 125, 50); // Green
 	private static final Color STATUS_CANCELLED = new Color(198, 40, 40); // Red
@@ -71,84 +70,25 @@ public class DeliveriesPage {
 	private static JPanel loadingOverlay;
 	private static LoadingSpinner spinner;
 
-	// Mock data
-	private static List<Delivery> mockDeliveries = new ArrayList<>();
-	private static List<Delivery> filteredDeliveries = new ArrayList<>();
+	// Pagination components
+	private static JButton prevButton;
+	private static JButton nextButton;
+	private static JLabel pageInfoLabel;
 
-	/**
-	 * Initialize mock data
-	 */
-	private static void initMockData() {
-		mockDeliveries.clear();
-
-		// Create mock expenses
-		Map<String, Double> expenses1 = new HashMap<>();
-		expenses1.put("Gas", 500.0);
-		expenses1.put("Toll", 150.0);
-
-		Map<String, Double> expenses2 = new HashMap<>();
-		expenses2.put("Gas", 600.0);
-		expenses2.put("Maintenance", 200.0);
-
-		Map<String, Double> expenses3 = new HashMap<>();
-		expenses3.put("Gas", 450.0);
-
-		Map<String, Double> expenses4 = new HashMap<>();
-		expenses4.put("Gas", 550.0);
-		expenses4.put("Toll", 100.0);
-		expenses4.put("Parking", 50.0);
-
-		Map<String, Double> expenses5 = new HashMap<>();
-		expenses5.put("Gas", 700.0);
-		expenses5.put("Toll", 200.0);
-
-		// Create mock deliveries with all 3 statuses
-		mockDeliveries.add(new Delivery(1, LocalDateTime.of(2026, 1, 15, 9, 0), "Morning Route A", expenses1,
-				"scheduled", 2500.0, 5000.0, null, null, LocalDateTime.of(2026, 1, 10, 14, 30), 5, 3));
-
-		mockDeliveries.add(new Delivery(2, LocalDateTime.of(2026, 1, 14, 14, 0), "Afternoon Route B", expenses2,
-				"delivered", 3200.0, 6000.0, null, null, LocalDateTime.of(2026, 1, 9, 10, 15), 8, 5));
-
-		mockDeliveries.add(new Delivery(3, LocalDateTime.of(2026, 1, 16, 8, 30), "Downtown Delivery", expenses3,
-				"scheduled", 1800.0, 4000.0, null, null, LocalDateTime.of(2026, 1, 11, 16, 45), 3, 2));
-
-		mockDeliveries.add(new Delivery(4, LocalDateTime.of(2026, 1, 13, 10, 0), "Express Route", expenses4,
-				"delivered", 4100.0, 7500.0, null, null, LocalDateTime.of(2026, 1, 8, 11, 20), 12, 7));
-
-		mockDeliveries.add(new Delivery(5, LocalDateTime.of(2026, 1, 17, 13, 0), "Weekend Special", expenses5,
-				"cancelled", 2900.0, 5500.0, null, null, LocalDateTime.of(2026, 1, 12, 9, 30), 6, 4));
-
-		mockDeliveries.add(new Delivery(6, LocalDateTime.of(2026, 1, 12, 15, 30), "Evening Route C", expenses1,
-				"delivered", 2200.0, 4500.0, null, null, LocalDateTime.of(2026, 1, 7, 13, 10), 4, 3));
-
-		mockDeliveries.add(new Delivery(7, LocalDateTime.of(2026, 1, 18, 7, 0), "Early Bird Route", expenses2,
-				"scheduled", 3500.0, 6500.0, null, null, LocalDateTime.of(2026, 1, 13, 15, 0), 9, 6));
-
-		mockDeliveries.add(new Delivery(8, LocalDateTime.of(2026, 1, 11, 11, 0), "Midday Express", expenses3,
-				"cancelled", 2700.0, 5200.0, null, null, LocalDateTime.of(2026, 1, 6, 12, 45), 7, 4));
-
-		mockDeliveries.add(new Delivery(9, LocalDateTime.of(2026, 1, 10, 16, 0), "Late Afternoon Run", expenses2,
-				"delivered", 3100.0, 5800.0, null, null, LocalDateTime.of(2026, 1, 5, 14, 0), 6, 4));
-
-		mockDeliveries.add(new Delivery(10, LocalDateTime.of(2026, 1, 19, 10, 30), "North District Route", expenses4,
-				"scheduled", 2800.0, 5300.0, null, null, LocalDateTime.of(2026, 1, 14, 11, 0), 7, 5));
-
-		// Initially show all deliveries
-		filteredDeliveries = new ArrayList<>(mockDeliveries);
-	}
+	// Controller reference
+	private static DeliveryController controller = AppContext.deliveryController;
 
 	/**
 	 * Create the Deliveries Page panel
 	 */
 	public static JPanel createPanel(Runnable onAddNew, Runnable onRefresh) {
-		initMockData();
 
 		JPanel mainPanel = new JPanel(new BorderLayout(0, 20));
 		mainPanel.setBackground(CONTENT_BG);
 		mainPanel.setBorder(new EmptyBorder(0, 0, 0, 0));
 		mainPanelRef = mainPanel;
 
-		// Top Section - pass the callback
+		// Top Section
 		JPanel topSection = createTopSection(onAddNew);
 		mainPanel.add(topSection, BorderLayout.NORTH);
 
@@ -169,15 +109,139 @@ public class DeliveriesPage {
 
 		mainPanel.add(tableWrapper, BorderLayout.CENTER);
 
-		// Show brief loading animation on initial load
-		showLoading();
-		Timer timer = new Timer(800, e -> {
-			hideLoading();
-		});
-		timer.setRepeats(false);
-		timer.start();
+		// Bottom Section - Pagination
+		JPanel paginationSection = createPaginationSection();
+		mainPanel.add(paginationSection, BorderLayout.SOUTH);
+
+		// Initial load
+		loadInitialData();
 
 		return mainPanel;
+	}
+
+	/**
+	 * Load initial data on page creation
+	 */
+	private static void loadInitialData() {
+		showLoading();
+		controller.loadDeliveries(false, () -> {
+			SwingUtilities.invokeLater(() -> {
+				refreshTable();
+				updatePaginationUI();
+				hideLoading();
+			});
+		}, () -> {
+			SwingUtilities.invokeLater(() -> {
+				hideLoading();
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef),
+						"Failed to load deliveries. Please try again.");
+			});
+		});
+	}
+
+	/**
+	 * Create pagination section
+	 */
+	private static JPanel createPaginationSection() {
+		JPanel paginationPanel = new JPanel(new BorderLayout());
+		paginationPanel.setBackground(CONTENT_BG);
+		paginationPanel.setBorder(new EmptyBorder(15, 0, 0, 0));
+
+		// Page info label (left side)
+		pageInfoLabel = new JLabel("Showing 0-0 of 0");
+		pageInfoLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+		pageInfoLabel.setForeground(TEXT_DARK);
+		paginationPanel.add(pageInfoLabel, BorderLayout.WEST);
+
+		// Controls panel (right side)
+		JPanel controlsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+		controlsPanel.setBackground(CONTENT_BG);
+
+		// Previous button
+		prevButton = createPaginationButton("← Previous");
+		prevButton.addActionListener(e -> goToPreviousPage());
+		controlsPanel.add(prevButton);
+
+		// Next button
+		nextButton = createPaginationButton("Next →");
+		nextButton.addActionListener(e -> goToNextPage());
+		controlsPanel.add(nextButton);
+
+		paginationPanel.add(controlsPanel, BorderLayout.EAST);
+
+		return paginationPanel;
+	}
+
+	/**
+	 * Go to next page
+	 */
+	private static void goToNextPage() {
+		if (!controller.getState().hasNextPage())
+			return;
+
+		showLoading();
+		controller.loadDeliveries(true, () -> {
+			SwingUtilities.invokeLater(() -> {
+				refreshTable();
+				updatePaginationUI();
+				hideLoading();
+				scrollTableToTop();
+			});
+		}, () -> {
+			SwingUtilities.invokeLater(() -> {
+				hideLoading();
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef),
+						"Failed to load next page. Please try again.");
+			});
+		});
+	}
+
+	/**
+	 * Go to previous page
+	 */
+	private static void goToPreviousPage() {
+		if (!controller.getState().hasPreviousPage())
+			return;
+
+		showLoading();
+		controller.goToPreviousPage(() -> {
+			SwingUtilities.invokeLater(() -> {
+				refreshTable();
+				updatePaginationUI();
+				hideLoading();
+				scrollTableToTop();
+			});
+		});
+	}
+
+	/**
+	 * Scroll table to top
+	 */
+	private static void scrollTableToTop() {
+		if (table != null && table.getRowCount() > 0) {
+			table.scrollRectToVisible(table.getCellRect(0, 0, true));
+		}
+	}
+
+	/**
+	 * Update pagination UI components
+	 */
+	private static void updatePaginationUI() {
+		if (prevButton != null && nextButton != null && pageInfoLabel != null) {
+			List<Delivery> deliveries = controller.getState().getDeliveries();
+
+			// Update button states
+			prevButton.setEnabled(controller.getState().hasPreviousPage());
+			nextButton.setEnabled(controller.getState().hasNextPage());
+
+			// Update info label
+			int totalItems = deliveries.size();
+			if (totalItems == 0) {
+				pageInfoLabel.setText("Showing 0-0 of 0");
+			} else {
+				pageInfoLabel.setText("Showing 1-" + totalItems + " of " + totalItems + "+");
+			}
+		}
 	}
 
 	/**
@@ -227,6 +291,10 @@ public class DeliveriesPage {
 				startDateChooser.setEnabled(false);
 			if (endDateChooser != null)
 				endDateChooser.setEnabled(false);
+			if (prevButton != null)
+				prevButton.setEnabled(false);
+			if (nextButton != null)
+				nextButton.setEnabled(false);
 		}
 	}
 
@@ -246,6 +314,9 @@ public class DeliveriesPage {
 				startDateChooser.setEnabled(true);
 			if (endDateChooser != null)
 				endDateChooser.setEnabled(true);
+
+			// Update pagination button states properly
+			updatePaginationUI();
 		}
 	}
 
@@ -271,7 +342,7 @@ public class DeliveriesPage {
 		JButton addButton = createStyledButton("+ Add New", ACCENT_GOLD);
 		addButton.addActionListener(e -> {
 			if (onAddNew != null) {
-				onAddNew.run(); // Call the navigation callback
+				onAddNew.run();
 			}
 		});
 		titleRow.add(addButton, BorderLayout.EAST);
@@ -311,7 +382,7 @@ public class DeliveriesPage {
 
 		filtersRow.add(Box.createHorizontalStrut(10));
 
-		// Start date chooser with calendar popup
+		// Start date chooser
 		startDateChooser = new JDateChooser();
 		startDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
 		startDateChooser.setPreferredSize(new Dimension(160, 38));
@@ -329,7 +400,7 @@ public class DeliveriesPage {
 
 		filtersRow.add(Box.createHorizontalStrut(5));
 
-		// End date chooser with calendar popup
+		// End date chooser
 		endDateChooser = new JDateChooser();
 		endDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
 		endDateChooser.setPreferredSize(new Dimension(160, 38));
@@ -362,48 +433,34 @@ public class DeliveriesPage {
 	 * Perform filter
 	 */
 	private static void performFilter() {
-		String searchText = searchField.getText().trim().toLowerCase();
+		String searchText = searchField.getText().trim();
+		Date startDateUtil = startDateChooser.getDate();
+		Date endDateUtil = endDateChooser.getDate();
 
-		filteredDeliveries.clear();
+		showLoading();
 
-		// Get dates from date choosers
-		java.util.Date startDateUtil = startDateChooser.getDate();
-		java.util.Date endDateUtil = endDateChooser.getDate();
+		// Apply all filters together
+		controller.getState().setSearch(searchText);
+		controller.getState().setStartAt(startDateUtil);
+		controller.getState().setEndAt(endDateUtil);
+		controller.getState().resetPagination();
 
-		// Convert to LocalDateTime
-		LocalDateTime startDate = null;
-		LocalDateTime endDate = null;
-
-		if (startDateUtil != null) {
-			startDate = LocalDateTime.ofInstant(startDateUtil.toInstant(), java.time.ZoneId.systemDefault()).withHour(0)
-					.withMinute(0).withSecond(0);
-		}
-
-		if (endDateUtil != null) {
-			endDate = LocalDateTime.ofInstant(endDateUtil.toInstant(), java.time.ZoneId.systemDefault()).withHour(23)
-					.withMinute(59).withSecond(59);
-		}
-
-		// Filter deliveries
-		for (Delivery delivery : mockDeliveries) {
-			boolean matchesSearch = searchText.isEmpty() || delivery.getName().toLowerCase().contains(searchText);
-
-			boolean matchesDateRange = true;
-			if (startDate != null && delivery.getScheduleDate().isBefore(startDate)) {
-				matchesDateRange = false;
-			}
-			if (endDate != null && delivery.getScheduleDate().isAfter(endDate)) {
-				matchesDateRange = false;
-			}
-
-			if (matchesSearch && matchesDateRange) {
-				filteredDeliveries.add(delivery);
-			}
-		}
-
-		refreshTable();
-		ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(mainPanelRef),
-				"Showing " + filteredDeliveries.size() + " deliveries");
+		controller.loadDeliveries(false, () -> {
+			SwingUtilities.invokeLater(() -> {
+				refreshTable();
+				updatePaginationUI();
+				hideLoading();
+				int count = controller.getState().getDeliveries().size();
+				ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(mainPanelRef),
+						"Showing " + count + " deliveries");
+			});
+		}, () -> {
+			SwingUtilities.invokeLater(() -> {
+				hideLoading();
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef),
+						"Failed to apply filters. Please try again.");
+			});
+		});
 	}
 
 	/**
@@ -411,14 +468,25 @@ public class DeliveriesPage {
 	 */
 	private static void clearFilters() {
 		searchField.setText("");
-
-		// Clear date choosers
 		startDateChooser.setDate(null);
 		endDateChooser.setDate(null);
 
-		filteredDeliveries = new ArrayList<>(mockDeliveries);
-		refreshTable();
-		ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(mainPanelRef), "Filters cleared");
+		showLoading();
+
+		controller.clearFilters(() -> {
+			SwingUtilities.invokeLater(() -> {
+				refreshTable();
+				updatePaginationUI();
+				hideLoading();
+				ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(mainPanelRef), "Filters cleared");
+			});
+		}, () -> {
+			SwingUtilities.invokeLater(() -> {
+				hideLoading();
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef),
+						"Failed to clear filters. Please try again.");
+			});
+		});
 	}
 
 	/**
@@ -436,8 +504,6 @@ public class DeliveriesPage {
 				return false;
 			}
 		};
-
-		updateTableData(model);
 
 		table = new JTable(model);
 		table.setFont(new Font("Arial", Font.PLAIN, 14));
@@ -472,8 +538,7 @@ public class DeliveriesPage {
 			table.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
 		}
 
-		// Custom cell renderer for status column with colors
-		// Custom cell renderer for status column with colors for all 3 statuses
+		// Custom cell renderer for status column
 		table.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
 			@Override
 			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
@@ -483,7 +548,6 @@ public class DeliveriesPage {
 				if (!isSelected) {
 					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
 
-					// Color based on status
 					String status = value.toString().toLowerCase();
 					if (status.equals("scheduled")) {
 						setForeground(STATUS_SCHEDULED);
@@ -528,9 +592,10 @@ public class DeliveriesPage {
 				int row = table.rowAtPoint(e.getPoint());
 				int col = table.columnAtPoint(e.getPoint());
 
-				if (col == 4 && row >= 0 && row < filteredDeliveries.size()) {
-					Delivery delivery = filteredDeliveries.get(row);
-					showActionMenu(e.getComponent(), e.getX(), e.getY(), delivery, row);
+				List<Delivery> deliveries = controller.getState().getDeliveries();
+				if (col == 4 && row >= 0 && row < deliveries.size()) {
+					Delivery delivery = deliveries.get(row);
+					showActionMenu(e.getComponent(), e.getX(), e.getY(), delivery);
 				}
 			}
 		});
@@ -553,14 +618,19 @@ public class DeliveriesPage {
 	}
 
 	/**
-	 * Update table with current filtered data
+	 * Refresh table with current state data
 	 */
-	private static void updateTableData(DefaultTableModel model) {
+	private static void refreshTable() {
+		if (table == null)
+			return;
+
+		DefaultTableModel model = (DefaultTableModel) table.getModel();
 		model.setRowCount(0);
 
 		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy hh:mm a");
+		List<Delivery> deliveries = controller.getState().getDeliveries();
 
-		for (Delivery d : filteredDeliveries) {
+		for (Delivery d : deliveries) {
 			String deliveryDate = d.getScheduleDate() != null ? d.getScheduleDate().format(formatter) : "";
 			String customersInfo = d.getTotalCustomers() + " customers of " + d.getTotalBranches() + " branches";
 			String status = d.getStatus();
@@ -570,12 +640,15 @@ public class DeliveriesPage {
 
 			model.addRow(new Object[] { deliveryDate, d.getName(), customersInfo, status, "⚙ Actions" });
 		}
+
+		table.revalidate();
+		table.repaint();
 	}
 
 	/**
 	 * Show action menu
 	 */
-	private static void showActionMenu(Component parent, int x, int y, Delivery delivery, int row) {
+	private static void showActionMenu(Component parent, int x, int y, Delivery delivery) {
 		JDialog actionDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Actions");
 		actionDialog.setLayout(new GridBagLayout());
 		actionDialog.getContentPane().setBackground(Color.WHITE);
@@ -602,15 +675,6 @@ public class DeliveriesPage {
 		actionDialog.add(viewDetailsBtn, gbc);
 
 		gbc.gridy++;
-		JButton updateBtn = createActionButton("✏️ Update Delivery", ACCENT_GOLD);
-		updateBtn.addActionListener(e -> {
-			actionDialog.dispose();
-			ToastNotification.showInfo(SwingUtilities.getWindowAncestor(parent),
-					"Update dialog for Delivery ID " + delivery.getId() + " - Coming soon!");
-		});
-		actionDialog.add(updateBtn, gbc);
-
-		gbc.gridy++;
 		JButton deleteBtn = createActionButton("🗑️ Delete Delivery", new Color(180, 50, 50));
 		deleteBtn.addActionListener(e -> {
 			actionDialog.dispose();
@@ -625,7 +689,7 @@ public class DeliveriesPage {
 		actionDialog.add(cancelBtn, gbc);
 
 		actionDialog.pack();
-		actionDialog.setMinimumSize(new Dimension(350, 250));
+		actionDialog.setMinimumSize(new Dimension(350, 200));
 		actionDialog.setLocationRelativeTo(null);
 		actionDialog.setVisible(true);
 	}
@@ -744,9 +808,7 @@ public class DeliveriesPage {
 		deleteBtn.setPreferredSize(new Dimension(120, 40));
 		deleteBtn.addActionListener(e -> {
 			confirmDialog.dispose();
-			// Mock delete - just show toast
-			ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(table),
-					"Delivery ID " + delivery.getId() + " deleted (mock operation)");
+			performDelete(delivery);
 		});
 		confirmDialog.add(deleteBtn, gbc);
 
@@ -757,19 +819,36 @@ public class DeliveriesPage {
 	}
 
 	/**
-	 * Refresh table
+	 * Perform delete operation
 	 */
-	private static void refreshTable() {
-		if (table == null || mainPanelRef == null)
-			return;
-
-		// Update table data
-		DefaultTableModel model = (DefaultTableModel) table.getModel();
-		updateTableData(model);
-
-		// Refresh the table display
-		table.revalidate();
-		table.repaint();
+	private static void performDelete(Delivery delivery) {
+		showLoading();
+		controller.deleteDelivery(delivery.getId(), () -> {
+			SwingUtilities.invokeLater(() -> {
+				// Refresh current page after delete
+				controller.refreshCurrentPage(() -> {
+					SwingUtilities.invokeLater(() -> {
+						refreshTable();
+						updatePaginationUI();
+						hideLoading();
+						ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(table),
+								"Delivery ID " + delivery.getId() + " deleted successfully");
+					});
+				}, () -> {
+					SwingUtilities.invokeLater(() -> {
+						hideLoading();
+						ToastNotification.showError(SwingUtilities.getWindowAncestor(table),
+								"Failed to refresh after delete. Please reload the page.");
+					});
+				});
+			});
+		}, () -> {
+			SwingUtilities.invokeLater(() -> {
+				hideLoading();
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(table),
+						"Failed to delete delivery. Please try again.");
+			});
+		});
 	}
 
 	/**
@@ -826,6 +905,36 @@ public class DeliveriesPage {
 			@Override
 			public void mouseExited(MouseEvent e) {
 				button.setBackground(bgColor);
+			}
+		});
+
+		return button;
+	}
+
+	/**
+	 * Create pagination button
+	 */
+	private static JButton createPaginationButton(String text) {
+		JButton button = new JButton(text);
+		button.setFont(new Font("Arial", Font.PLAIN, 14));
+		button.setBackground(Color.WHITE);
+		button.setForeground(TEXT_DARK);
+		button.setFocusPainted(false);
+		button.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(new Color(200, 190, 180), 1),
+				new EmptyBorder(8, 15, 8, 15)));
+		button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+
+		button.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseEntered(MouseEvent e) {
+				if (button.isEnabled()) {
+					button.setBackground(TABLE_HOVER);
+				}
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e) {
+				button.setBackground(Color.WHITE);
 			}
 		});
 

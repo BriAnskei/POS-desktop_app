@@ -38,10 +38,10 @@ public class Delivery {
 	/* ========================= Constructors ========================= */
 
 	// create
-	public Delivery(LocalDateTime scheduleDate, String name, Map<String, Double> expenses, Double totalGross,
-			Double totalCapital, Double grossProfit, Double netProfit) {
-		this(null, scheduleDate, name, expenses, "scheduled", totalGross, totalCapital, grossProfit, netProfit, null, 0,
-				0);
+	public Delivery(LocalDateTime scheduleDate, String name, Map<String, Double> expenses, int totalCustomers,
+			int totalBranches, Double totalGross, Double totalCapital, Double grossProfit, Double netProfit) {
+		this(null, scheduleDate, name, expenses, "scheduled", totalGross, totalCapital, grossProfit, netProfit, null,
+				totalCustomers, totalBranches);
 	}
 
 	// fetch
@@ -118,14 +118,6 @@ public class Delivery {
 
 		if (netProfit != null && netProfit < 0) {
 			throw new IllegalArgumentException("Net profit cannot be negative");
-		}
-
-		if (totalCustomers < 0) {
-			throw new IllegalArgumentException("Total customers cannot be negative");
-		}
-
-		if (totalBranches < 0) {
-			throw new IllegalArgumentException("Total branches cannot be negative");
 		}
 
 		if (expenses != null) {

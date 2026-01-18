@@ -4,6 +4,7 @@ import java.sql.Connection;
 
 import com.gierza_molases.molases_app.UiController.BranchesController;
 import com.gierza_molases.molases_app.UiController.CustomersController;
+import com.gierza_molases.molases_app.UiController.DeliveryController;
 import com.gierza_molases.molases_app.UiController.NewDeliveryController;
 import com.gierza_molases.molases_app.UiController.ProductsController;
 import com.gierza_molases.molases_app.dao.BranchDao;
@@ -35,6 +36,8 @@ public class AppContext {
 	public static CustomersController customersController;
 	public static BranchesController branchesController;
 	public static ProductsController productsController;
+
+	public static DeliveryController deliveryController;
 	public static NewDeliveryController newDeliveryController;
 
 	public static void init() {
@@ -64,6 +67,8 @@ public class AppContext {
 		customersController = new CustomersController(new CustomerState(), customerService);
 		branchesController = new BranchesController(new BranchState(), branchService);
 		productsController = new ProductsController(new ProductState(), productService, productAssociationService);
+
+		deliveryController = new DeliveryController(new DeliveryState(), deliveryService);
 		newDeliveryController = new NewDeliveryController(new NewDeliveryState(), customersController,
 				branchesController, productsController, deliveryService);
 

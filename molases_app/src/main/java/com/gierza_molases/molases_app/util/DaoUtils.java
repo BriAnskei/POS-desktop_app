@@ -28,4 +28,9 @@ public class DaoUtils {
 		return e.getErrorCode() == 19; // SQLITE_CONSTRAINT
 	}
 
+	public static Double getNullableDouble(ResultSet rs, String column) throws SQLException {
+		double value = rs.getDouble(column);
+		return rs.wasNull() ? null : value;
+	}
+
 }
