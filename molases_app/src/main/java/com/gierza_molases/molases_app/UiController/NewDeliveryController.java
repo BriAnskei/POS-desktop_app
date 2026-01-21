@@ -47,17 +47,6 @@ public class NewDeliveryController {
 		return state;
 	}
 
-	/*
-	 * ====================== Step 1 Operations ======================
-	 */
-
-	// (Already handled in DeliveryFormStep1)
-
-	/*
-	 * ====================== Step 2 - Customer Selection Operations
-	 * ======================
-	 */
-
 	/**
 	 * Search for customers in the delivery form (Customer selection)
 	 */

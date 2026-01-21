@@ -5,6 +5,7 @@ import java.sql.Connection;
 import com.gierza_molases.molases_app.UiController.BranchesController;
 import com.gierza_molases.molases_app.UiController.CustomersController;
 import com.gierza_molases.molases_app.UiController.DeliveryController;
+import com.gierza_molases.molases_app.UiController.DeliveryDetialsController;
 import com.gierza_molases.molases_app.UiController.NewDeliveryController;
 import com.gierza_molases.molases_app.UiController.ProductsController;
 import com.gierza_molases.molases_app.dao.BranchDao;
@@ -39,6 +40,7 @@ public class AppContext {
 
 	public static DeliveryController deliveryController;
 	public static NewDeliveryController newDeliveryController;
+	public static DeliveryDetialsController deliveryDetialsController;
 
 	public static void init() {
 		// DB connection
@@ -58,7 +60,7 @@ public class AppContext {
 
 		// service instance
 		customerService = new CustomerService(customerDao, branchDao);
-		branchService = new BranchService(branchDao, customerDao);
+		branchService = new BranchService(branchDao, customerDao, branchDeliveryDao);
 		productService = new ProductService(productDao, productAssociationDao);
 		productAssociationService = new ProductAssociationService(productAssociationDao);
 		deliveryService = new DeliveryService(deliveryDao, customerDeliveryDao, branchDeliveryDao);
@@ -71,6 +73,7 @@ public class AppContext {
 		deliveryController = new DeliveryController(new DeliveryState(), deliveryService);
 		newDeliveryController = new NewDeliveryController(new NewDeliveryState(), customersController,
 				branchesController, productsController, deliveryService);
+		deliveryDetialsController = new DeliveryDetialsController(new DeliveryDetialsState(), deliveryService);
 
 	}
 

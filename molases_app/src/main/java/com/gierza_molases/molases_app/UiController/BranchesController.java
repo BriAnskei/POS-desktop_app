@@ -148,7 +148,7 @@ public class BranchesController {
 	/**
 	 * Delete branch by ID
 	 */
-	public void deleteBranch(int branchId, Runnable onSuccess, Runnable onError) {
+	public void deleteBranch(int branchId, Runnable onSuccess, Consumer<String> onError) {
 		new SwingWorker<Void, Void>() {
 			private Exception error;
 
@@ -167,7 +167,7 @@ public class BranchesController {
 				if (error != null) {
 					error.printStackTrace();
 					if (onError != null)
-						onError.run();
+						onError.accept(error.getMessage());
 				} else {
 					if (onSuccess != null)
 						onSuccess.run();

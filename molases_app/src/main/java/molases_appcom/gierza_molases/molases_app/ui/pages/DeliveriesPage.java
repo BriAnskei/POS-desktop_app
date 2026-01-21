@@ -76,12 +76,20 @@ public class DeliveriesPage {
 	private static JLabel pageInfoLabel;
 
 	// Controller reference
+
 	private static DeliveryController controller = AppContext.deliveryController;
+
+	private static java.util.function.Consumer<Integer> onViewDetailsCallback;
 
 	/**
 	 * Create the Deliveries Page panel
 	 */
-	public static JPanel createPanel(Runnable onAddNew, Runnable onRefresh) {
+	public static JPanel createPanel(Runnable onAddNew, Runnable onRefresh,
+			java.util.function.Consumer<Integer> onViewDetails) {
+
+		onViewDetailsCallback = onViewDetails;
+
+		controller.resetState();
 
 		JPanel mainPanel = new JPanel(new BorderLayout(0, 20));
 		mainPanel.setBackground(CONTENT_BG);
@@ -124,15 +132,18 @@ public class DeliveriesPage {
 	 */
 	private static void loadInitialData() {
 		showLoading();
+
 		controller.loadDeliveries(false, () -> {
 			SwingUtilities.invokeLater(() -> {
 				refreshTable();
 				updatePaginationUI();
+
 				hideLoading();
 			});
 		}, () -> {
 			SwingUtilities.invokeLater(() -> {
 				hideLoading();
+
 				ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef),
 						"Failed to load deliveries. Please try again.");
 			});
@@ -450,15 +461,12 @@ public class DeliveriesPage {
 				refreshTable();
 				updatePaginationUI();
 				hideLoading();
-				int count = controller.getState().getDeliveries().size();
-				ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(mainPanelRef),
-						"Showing " + count + " deliveries");
+
 			});
 		}, () -> {
 			SwingUtilities.invokeLater(() -> {
 				hideLoading();
-				ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef),
-						"Failed to apply filters. Please try again.");
+
 			});
 		});
 	}
@@ -670,7 +678,10 @@ public class DeliveriesPage {
 		JButton viewDetailsBtn = createActionButton("👁️ View Details", new Color(70, 130, 180));
 		viewDetailsBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			showDeliveryDetails(delivery);
+			// Call the callback with delivery ID
+			if (onViewDetailsCallback != null) {
+				onViewDetailsCallback.accept(delivery.getId());
+			}
 		});
 		actionDialog.add(viewDetailsBtn, gbc);
 

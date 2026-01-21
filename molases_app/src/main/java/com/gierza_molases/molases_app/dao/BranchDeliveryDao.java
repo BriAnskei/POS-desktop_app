@@ -2,6 +2,7 @@ package com.gierza_molases.molases_app.dao;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.List;
 
@@ -16,6 +17,14 @@ public class BranchDeliveryDao {
 			    INSERT INTO branch_delivery (
 			        customer_delivery_id, branch_id, product_id, quantity, status
 			    ) VALUES (?, ?, ?, ?, ?)
+			""";
+
+	private static final String CHECK_BRANCH_DELIVERY_SQL = """
+			    SELECT EXISTS (
+			        SELECT 1
+			        FROM branch_delivery
+			        WHERE branch_id = ?
+			    )
 			""";
 
 	public BranchDeliveryDao(Connection conn) {
@@ -37,6 +46,22 @@ public class BranchDeliveryDao {
 
 			ps.executeBatch();
 		}
+	}
+
+	public boolean hasDelivery(int branchId) {
+		try (PreparedStatement ps = conn.prepareStatement(CHECK_BRANCH_DELIVERY_SQL)) {
+			ps.setInt(1, branchId);
+
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					return rs.getInt(1) > 0;
+				}
+			}
+		} catch (SQLException err) {
+			throw new RuntimeException("Failed to check data for branchDelivery", err);
+		}
+
+		return false;
 	}
 
 }

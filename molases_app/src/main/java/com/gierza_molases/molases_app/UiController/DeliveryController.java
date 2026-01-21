@@ -108,31 +108,31 @@ public class DeliveryController {
 	 * Delete delivery by ID
 	 */
 	public void deleteDelivery(int deliveryId, Runnable onSuccess, Runnable onError) {
-//		new SwingWorker<Void, Void>() {
-//			private Exception error;
-//
-//			@Override
-//			protected Void doInBackground() {
-//				try {
-//					service.delete(deliveryId);
-//				} catch (Exception e) {
-//					error = e;
-//				}
-//				return null;
-//			}
-//
-//			@Override
-//			protected void done() {
-//				if (error != null) {
-//					error.printStackTrace();
-//					if (onError != null)
-//						onError.run();
-//				} else {
-//					if (onSuccess != null)
-//						onSuccess.run();
-//				}
-//			}
-//		}.execute();
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					service.deleteDelivery(deliveryId);
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null)
+						onError.run();
+				} else {
+					if (onSuccess != null)
+						onSuccess.run();
+				}
+			}
+		}.execute();
 	}
 
 	/**

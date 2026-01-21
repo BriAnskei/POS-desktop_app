@@ -36,6 +36,18 @@ public class DeliveryDao {
 			    LIMIT ?;
 			""";
 
+	// DELETE
+	private static final String SELECT_DELIVERY_SQL = """
+			   SELECT * FROM delivery
+			   WHERE id = ?
+			""";
+
+	// DELETE
+	private static final String DELETE_DELIVERY_SQL = """
+			   DELETE FROM delivery
+			   WHERE id = ?
+			""";
+
 	public DeliveryDao(Connection conn) {
 		this.conn = conn;
 	}
@@ -142,6 +154,52 @@ public class DeliveryDao {
 		}
 
 		return deliveries;
+	}
+
+	public Delivery findById(Connection conn, int deliveryId) {
+
+		if (deliveryId <= 0) {
+			throw new IllegalArgumentException("Invalid branch ID");
+		}
+
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_DELIVERY_SQL)) {
+
+			ps.setInt(1, deliveryId);
+
+			try (ResultSet rs = ps.executeQuery()) {
+				if (!rs.next()) {
+					throw new IllegalStateException("Delivery does not exist.");
+				}
+
+				return this.mapRowToDelivery(rs);
+			}
+
+		} catch (Exception err) {
+			throw new RuntimeException("Failed to delete branch", err);
+		}
+
+	}
+
+	public void deleteDelivery(int deliveryId) {
+		if (deliveryId <= 0) {
+			throw new IllegalArgumentException("Invalid branch ID");
+		}
+
+		try {
+
+			try (PreparedStatement ps = conn.prepareStatement(DELETE_DELIVERY_SQL)) {
+
+				ps.setInt(1, deliveryId);
+
+				if (ps.executeUpdate() == 0) {
+					throw new IllegalStateException("Delivery does not exist.");
+				}
+
+			}
+		} catch (SQLException err) {
+			throw new RuntimeException("Failed to delete branch", err);
+		}
+
 	}
 
 	// HELPER FUNCTIONS

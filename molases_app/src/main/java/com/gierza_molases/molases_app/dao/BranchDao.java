@@ -87,6 +87,7 @@ public class BranchDao {
 
 	public BranchDao(Connection conn) {
 		this.conn = conn;
+
 	}
 
 	/**
@@ -265,6 +266,8 @@ public class BranchDao {
 
 	/**
 	 * Delete branch by ID
+	 * 
+	 * @throws SQLException
 	 */
 	public boolean deleteBranch(int branchId) {
 
@@ -272,14 +275,18 @@ public class BranchDao {
 			throw new IllegalArgumentException("Invalid branch ID");
 		}
 
-		try (PreparedStatement ps = conn.prepareStatement(DELETE_BRANCH_SQL)) {
+		try {
 
-			ps.setInt(1, branchId);
-			return ps.executeUpdate() > 0;
+			try (PreparedStatement ps = conn.prepareStatement(DELETE_BRANCH_SQL)) {
 
-		} catch (SQLException e) {
-			throw new RuntimeException("Failed to delete branch with ID: " + branchId, e);
+				ps.setInt(1, branchId);
+				return ps.executeUpdate() > 0;
+
+			}
+		} catch (SQLException err) {
+			throw new RuntimeException("Failed to delete branch", err);
 		}
+
 	}
 
 	// helper mapper

@@ -83,7 +83,7 @@ public class DeliveryFormStep2 {
 			AddCustomerBranchDialog.show(SwingUtilities.getWindowAncestor(formPanel), () -> {
 				// Reload table after customer is added
 				loadCustomersFromState();
-			}, newDeliveryController);
+			}, "newDelivery");
 		});
 		titleSection.add(addCustomerBtn, BorderLayout.EAST);
 

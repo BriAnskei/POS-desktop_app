@@ -222,7 +222,7 @@ CREATE TABLE IF NOT EXISTS branch_delivery (
     product_id INTEGER NOT NULL,            
 
     quantity INTEGER NOT NULL CHECK (quantity >= 0),
-    status TEXT,
+    status TEXT, 
 
     FOREIGN KEY (customer_delivery_id)
         REFERENCES customer_delivery(id)

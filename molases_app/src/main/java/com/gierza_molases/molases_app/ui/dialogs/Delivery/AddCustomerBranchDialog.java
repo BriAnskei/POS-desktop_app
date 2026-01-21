@@ -34,7 +34,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.UiController.DeliveryDetialsController;
 import com.gierza_molases.molases_app.UiController.NewDeliveryController;
+import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
@@ -75,15 +77,20 @@ public class AddCustomerBranchDialog extends JDialog {
 	private Runnable onSuccessCallback;
 
 	// Controller
-	private NewDeliveryController newDeliveryController;
+	private NewDeliveryController newDeliveryController = AppContext.newDeliveryController;
+	private DeliveryDetialsController deliveryDetialsController = AppContext.deliveryDetialsController;
+
+	private String addingType;
 
 	/**
 	 * Constructor
 	 */
-	public AddCustomerBranchDialog(Window parent, Runnable onSuccess, NewDeliveryController newDeliveryController) {
+	public AddCustomerBranchDialog(Window parent, Runnable onSuccess, String addingType) { // addingType: 'newDelivery',
+																							// 'additionalDelivery'
 		super(parent, "Add Customer & Branches", ModalityType.APPLICATION_MODAL);
 		this.onSuccessCallback = onSuccess;
-		this.newDeliveryController = newDeliveryController;
+		this.addingType = addingType;
+
 		initializeUI();
 	}
 
@@ -546,8 +553,21 @@ public class AddCustomerBranchDialog extends JDialog {
 			}
 		}
 
-		// Save to state via controller
-		newDeliveryController.addCustomerDelivery(selectedCustomer, branchProductsMap);
+		if (this.addingType.equals("newDelivery")) {
+
+			// Save to state via controller
+			newDeliveryController.addCustomerDelivery(selectedCustomer, branchProductsMap);
+
+		} else if (this.addingType.equals("additionalDelivery")) {
+
+			deliveryDetialsController.addAdditionalCustomer(selectedCustomer, branchProductsMap, () -> {
+			}, er -> {
+
+				System.out.println("Failed: " + er);
+			}
+
+			);
+		}
 
 		// Call success callback
 		if (onSuccessCallback != null) {
@@ -621,8 +641,8 @@ public class AddCustomerBranchDialog extends JDialog {
 	/**
 	 * Show the dialog
 	 */
-	public static void show(Window parent, Runnable onSuccess, NewDeliveryController newDeliveryController) {
-		AddCustomerBranchDialog dialog = new AddCustomerBranchDialog(parent, onSuccess, newDeliveryController);
+	public static void show(Window parent, Runnable onSuccess, String addingType) {
+		AddCustomerBranchDialog dialog = new AddCustomerBranchDialog(parent, onSuccess, addingType);
 		dialog.setVisible(true);
 	}
 }

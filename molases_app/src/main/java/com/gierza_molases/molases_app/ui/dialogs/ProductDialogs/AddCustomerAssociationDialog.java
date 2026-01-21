@@ -36,7 +36,6 @@ import javax.swing.table.JTableHeader;
 import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.service.CustomerService;
-import com.gierza_molases.molases_app.service.ProductAssociationService;
 import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.util.UiSwingWorker;
@@ -76,7 +75,6 @@ public class AddCustomerAssociationDialog extends JDialog {
 	private List<Integer> selectedCustomerIndices = new ArrayList<>();
 
 	// Services
-	private final ProductAssociationService productAssociationService = AppContext.productAssociationService;
 	private final CustomerService customerService = AppContext.customerService;
 
 	/**

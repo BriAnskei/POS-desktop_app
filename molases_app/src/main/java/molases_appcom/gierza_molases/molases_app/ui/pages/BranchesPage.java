@@ -515,8 +515,8 @@ public class BranchesPage {
 			controller.deleteBranch(branch.getId(), () -> {
 				refreshBranchData();
 				ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(table), "Branch deleted successfully!");
-			}, () -> {
-				ToastNotification.showError(SwingUtilities.getWindowAncestor(table), "Failed to delete branch!");
+			}, err -> {
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(table), err);
 				deleteBtn.setEnabled(true);
 			});
 		});

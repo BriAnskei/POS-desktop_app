@@ -16,7 +16,6 @@ public class NewDeliveryState {
 	private Date deliveryDate;
 	private Map<String, Double> expenses;
 
-	// Customer deliveries (Step 2)
 	// Structure: Customer -> Branch -> List of Products with Quantities
 	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries;
 

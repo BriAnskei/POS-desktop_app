@@ -10,6 +10,7 @@ import com.gierza_molases.molases_app.dao.DeliveryDao;
 import com.gierza_molases.molases_app.model.BranchDelivery;
 import com.gierza_molases.molases_app.model.CustomerDelivery;
 import com.gierza_molases.molases_app.model.Delivery;
+import com.gierza_molases.molases_app.model.response.DeliveryDetialsResponse;
 import com.gierza_molases.molases_app.util.TransactionHelper;
 
 public class DeliveryService {
@@ -44,6 +45,19 @@ public class DeliveryService {
 
 	public List<Delivery> fetchNextPage(Long lastSeenId, String search, Date startAt, Date endAt) {
 		return deliveryDao.fetchNextPageNewest(lastSeenId, search, startAt, endAt, 15); // page size fixed to 15
+	}
+
+	public DeliveryDetialsResponse getDeliveryDetials(int deliveryId) {
+
+		TransactionHelper.executeInTransaction(conn -> {
+			Delivery delivery = this.deliveryDao.findById(conn, deliveryId);
+
+		});
+
+	}
+
+	public void deleteDelivery(int deliveryId) {
+		deliveryDao.deleteDelivery(deliveryId);
 	}
 
 }

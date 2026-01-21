@@ -217,19 +217,16 @@ public class SelectCustomerDialog extends JDialog {
 		showLoading();
 
 		newDeliveryController.load20CustomerData(() -> {
-			SwingUtilities.invokeLater(() -> {
+			this.availableCustomers = newDeliveryController.getCustomerState().getCustomers();
 
-				this.availableCustomers = newDeliveryController.getCustomerState().getCustomers();
-				updateCustomerTable();
-				hideLoading();
+			updateCustomerTable();
+			hideLoading();
 
-				System.out.println("Loaded " + availableCustomers.size() + " customers"); // Debug
-			});
+			System.out.println("Loaded " + availableCustomers.size() + " customers");
 		}, error -> {
 			hideLoading();
 			// showError(error);
 		});
-
 	}
 
 	/**

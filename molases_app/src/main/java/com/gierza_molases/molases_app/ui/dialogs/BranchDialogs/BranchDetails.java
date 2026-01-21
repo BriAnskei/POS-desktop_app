@@ -19,7 +19,7 @@ import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 
 import com.gierza_molases.molases_app.context.AppContext;
-import com.gierza_molases.molases_app.model.BranchCustomerResponse;
+import com.gierza_molases.molases_app.model.response.BranchCustomerResponse;
 import com.gierza_molases.molases_app.service.BranchService;
 
 public class BranchDetails extends JDialog {

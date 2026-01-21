@@ -47,6 +47,9 @@ public class Main extends JFrame {
 
 	private String currentPage = "Dashboard";
 
+	// View delivery detials handler
+	private int currentDeliveryId = -1;
+
 	/**
 	 * Launch the application.
 	 */
@@ -308,19 +311,35 @@ public class Main extends JFrame {
 
 		switch (pageName) {
 
+		// delivery module page
 		case "Delivery":
-			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveriesPage
-					.createPanel(() -> showPage("AddDelivery"), () -> showPage("Delivery")), BorderLayout.CENTER);
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveriesPage.createPanel(
+					() -> showPage("AddDelivery"), // onAddNew
+					() -> showPage("Delivery"), // onRefresh
+					(deliveryId) -> { // onViewDetails - accepts delivery ID
+						currentDeliveryId = deliveryId;
+						showPage("ViewDelivery");
+					}), BorderLayout.CENTER);
 			break;
-
 		case "AddDelivery":
 			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveryFormPage.createPanel(
 					() -> showPage("Delivery"), // onCancel
 					() -> showPage("Delivery") // onSave
 			), BorderLayout.CENTER);
 			break;
+		case "ViewDelivery":
+
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveryDetailsPage
+					.createPanel(currentDeliveryId, () -> showPage("Delivery")), BorderLayout.CENTER);
+			break;
+
 		case "Customer":
 			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.CustomersPage.createPanel(),
+					BorderLayout.CENTER);
+			break;
+
+		case "Payments":
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.PaymentsPage.createPanel(),
 					BorderLayout.CENTER);
 			break;
 		case "Branches":
