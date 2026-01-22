@@ -119,6 +119,16 @@ public class ProductDao {
 	}
 
 	public Product findById(int productId) {
+		try {
+			return findById(productId, conn);
+		} catch (
+
+		Exception e) {
+			throw new RuntimeException("Failed to find product by id: " + productId, e);
+		}
+	}
+
+	public Product findById(int productId, Connection conn) {
 		try (PreparedStatement ps = conn.prepareStatement(FIND_BY_ID_SQL)) {
 
 			ps.setInt(1, productId);

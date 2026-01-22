@@ -27,7 +27,6 @@ public class ProductService {
 
 			// check if there are associated customers
 			if (selectedCustomerIds.size() > 0) {
-
 				productAssociationDao.insertAll(productId, selectedCustomerIds, conn);
 			}
 		});

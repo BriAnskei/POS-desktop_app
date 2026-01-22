@@ -197,7 +197,7 @@ public class BranchDao {
 	/**
 	 * find branch by id
 	 */
-	public Branch findById(int branchId) {
+	public Branch findById(int branchId, Connection conn) {
 		try (PreparedStatement ps = conn.prepareStatement(SELECT_BY_BRANCH_ID_SQL)) {
 
 			ps.setInt(1, branchId);
@@ -209,6 +209,14 @@ public class BranchDao {
 					return null;
 				}
 			}
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to fetch branch with ID: " + branchId, e);
+		}
+	}
+
+	public Branch findById(int branchId) {
+		try {
+			return findById(branchId, conn);
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to fetch branch with ID: " + branchId, e);
 		}

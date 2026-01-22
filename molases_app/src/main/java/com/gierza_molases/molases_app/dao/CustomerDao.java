@@ -185,20 +185,25 @@ public class CustomerDao {
 
 	}
 
-	public Customer findById(int branchId) {
-		try (PreparedStatement ps = conn.prepareStatement(SELECT_BY_ID_SQL)) {
+	public Customer findById(int customerId) {
+		try {
+			return findById(customerId, conn);
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to fetch Customer with ID: " + customerId, e);
+		}
+	}
 
-			ps.setInt(1, branchId);
+	public Customer findById(int customerId, Connection connection) throws SQLException {
+		try (PreparedStatement ps = connection.prepareStatement(SELECT_BY_ID_SQL)) {
+
+			ps.setInt(1, customerId);
 
 			try (ResultSet rs = ps.executeQuery()) {
 				if (rs.next()) {
 					return mapRowToCustomer(rs);
-				} else {
-					return null;
 				}
+				return null;
 			}
-		} catch (Exception e) {
-			throw new RuntimeException("Failed to fetch branch with ID: " + branchId, e);
 		}
 	}
 

@@ -18,7 +18,7 @@ public class CustomerDelivery {
 		this.deliveryId = deliveryId;
 	}
 
-	public Integer getCustomerDeliveryId() {
+	public Integer getId() {
 		return id;
 	}
 

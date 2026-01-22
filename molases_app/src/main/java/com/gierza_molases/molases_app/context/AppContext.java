@@ -63,7 +63,8 @@ public class AppContext {
 		branchService = new BranchService(branchDao, customerDao, branchDeliveryDao);
 		productService = new ProductService(productDao, productAssociationDao);
 		productAssociationService = new ProductAssociationService(productAssociationDao);
-		deliveryService = new DeliveryService(deliveryDao, customerDeliveryDao, branchDeliveryDao);
+		deliveryService = new DeliveryService(deliveryDao, customerDeliveryDao, branchDeliveryDao, customerDao,
+				branchDao, productDao);
 
 		// Initialize controller with a new state instance
 		customersController = new CustomersController(new CustomerState(), customerService);
