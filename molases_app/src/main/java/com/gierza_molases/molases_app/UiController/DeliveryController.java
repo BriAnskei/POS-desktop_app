@@ -52,7 +52,8 @@ public class DeliveryController {
 				if (error != null) {
 					error.printStackTrace();
 					if (onError != null)
-						onError.run();
+						System.err.print(error);
+					onError.run();
 				} else {
 					// If this is a next page navigation, save current page to history
 					if (isNextPage && !state.getDeliveries().isEmpty()) {
@@ -66,6 +67,8 @@ public class DeliveryController {
 
 					// Update state with loaded data
 					state.setDeliveries(loaded);
+
+					// TODO: implement a proper fetcher for this.
 					state.setHasNextPage(loaded.size() >= state.getPageSize());
 
 					// Update last seen ID for next page

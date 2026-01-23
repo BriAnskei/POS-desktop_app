@@ -34,7 +34,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
-import com.gierza_molases.molases_app.UiController.DeliveryDetialsController;
+import com.gierza_molases.molases_app.UiController.DeliveryDetailsController;
 import com.gierza_molases.molases_app.UiController.NewDeliveryController;
 import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Branch;
@@ -78,7 +78,7 @@ public class AddCustomerBranchDialog extends JDialog {
 
 	// Controller
 	private NewDeliveryController newDeliveryController = AppContext.newDeliveryController;
-	private DeliveryDetialsController deliveryDetialsController = AppContext.deliveryDetialsController;
+	private DeliveryDetailsController deliveryDetialsController = AppContext.deliveryDetialsController;
 
 	private String addingType;
 
@@ -558,20 +558,26 @@ public class AddCustomerBranchDialog extends JDialog {
 			// Save to state via controller
 			newDeliveryController.addCustomerDelivery(selectedCustomer, branchProductsMap);
 
+			// Call success callback
+			if (onSuccessCallback != null) {
+				onSuccessCallback.run();
+			}
+
 		} else if (this.addingType.equals("additionalDelivery")) {
 
 			deliveryDetialsController.addAdditionalCustomer(selectedCustomer, branchProductsMap, () -> {
+				ToastNotification.showSuccess(this, "Customer Sucessfully added.");
+				// Call success callback
+				if (onSuccessCallback != null) {
+					onSuccessCallback.run();
+				}
+
 			}, er -> {
 
-				System.out.println("Failed: " + er);
+				ToastNotification.showError(this, "Failed: " + er);
 			}
 
 			);
-		}
-
-		// Call success callback
-		if (onSuccessCallback != null) {
-			onSuccessCallback.run();
 		}
 
 		dispose();

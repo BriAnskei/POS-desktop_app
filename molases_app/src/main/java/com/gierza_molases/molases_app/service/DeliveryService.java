@@ -68,69 +68,48 @@ public class DeliveryService {
 	}
 
 	public DeliveryViewResponse getDeliveryDetials(int deliveryId) {
-		DeliveryViewResponse deliveryDetialsResponse = new DeliveryViewResponse();
+		DeliveryViewResponse response = new DeliveryViewResponse();
 
 		TransactionHelper.executeInTransaction(conn -> {
-			Delivery delivery = this.deliveryDao.findById(conn, deliveryId);
+			Delivery delivery = deliveryDao.findById(conn, deliveryId);
+			List<CustomerDelivery> cds = customerDeliveryDao.findAllByDeliveryId(conn, deliveryId);
 
-			List<CustomerDelivery> customerDeliveries = customerDeliveryDao.findAllByDeliveryId(conn, deliveryId);
+			response.setDelivery(delivery);
 
-			deliveryDetialsResponse.setDelivery(delivery);
-			// mapped
-			deliveryDetialsResponse.setMappedCustomerDelivery(this.mapCustomerDeliveries(customerDeliveries, conn));
-			// raww
-
+			assembleCustomerDeliveries(response, cds, conn);
 		});
 
-		return deliveryDetialsResponse;
+		return response;
 	}
 
-	public Map<Customer, Map<Branch, List<ProductWithQuantity>>> mapCustomerDeliveries(
-			List<CustomerDelivery> customerDeliveries, Connection conn) throws SQLException {
-
-		Map<Customer, Map<Branch, List<ProductWithQuantity>>> mappedCustomerDeliveries = new HashMap<>();
+	private void assembleCustomerDeliveries(DeliveryViewResponse response, List<CustomerDelivery> customerDeliveries,
+			Connection conn) throws SQLException {
+		Map<CustomerDelivery, List<BranchDelivery>> raw = new HashMap<>();
+		Map<Customer, Map<Branch, List<ProductWithQuantity>>> mapped = new HashMap<>();
 
 		for (CustomerDelivery cd : customerDeliveries) {
-			Customer customer = this.customerDao.findById(cd.getCustomerId(), conn);
+			List<BranchDelivery> bds = branchDeliveryDao.findAllByCustomerDelivery(conn, cd.getId());
 
-			// customer customer branches for this delivery
-			Map<Branch, List<ProductWithQuantity>> customerBranchesDeliveries = this
-					.getCustomerCustomerBranchDeliveries(cd.getId(), conn);
+			raw.put(cd, bds);
 
-			mappedCustomerDeliveries.put(customer, customerBranchesDeliveries);
+			Customer customer = customerDao.findById(cd.getCustomerId(), conn);
+
+			Map<Branch, List<ProductWithQuantity>> branchMap = new HashMap<>();
+			for (BranchDelivery bd : bds) {
+				Branch branch = branchDao.findById(bd.getBranchId(), conn);
+				Product product = productDao.findById(bd.getProductId(), conn);
+
+				System.out.println("Branch of customer delivery: " + bd.getBranchId());
+
+				branchMap.computeIfAbsent(branch, b -> new ArrayList<>())
+						.add(new ProductWithQuantity(product, bd.getQuantity()));
+			}
+
+			mapped.put(customer, branchMap);
 		}
 
-		return mappedCustomerDeliveries;
-
-	}
-
-	public Map<Branch, List<ProductWithQuantity>> getCustomerCustomerBranchDeliveries(int customerDeliveryId,
-			Connection conn) {
-		// fetch customer branches for this delivery
-		List<BranchDelivery> customerBranchesDelivery = this.branchDeliveryDao.findAllByCustomerDelivery(conn,
-				customerDeliveryId);
-
-		// mappedCutomer deliveries
-		return this.mapCustomerBranchesDelivery(customerBranchesDelivery, conn);
-
-	}
-
-	public Map<Branch, List<ProductWithQuantity>> mapCustomerBranchesDelivery(List<BranchDelivery> branchesDelivery,
-			Connection conn) {
-
-		Map<Branch, List<ProductWithQuantity>> customerBranchesDelivery = new HashMap<>();
-
-		for (BranchDelivery bd : branchesDelivery) {
-			Branch branch = branchDao.findById(bd.getBranchId(), conn);
-			Product product = productDao.findById(bd.getProductId(), conn);
-
-			ProductWithQuantity pwq = new ProductWithQuantity(product, bd.getQuantity());
-
-			// get existing list or create a new one
-			customerBranchesDelivery.computeIfAbsent(branch, b -> new ArrayList<>()).add(pwq);
-		}
-
-		return customerBranchesDelivery;
+		response.setCustomerDeliveries(raw);
+		response.setMappedCustomerDelivery(mapped);
 	}
 
 	public void deleteDelivery(int deliveryId) {

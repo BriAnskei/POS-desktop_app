@@ -91,7 +91,7 @@ public class BranchDeliveryDao {
 	}
 
 	private BranchDelivery mapToCustomerDelivery(ResultSet rs) throws SQLException {
-		return new BranchDelivery(rs.getInt("id"), rs.getInt("customer_delivery_id"), rs.getInt("branch_id"),
+		return new BranchDelivery(rs.getInt("id"), rs.getInt("branch_id"), rs.getInt("customer_delivery_id"),
 				rs.getInt("product_id"), rs.getInt("quantity"), rs.getString("status"));
 	}
 

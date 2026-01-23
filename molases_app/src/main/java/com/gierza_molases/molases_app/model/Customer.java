@@ -185,4 +185,19 @@ public class Customer {
 	public void setCreatedAt(LocalDateTime createdAt) {
 		this.createdAt = createdAt;
 	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o)
+			return true;
+		if (o == null || getClass() != o.getClass())
+			return false;
+		Customer customer = (Customer) o;
+		return id == customer.id;
+	}
+
+	@Override
+	public int hashCode() {
+		return Integer.hashCode(id);
+	}
 }

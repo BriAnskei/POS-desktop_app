@@ -329,7 +329,7 @@ public class Main extends JFrame {
 			break;
 		case "ViewDelivery":
 
-			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveryDetailsPage
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.Delivery_detials.DeliveryDetailsPage
 					.createPanel(currentDeliveryId, () -> showPage("Delivery")), BorderLayout.CENTER);
 			break;
 

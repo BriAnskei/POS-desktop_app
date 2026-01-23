@@ -21,11 +21,11 @@ public class CustomerDeliveryDao {
 
 	// READ
 	private final String SELECT_BY_DELEIVERY_SQL = """
-			 	SELECT * customer_delivery WHERE delivery_id = ?
+			 	SELECT * FROM customer_delivery WHERE delivery_id = ?
 			""";
 
 	private final String SELECT_BY_ID_SQL = """
-			 	SELECT * customer_delivery WHERE id = ?
+			 	SELECT * FROM customer_delivery WHERE id = ?
 			""";
 
 	public CustomerDeliveryDao(Connection conn) {

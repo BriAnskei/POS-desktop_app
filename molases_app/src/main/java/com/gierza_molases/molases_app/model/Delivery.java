@@ -143,8 +143,6 @@ public class Delivery {
 		return expenses == null ? 0 : expenses.values().stream().mapToDouble(Double::doubleValue).sum();
 	}
 
-	/* ========================= Getters / setters ========================= */
-
 	public Integer getId() {
 		return id;
 	}
@@ -198,9 +196,39 @@ public class Delivery {
 		return totalBranches;
 	}
 
+	/* ========================= Getters / setters ========================= */
+
 	public void setTotalCustomers(int totalCustomers) {
 		this.totalCustomers = totalCustomers;
 		validate();
+	}
+
+	// Add these setter methods to your Delivery.java class
+
+	public void setTotalGross(Double totalGross) {
+		if (totalGross != null && totalGross < 0) {
+			throw new IllegalArgumentException("Total gross cannot be negative");
+		}
+		this.totalGross = totalGross;
+	}
+
+	public void setTotalCapital(Double totalCapital) {
+		if (totalCapital != null && totalCapital < 0) {
+			throw new IllegalArgumentException("Total capital cannot be negative");
+		}
+		this.totalCapital = totalCapital;
+	}
+
+	public void setGrossProfit(Double grossProfit) {
+		if (grossProfit != null && grossProfit < 0) {
+			throw new IllegalArgumentException("Gross profit cannot be negative");
+		}
+		this.grossProfit = grossProfit;
+	}
+
+	public void setNetProfit(Double netProfit) {
+		// Net profit can be negative (loss)
+		this.netProfit = netProfit;
 	}
 
 	@Override

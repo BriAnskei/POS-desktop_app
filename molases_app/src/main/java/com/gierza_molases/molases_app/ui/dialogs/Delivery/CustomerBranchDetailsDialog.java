@@ -12,6 +12,7 @@ import java.awt.Insets;
 import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -30,8 +31,6 @@ import javax.swing.border.EmptyBorder;
 
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
-import com.gierza_molases.molases_app.model.DeliveryDataClasses.BranchDeliveryData;
-import com.gierza_molases.molases_app.model.DeliveryDataClasses.CustomerDeliveryData;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.ui.components.delivery.UIComponentFactory;
 
@@ -45,16 +44,23 @@ public class CustomerBranchDetailsDialog extends JDialog {
 	private static final Color ACCENT_GOLD = new Color(184, 134, 11);
 
 	private Customer customer;
-	private CustomerDeliveryData customerData;
+	private Map<Branch, List<ProductWithQuantity>> branchDeliveries;
+	private Map<Branch, String> branchStatuses; // Track delivery status per branch
 	private Runnable onUpdate;
 	private JPanel branchesContainer;
 
-	public CustomerBranchDetailsDialog(Window parent, Customer customer, CustomerDeliveryData customerData,
-			Runnable onUpdate) {
+	public CustomerBranchDetailsDialog(Window parent, Customer customer,
+			Map<Branch, List<ProductWithQuantity>> branchDeliveries, Runnable onUpdate) {
 		super(parent, "Branch Details - " + customer.getDisplayName(), ModalityType.APPLICATION_MODAL);
 		this.customer = customer;
-		this.customerData = customerData;
+		this.branchDeliveries = new HashMap<>(branchDeliveries); // Make a copy to work with
+		this.branchStatuses = new HashMap<>();
 		this.onUpdate = onUpdate;
+
+		// Initialize all branch statuses as "Delivered" by default
+		for (Branch branch : branchDeliveries.keySet()) {
+			branchStatuses.put(branch, "Delivered");
+		}
 
 		setLayout(new BorderLayout());
 		setBackground(CONTENT_BG);
@@ -96,7 +102,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		title.setFont(new Font("Arial", Font.BOLD, 22));
 		title.setForeground(Color.WHITE);
 
-		JLabel subtitle = new JLabel("View and manage delivery status for each branch");
+		JLabel subtitle = new JLabel("View and manage delivery details for each branch");
 		subtitle.setFont(new Font("Arial", Font.PLAIN, 13));
 		subtitle.setForeground(new Color(230, 220, 210));
 
@@ -106,12 +112,11 @@ public class CustomerBranchDetailsDialog extends JDialog {
 
 		header.add(textPanel, BorderLayout.WEST);
 
-		// Add Branch Button
+		// Add Branch Button (for future implementation)
 		JButton addBranchBtn = UIComponentFactory.createStyledButton("+ Add Branch", ACCENT_GOLD);
 		addBranchBtn.setPreferredSize(new Dimension(150, 40));
 		addBranchBtn.addActionListener(e -> {
-			// Placeholder - will be implemented later
-			JOptionPane.showMessageDialog(this, "Add Branch dialog will be implemented later", "Coming Soon",
+			JOptionPane.showMessageDialog(this, "Add Branch feature will be implemented later", "Coming Soon",
 					JOptionPane.INFORMATION_MESSAGE);
 		});
 
@@ -127,8 +132,22 @@ public class CustomerBranchDetailsDialog extends JDialog {
 	private void buildBranchesContent() {
 		branchesContainer.removeAll();
 
-		for (Map.Entry<Branch, BranchDeliveryData> entry : customerData.branches.entrySet()) {
-			branchesContainer.add(createBranchPanel(entry.getKey(), entry.getValue()));
+		for (Map.Entry<Branch, List<ProductWithQuantity>> entry : branchDeliveries.entrySet()) {
+			Branch branch = entry.getKey();
+			List<ProductWithQuantity> products = entry.getValue();
+
+			// Skip null branches or empty product lists
+			if (branch == null) {
+				System.err.println("WARNING: Found null branch in customer deliveries!");
+				continue;
+			}
+
+			if (products == null || products.isEmpty()) {
+				System.err.println("WARNING: Branch " + branch.getAddress() + " has no products!");
+				continue;
+			}
+
+			branchesContainer.add(createBranchPanel(branch, products));
 			branchesContainer.add(Box.createVerticalStrut(12));
 		}
 
@@ -136,7 +155,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		branchesContainer.repaint();
 	}
 
-	private JPanel createBranchPanel(Branch branch, BranchDeliveryData branchData) {
+	private JPanel createBranchPanel(Branch branch, List<ProductWithQuantity> products) {
 		JPanel panel = new JPanel(new BorderLayout());
 		panel.setBackground(BRANCH_BG);
 		panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(new Color(200, 190, 180), 2),
@@ -156,12 +175,11 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
 		rightPanel.setBackground(BRANCH_BG);
 
-		// Add Product Button
+		// Add Product Button (for future implementation)
 		JButton addProductBtn = UIComponentFactory.createStyledButton("+ Add Product", ACCENT_GOLD);
 		addProductBtn.setPreferredSize(new Dimension(140, 35));
 		addProductBtn.addActionListener(e -> {
-			// Placeholder - will be implemented later
-			JOptionPane.showMessageDialog(this, "Add Product dialog will be implemented later", "Coming Soon",
+			JOptionPane.showMessageDialog(this, "Add Product feature will be implemented later", "Coming Soon",
 					JOptionPane.INFORMATION_MESSAGE);
 		});
 		rightPanel.add(addProductBtn);
@@ -174,11 +192,12 @@ public class CustomerBranchDetailsDialog extends JDialog {
 
 		String[] statuses = { "Delivered", "Cancelled" };
 		JComboBox<String> statusCombo = new JComboBox<>(statuses);
-		statusCombo.setSelectedItem(branchData.status);
+		statusCombo.setSelectedItem(branchStatuses.get(branch));
 		statusCombo.setPreferredSize(new Dimension(140, 35));
 		statusCombo.setFont(new Font("Arial", Font.PLAIN, 14));
 		statusCombo.addActionListener(e -> {
-			branchData.status = (String) statusCombo.getSelectedItem();
+			branchStatuses.put(branch, (String) statusCombo.getSelectedItem());
+			// TODO: Save status to database when implemented
 			if (onUpdate != null) {
 				onUpdate.run();
 			}
@@ -194,15 +213,15 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		productsPanel.setBackground(BRANCH_BG);
 		productsPanel.setBorder(new EmptyBorder(8, 0, 8, 0));
 
-		for (ProductWithQuantity product : branchData.products) {
-			productsPanel.add(createProductRow(product, branch, branchData));
+		for (ProductWithQuantity product : products) {
+			productsPanel.add(createProductRow(product, branch));
 			productsPanel.add(Box.createVerticalStrut(6));
 		}
 
 		panel.add(productsPanel, BorderLayout.CENTER);
 
 		// Totals
-		BranchTotals totals = calculateBranchTotals(branchData.products);
+		BranchTotals totals = calculateBranchTotals(products);
 		JPanel totalsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 20, 8));
 		totalsPanel.setBackground(new Color(240, 235, 225));
 		totalsPanel.setBorder(BorderFactory.createMatteBorder(2, 0, 0, 0, new Color(200, 190, 180)));
@@ -229,7 +248,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		return panel;
 	}
 
-	private JPanel createProductRow(ProductWithQuantity productWithQty, Branch branch, BranchDeliveryData branchData) {
+	private JPanel createProductRow(ProductWithQuantity productWithQty, Branch branch) {
 		JPanel row = new JPanel(new GridBagLayout());
 		row.setBackground(BRANCH_BG);
 		row.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(new Color(230, 225, 220), 1),
@@ -259,7 +278,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		actionsLabel.addMouseListener(new MouseAdapter() {
 			@Override
 			public void mouseClicked(MouseEvent e) {
-				showProductActionMenu(productWithQty, branch, branchData);
+				showProductActionMenu(productWithQty, branch);
 			}
 
 			@Override
@@ -314,7 +333,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		return row;
 	}
 
-	private void showProductActionMenu(ProductWithQuantity product, Branch branch, BranchDeliveryData branchData) {
+	private void showProductActionMenu(ProductWithQuantity product, Branch branch) {
 		JDialog actionDialog = new JDialog(this, "Product Actions");
 		actionDialog.setLayout(new GridBagLayout());
 		actionDialog.getContentPane().setBackground(Color.WHITE);
@@ -336,8 +355,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		JButton editBtn = createActionButton("✏️ Edit Quantity", ACCENT_GOLD);
 		editBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			// Placeholder - will be implemented later
-			JOptionPane.showMessageDialog(this, "Edit Quantity dialog will be implemented later", "Coming Soon",
+			JOptionPane.showMessageDialog(this, "Edit Quantity feature will be implemented later", "Coming Soon",
 					JOptionPane.INFORMATION_MESSAGE);
 		});
 		actionDialog.add(editBtn, gbc);
@@ -346,7 +364,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		JButton removeBtn = createActionButton("🗑️ Remove Product", new Color(180, 50, 50));
 		removeBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			showRemoveProductConfirmation(product, branch, branchData);
+			showRemoveProductConfirmation(product, branch);
 		});
 		actionDialog.add(removeBtn, gbc);
 
@@ -362,10 +380,11 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		actionDialog.setVisible(true);
 	}
 
-	private void showRemoveProductConfirmation(ProductWithQuantity product, Branch branch,
-			BranchDeliveryData branchData) {
+	private void showRemoveProductConfirmation(ProductWithQuantity product, Branch branch) {
+		List<ProductWithQuantity> products = branchDeliveries.get(branch);
+
 		// Check if this is the last product
-		if (branchData.products.size() <= 1) {
+		if (products.size() <= 1) {
 			JOptionPane.showMessageDialog(this,
 					"Cannot remove the last product from a branch.\nAt least one product must remain.", "Cannot Remove",
 					JOptionPane.WARNING_MESSAGE);
@@ -414,12 +433,14 @@ public class CustomerBranchDetailsDialog extends JDialog {
 			confirmDialog.dispose();
 
 			// Remove product from branch data
-			branchData.products.remove(product);
+			products.remove(product);
+
+			// TODO: Update database when implemented
 
 			// Rebuild UI
 			buildBranchesContent();
 
-			// Update parent page financial summary
+			// Update parent page
 			if (onUpdate != null) {
 				onUpdate.run();
 			}
@@ -509,5 +530,15 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		double sales = 0.0;
 		double capital = 0.0;
 		double profit = 0.0;
+	}
+
+	/**
+	 * Static method to show the dialog
+	 */
+	public static void show(Window parent, Customer customer, Map<Branch, List<ProductWithQuantity>> branchDeliveries,
+			Runnable onUpdate) {
+		CustomerBranchDetailsDialog dialog = new CustomerBranchDetailsDialog(parent, customer, branchDeliveries,
+				onUpdate);
+		dialog.setVisible(true);
 	}
 }
