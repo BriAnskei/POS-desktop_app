@@ -1,13 +1,10 @@
 package molases_appcom.gierza_molases.molases_app.ui.pages.Delivery_detials;
 
-
-
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
 import java.awt.Cursor;
 import java.awt.Dimension;
-import java.awt.FlowLayout;
 import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -43,7 +40,6 @@ import com.gierza_molases.molases_app.ui.dialogs.Delivery.AddCustomerBranchDialo
 import com.gierza_molases.molases_app.ui.dialogs.Delivery.CustomerBranchDetailsDialog;
 import com.gierza_molases.molases_app.ui.dialogs.Delivery.SetPaymentTypeDialog;
 
-
 public class CustomerDeliveriesTab {
 
 	private static final Color CONTENT_BG = new Color(250, 247, 242);
@@ -65,7 +61,7 @@ public class CustomerDeliveriesTab {
 
 	public static void initialize() {
 		Delivery delivery = AppContext.deliveryDetialsController.getState().getDelivery();
-		
+
 		if (delivery == null) {
 			return;
 		}
@@ -242,7 +238,16 @@ public class CustomerDeliveriesTab {
 			double totalSales = 0.0;
 			double totalCapital = 0.0;
 
+			// Calculate totals, excluding cancelled branches
 			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
+				Branch branch = branchEntry.getKey();
+
+				// Skip cancelled branches
+				String branchStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
+				if ("Cancelled".equalsIgnoreCase(branchStatus)) {
+					continue;
+				}
+
 				List<ProductWithQuantity> products = branchEntry.getValue();
 
 				for (ProductWithQuantity product : products) {
@@ -417,7 +422,8 @@ public class CustomerDeliveriesTab {
 
 	public static void refreshFinancials() {
 		// This method is called when expenses are updated from the Overview tab
-		// to ensure customer deliveries data stays in sync
+		// or when branch statuses change to ensure customer deliveries data stays in
+		// sync
 		customerDeliveries = AppContext.deliveryDetialsController.getState().getMappedCustomerDeliveries();
 		if (customerTable != null && customerTableModel != null) {
 			updateCustomerTable();

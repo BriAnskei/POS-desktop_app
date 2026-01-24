@@ -27,12 +27,18 @@ import javax.swing.JOptionPane;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.SwingConstants;
+import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 
+import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
+import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.ui.components.delivery.UIComponentFactory;
+
+import molases_appcom.gierza_molases.molases_app.ui.pages.Delivery_detials.CustomerDeliveriesTab;
+import molases_appcom.gierza_molases.molases_app.ui.pages.Delivery_detials.DeliveryOverviewTab;
 
 public class CustomerBranchDetailsDialog extends JDialog {
 
@@ -45,7 +51,6 @@ public class CustomerBranchDetailsDialog extends JDialog {
 
 	private Customer customer;
 	private Map<Branch, List<ProductWithQuantity>> branchDeliveries;
-	private Map<Branch, String> branchStatuses; // Track delivery status per branch
 	private Runnable onUpdate;
 	private JPanel branchesContainer;
 
@@ -54,13 +59,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		super(parent, "Branch Details - " + customer.getDisplayName(), ModalityType.APPLICATION_MODAL);
 		this.customer = customer;
 		this.branchDeliveries = new HashMap<>(branchDeliveries); // Make a copy to work with
-		this.branchStatuses = new HashMap<>();
 		this.onUpdate = onUpdate;
-
-		// Initialize all branch statuses as "Delivered" by default
-		for (Branch branch : branchDeliveries.keySet()) {
-			branchStatuses.put(branch, "Delivered");
-		}
 
 		setLayout(new BorderLayout());
 		setBackground(CONTENT_BG);
@@ -192,15 +191,43 @@ public class CustomerBranchDetailsDialog extends JDialog {
 
 		String[] statuses = { "Delivered", "Cancelled" };
 		JComboBox<String> statusCombo = new JComboBox<>(statuses);
-		statusCombo.setSelectedItem(branchStatuses.get(branch));
+
+		// Load current status from state
+		String currentStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
+		statusCombo.setSelectedItem(currentStatus);
+
 		statusCombo.setPreferredSize(new Dimension(140, 35));
 		statusCombo.setFont(new Font("Arial", Font.PLAIN, 14));
 		statusCombo.addActionListener(e -> {
-			branchStatuses.put(branch, (String) statusCombo.getSelectedItem());
-			// TODO: Save status to database when implemented
-			if (onUpdate != null) {
-				onUpdate.run();
-			}
+			String selectedStatus = (String) statusCombo.getSelectedItem();
+
+			// Update branch status via controller (this will recalculate financials)
+			AppContext.deliveryDetialsController.setBranchDeliveryStatus(branch, selectedStatus, () -> {
+				// Success: Update UI
+				SwingUtilities.invokeLater(() -> {
+					// Update the customer deliveries tab
+					CustomerDeliveriesTab.refreshFinancials();
+
+					// Update the overview tab financial summary
+					DeliveryOverviewTab.updateFinancialSummary();
+
+					// Trigger parent callback
+					if (onUpdate != null) {
+						onUpdate.run();
+					}
+
+					ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(statusCombo),
+							"Branch status updated to: " + selectedStatus);
+				});
+			}, (error) -> {
+				// Error: Show error message and revert selection
+				SwingUtilities.invokeLater(() -> {
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(statusCombo),
+							"Failed to update status: " + error);
+					// Revert to previous status
+					statusCombo.setSelectedItem(currentStatus);
+				});
+			});
 		});
 		rightPanel.add(statusCombo);
 
@@ -440,10 +467,16 @@ public class CustomerBranchDetailsDialog extends JDialog {
 			// Rebuild UI
 			buildBranchesContent();
 
+			// Recalculate financials
+			AppContext.deliveryDetialsController.getState().recalculateAllFinancials();
+
 			// Update parent page
 			if (onUpdate != null) {
 				onUpdate.run();
 			}
+
+			// Update overview tab
+			DeliveryOverviewTab.updateFinancialSummary();
 		});
 		confirmDialog.add(removeBtn, gbc);
 

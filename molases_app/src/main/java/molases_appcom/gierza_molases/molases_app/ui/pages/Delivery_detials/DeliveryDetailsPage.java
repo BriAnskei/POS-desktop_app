@@ -247,7 +247,7 @@ public class DeliveryDetailsPage {
 
 	private static void initializeLoadingOverlay() {
 		loadingOverlay = new JPanel(new GridBagLayout());
-		loadingOverlay.setBackground(new Color(0, 0, 0, 150));
+		loadingOverlay.setBackground(new Color(250, 247, 242, 220)); // Light overlay matching CONTENT_BG
 		loadingOverlay.setVisible(false);
 
 		GridBagConstraints gbc = new GridBagConstraints();
@@ -261,7 +261,7 @@ public class DeliveryDetailsPage {
 		gbc.insets = new Insets(20, 0, 0, 0);
 		JLabel loadingLabel = new JLabel("Loading delivery details...");
 		loadingLabel.setFont(new Font("Arial", Font.BOLD, 16));
-		loadingLabel.setForeground(TEXT_LIGHT);
+		loadingLabel.setForeground(TEXT_DARK); // Changed from TEXT_LIGHT to TEXT_DARK for visibility
 		loadingOverlay.add(loadingLabel, gbc);
 
 		layeredPane.add(loadingOverlay, JLayeredPane.PALETTE_LAYER);

@@ -25,10 +25,15 @@ public class DeliveryDetailsState {
 	// delivered
 	private Map<Customer, String> temporaryPaymentTypes;
 
+	// Branch delivery statuses (Delivered/Cancelled) - tracked locally until saved
+	// to DB
+	private Map<Branch, String> branchDeliveryStatuses;
+
 	public DeliveryDetailsState() {
 		this.mappedCustomerDeliveries = new HashMap<>();
 		this.additionalCustomerDelivery = new HashMap<>();
 		this.temporaryPaymentTypes = new HashMap<>();
+		this.branchDeliveryStatuses = new HashMap<>();
 	}
 
 	/*
@@ -55,6 +60,25 @@ public class DeliveryDetailsState {
 		return temporaryPaymentTypes.getOrDefault(customer, "Not Set");
 	}
 
+	public Map<Customer, Map<Branch, List<ProductWithQuantity>>> getAdditionalCustomerDelivery() {
+		return this.additionalCustomerDelivery;
+	}
+
+	/**
+	 * Get branch delivery statuses map
+	 */
+	public Map<Branch, String> getBranchDeliveryStatuses() {
+		return branchDeliveryStatuses;
+	}
+
+	/**
+	 * Get delivery status for a specific branch Returns "Delivered" if no status
+	 * has been set
+	 */
+	public String getBranchDeliveryStatus(Branch branch) {
+		return branchDeliveryStatuses.getOrDefault(branch, "Delivered");
+	}
+
 	/*
 	 * ====================== Setters ======================
 	 */
@@ -67,6 +91,17 @@ public class DeliveryDetailsState {
 			Map<Customer, Map<Branch, List<ProductWithQuantity>>> mappedCustomerDeliveries) {
 		this.mappedCustomerDeliveries = mappedCustomerDeliveries != null ? new HashMap<>(mappedCustomerDeliveries)
 				: new HashMap<>();
+
+		// Initialize branch statuses for all branches as "Delivered"
+		if (mappedCustomerDeliveries != null) {
+			for (Map<Branch, List<ProductWithQuantity>> branches : mappedCustomerDeliveries.values()) {
+				for (Branch branch : branches.keySet()) {
+					if (branch != null) {
+						branchDeliveryStatuses.putIfAbsent(branch, "Delivered");
+					}
+				}
+			}
+		}
 	}
 
 	/**
@@ -75,6 +110,15 @@ public class DeliveryDetailsState {
 	public void setPaymentType(Customer customer, String paymentType) {
 		if (customer != null && paymentType != null) {
 			this.temporaryPaymentTypes.put(customer, paymentType);
+		}
+	}
+
+	/**
+	 * Set delivery status for a specific branch
+	 */
+	public void setBranchDeliveryStatus(Branch branch, String status) {
+		if (branch != null && status != null) {
+			this.branchDeliveryStatuses.put(branch, status);
 		}
 	}
 
@@ -89,6 +133,8 @@ public class DeliveryDetailsState {
 		this.delivery = null;
 		this.mappedCustomerDeliveries = new HashMap<>();
 		this.temporaryPaymentTypes = new HashMap<>();
+		this.branchDeliveryStatuses = new HashMap<>();
+		this.additionalCustomerDelivery = new HashMap<>();
 	}
 
 	/**
@@ -104,6 +150,7 @@ public class DeliveryDetailsState {
 
 	/**
 	 * Recalculate all financial metrics based on current customer deliveries
+	 * Excludes branches with "Cancelled" status from calculations
 	 */
 	public void recalculateAllFinancials() {
 		if (delivery == null || mappedCustomerDeliveries == null) {
@@ -113,11 +160,19 @@ public class DeliveryDetailsState {
 		double totalGross = 0.0;
 		double totalCapital = 0.0;
 
-		// Calculate totals from all customer deliveries
+		// Calculate totals from all customer deliveries, excluding cancelled branches
 		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : mappedCustomerDeliveries.entrySet()) {
 			Map<Branch, List<ProductWithQuantity>> branches = entry.getValue();
 
 			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
+				Branch branch = branchEntry.getKey();
+
+				// Skip cancelled branches
+				String branchStatus = getBranchDeliveryStatus(branch);
+				if ("Cancelled".equalsIgnoreCase(branchStatus)) {
+					continue;
+				}
+
 				List<ProductWithQuantity> products = branchEntry.getValue();
 
 				for (ProductWithQuantity product : products) {
@@ -153,6 +208,13 @@ public class DeliveryDetailsState {
 			// Initialize payment type as "Not Set" if not already set
 			this.temporaryPaymentTypes.putIfAbsent(customer, "Not Set");
 
+			// Initialize branch statuses as "Delivered" for new branches
+			for (Branch branch : branchProducts.keySet()) {
+				if (branch != null) {
+					this.branchDeliveryStatuses.putIfAbsent(branch, "Delivered");
+				}
+			}
+
 			// Recalculate all financial metrics
 			recalculateAllFinancials();
 		}
@@ -163,6 +225,14 @@ public class DeliveryDetailsState {
 	 */
 	public void removeCustomerDelivery(Customer customer) {
 		if (customer != null) {
+			// Remove branch statuses for this customer's branches
+			Map<Branch, List<ProductWithQuantity>> branches = this.mappedCustomerDeliveries.get(customer);
+			if (branches != null) {
+				for (Branch branch : branches.keySet()) {
+					this.branchDeliveryStatuses.remove(branch);
+				}
+			}
+
 			this.mappedCustomerDeliveries.remove(customer);
 			this.temporaryPaymentTypes.remove(customer);
 		}

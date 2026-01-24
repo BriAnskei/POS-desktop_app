@@ -63,13 +63,13 @@ public class SelectBranchDialog extends JDialog {
 	private JLabel loadingLabel;
 	private JPanel mainContent;
 
+	private final int selectedCustomerId;
+
 	// Callback
 	private Consumer<List<Branch>> onBranchesSelectedCallback;
 
 	// controller
 	private final NewDeliveryController newDeliveryController;
-
-	private final int selectedCustomerId;
 
 	/**
 	 * Constructor - now accepts the list of branches to display

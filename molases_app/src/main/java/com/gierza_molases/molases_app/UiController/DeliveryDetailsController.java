@@ -72,6 +72,10 @@ public class DeliveryDetailsController {
 								}
 							}
 
+							// TODO: Load branch delivery statuses from database when implemented
+							// For now, all branches are initialized as "Delivered" in
+							// setMappedCustomerDeliveries()
+
 							if (onSuccess != null) {
 								onSuccess.run();
 							}
@@ -233,6 +237,53 @@ public class DeliveryDetailsController {
 	}
 
 	/*
+	 * ====================== Branch Delivery Status Operations
+	 * ======================
+	 */
+
+	/**
+	 * Set delivery status for a branch (Delivered/Cancelled) This triggers
+	 * financial recalculation and is stored locally until saved to DB
+	 */
+	public void setBranchDeliveryStatus(Branch branch, String status, Runnable onSuccess, Consumer<String> onError) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					state.setBranchDeliveryStatus(branch, status);
+					state.recalculateAllFinancials();
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to update branch status: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
+	}
+
+	/**
+	 * Get delivery status for a specific branch
+	 */
+	public String getBranchDeliveryStatus(Branch branch) {
+		return state.getBranchDeliveryStatus(branch);
+	}
+
+	/*
 	 * ====================== State Management ======================
 	 */
 
@@ -248,5 +299,49 @@ public class DeliveryDetailsController {
 	 */
 	public boolean isDataLoaded() {
 		return state.isLoaded();
+	}
+
+	/*
+	 * ====================== Save Operations (TODO) ======================
+	 */
+
+	/**
+	 * Save all branch delivery statuses to database Called when marking delivery as
+	 * delivered
+	 */
+	public void saveBranchDeliveryStatuses(Runnable onSuccess, Consumer<String> onError) {
+		// TODO: Implement database save for branch delivery statuses
+		// This should be called when "Mark as Delivered" is clicked
+		// Save the branchDeliveryStatuses map to the database
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					// TODO: Call service method to save branch statuses to DB
+					// deliveryService.saveBranchStatuses(deliveryId,
+					// state.getBranchDeliveryStatuses());
+					throw new UnsupportedOperationException("Database save not yet implemented");
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to save branch statuses: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
 	}
 }
