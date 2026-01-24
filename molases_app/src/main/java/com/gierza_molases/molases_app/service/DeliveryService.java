@@ -99,8 +99,6 @@ public class DeliveryService {
 				Branch branch = branchDao.findById(bd.getBranchId(), conn);
 				Product product = productDao.findById(bd.getProductId(), conn);
 
-				System.out.println("Branch of customer delivery: " + bd.getBranchId());
-
 				branchMap.computeIfAbsent(branch, b -> new ArrayList<>())
 						.add(new ProductWithQuantity(product, bd.getQuantity()));
 			}

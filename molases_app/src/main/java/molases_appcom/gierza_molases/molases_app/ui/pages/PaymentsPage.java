@@ -13,6 +13,7 @@ import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.NumberFormat;
+import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -81,7 +82,8 @@ public class PaymentsPage {
 
 	// UI component references
 	private static JTextField customerSearchField;
-	private static JDateChooser dateFilterChooser;
+	private static JDateChooser fromDateChooser;
+	private static JDateChooser toDateChooser;
 	private static JComboBox<String> statusFilterCombo;
 	private static JTable table;
 	private static JLabel pageInfoLabel;
@@ -268,20 +270,36 @@ public class PaymentsPage {
 		filtersRow.add(customerSearchField);
 		filtersRow.add(Box.createHorizontalStrut(15));
 
-		// Date filter with JDateChooser
-		dateFilterChooser = new JDateChooser();
-		dateFilterChooser.setDateFormatString("MMM dd, yyyy");
-		dateFilterChooser.setPreferredSize(new Dimension(150, 38));
-		dateFilterChooser.setMaximumSize(new Dimension(150, 38));
-		dateFilterChooser.setFont(new Font("Arial", Font.PLAIN, 14));
+		// From Date filter
+		fromDateChooser = new JDateChooser();
+		fromDateChooser.setDateFormatString("MMM dd, yyyy");
+		fromDateChooser.setPreferredSize(new Dimension(150, 38));
+		fromDateChooser.setMaximumSize(new Dimension(150, 38));
+		fromDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
 
-		JLabel dateLabel = new JLabel("Date:");
-		dateLabel.setFont(new Font("Arial", Font.PLAIN, 13));
-		dateLabel.setForeground(TEXT_DARK);
+		JLabel fromDateLabel = new JLabel("From Date:");
+		fromDateLabel.setFont(new Font("Arial", Font.PLAIN, 13));
+		fromDateLabel.setForeground(TEXT_DARK);
 
-		filtersRow.add(dateLabel);
+		filtersRow.add(fromDateLabel);
 		filtersRow.add(Box.createHorizontalStrut(5));
-		filtersRow.add(dateFilterChooser);
+		filtersRow.add(fromDateChooser);
+		filtersRow.add(Box.createHorizontalStrut(15));
+
+		// To Date filter
+		toDateChooser = new JDateChooser();
+		toDateChooser.setDateFormatString("MMM dd, yyyy");
+		toDateChooser.setPreferredSize(new Dimension(150, 38));
+		toDateChooser.setMaximumSize(new Dimension(150, 38));
+		toDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
+
+		JLabel toDateLabel = new JLabel("To Date:");
+		toDateLabel.setFont(new Font("Arial", Font.PLAIN, 13));
+		toDateLabel.setForeground(TEXT_DARK);
+
+		filtersRow.add(toDateLabel);
+		filtersRow.add(Box.createHorizontalStrut(5));
+		filtersRow.add(toDateChooser);
 		filtersRow.add(Box.createHorizontalStrut(15));
 
 		// Status filter
@@ -324,17 +342,41 @@ public class PaymentsPage {
 	 */
 	private static void performSearch() {
 		String customerSearch = customerSearchField.getText().trim().toLowerCase();
-		Date selectedDate = dateFilterChooser.getDate();
+		Date fromDate = fromDateChooser.getDate();
+		Date toDate = toDateChooser.getDate();
 		String selectedStatus = (String) statusFilterCombo.getSelectedItem();
 
 		SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy");
-		String dateSearch = selectedDate != null ? dateFormat.format(selectedDate) : null;
 
 		// Filter with AND logic
 		filteredPayments = allPayments.stream().filter(payment -> {
+			// Customer match
 			boolean customerMatch = customerSearch.isEmpty()
-					|| payment.getCustomerName().toLowerCase().contains(customerSearch);
-			boolean dateMatch = dateSearch == null || payment.getDeliveryDate().equals(dateSearch);
+					|| payment.getCustomerName().toLowerCase().contains(customerSearch)
+					|| payment.getDeliveryName().toLowerCase().contains(customerSearch);
+
+			// Date range match
+			boolean dateMatch = true;
+			if (fromDate != null || toDate != null) {
+				try {
+					Date paymentDate = dateFormat.parse(payment.getDeliveryDate());
+
+					if (fromDate != null && toDate != null) {
+						// Both dates specified - check if payment date is within range
+						dateMatch = !paymentDate.before(fromDate) && !paymentDate.after(toDate);
+					} else if (fromDate != null) {
+						// Only from date - check if payment date is on or after from date
+						dateMatch = !paymentDate.before(fromDate);
+					} else {
+						// Only to date - check if payment date is on or before to date
+						dateMatch = !paymentDate.after(toDate);
+					}
+				} catch (ParseException e) {
+					dateMatch = false;
+				}
+			}
+
+			// Status match
 			boolean statusMatch = "All".equals(selectedStatus) || payment.getStatus().equals(selectedStatus);
 
 			return customerMatch && dateMatch && statusMatch;
@@ -349,7 +391,8 @@ public class PaymentsPage {
 	 */
 	private static void clearFilters() {
 		customerSearchField.setText("");
-		dateFilterChooser.setDate(null);
+		fromDateChooser.setDate(null);
+		toDateChooser.setDate(null);
 		statusFilterCombo.setSelectedIndex(0);
 
 		filteredPayments = new ArrayList<>(allPayments);

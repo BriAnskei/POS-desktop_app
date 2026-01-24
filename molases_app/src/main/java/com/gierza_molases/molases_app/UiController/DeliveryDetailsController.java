@@ -106,7 +106,8 @@ public class DeliveryDetailsController {
 				try {
 					// check if the customer already exist
 					if (state.getMappedCustomerDeliveries().containsKey(customer)) {
-						error = new IllegalStateException("Customer already exists in the delivery.");
+						error = new IllegalStateException(
+								"Customer already exists in the delivery. You can add a new delivery on the existing customer delivery");
 						return null;
 					}
 

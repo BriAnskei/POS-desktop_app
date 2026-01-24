@@ -1,7 +1,5 @@
 package molases_appcom.gierza_molases.molases_app.ui.pages.Delivery_detials;
 
-
-
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Cursor;
@@ -16,7 +14,6 @@ import java.awt.event.MouseEvent;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
-import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
 import javax.swing.JOptionPane;
@@ -27,12 +24,10 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
 import com.gierza_molases.molases_app.context.AppContext;
-import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.Delivery;
 import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.ui.components.delivery.UIComponentFactory;
-
 
 public class DeliveryDetailsPage {
 
@@ -151,10 +146,12 @@ public class DeliveryDetailsPage {
 		JButton tab = new JButton(text);
 		tab.setFont(new Font("Arial", Font.BOLD, 15));
 		tab.setFocusPainted(false);
-		tab.setBorderPainted(false);
+		tab.setBorderPainted(true);
 		tab.setCursor(new Cursor(Cursor.HAND_CURSOR));
 		tab.setPreferredSize(new Dimension(200, 45));
 		tab.setHorizontalAlignment(SwingConstants.CENTER);
+		tab.setContentAreaFilled(false);
+		tab.setOpaque(true);
 
 		tab.addActionListener(e -> switchTab(tabIndex));
 
@@ -162,7 +159,7 @@ public class DeliveryDetailsPage {
 			@Override
 			public void mouseEntered(MouseEvent e) {
 				if (currentTab != tabIndex) {
-					tab.setBackground(TAB_INACTIVE.brighter());
+					tab.setForeground(ACCENT_GOLD);
 				}
 			}
 
@@ -178,50 +175,45 @@ public class DeliveryDetailsPage {
 	private static void updateTabStyles() {
 		// Overview tab
 		if (currentTab == 0) {
-			overviewTab.setBackground(TAB_ACTIVE);
-			overviewTab.setForeground(TEXT_LIGHT);
-			overviewTab.setBorder(BorderFactory.createCompoundBorder(
-				BorderFactory.createMatteBorder(0, 0, 3, 0, ACCENT_GOLD),
-				new EmptyBorder(10, 20, 10, 20)
-			));
+			overviewTab.setBackground(CONTENT_BG);
+			overviewTab.setForeground(ACCENT_GOLD);
+			overviewTab.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, ACCENT_GOLD));
 		} else {
-			overviewTab.setBackground(TAB_INACTIVE);
+			overviewTab.setBackground(CONTENT_BG);
 			overviewTab.setForeground(TEXT_DARK);
-			overviewTab.setBorder(new EmptyBorder(10, 20, 13, 20));
+			overviewTab.setBorder(BorderFactory.createEmptyBorder(5, 15, 8, 15));
 		}
 
 		// Customers tab
 		if (currentTab == 1) {
-			customersTab.setBackground(TAB_ACTIVE);
-			customersTab.setForeground(TEXT_LIGHT);
-			customersTab.setBorder(BorderFactory.createCompoundBorder(
-				BorderFactory.createMatteBorder(0, 0, 3, 0, ACCENT_GOLD),
-				new EmptyBorder(10, 20, 10, 20)
-			));
+			customersTab.setBackground(CONTENT_BG);
+			customersTab.setForeground(ACCENT_GOLD);
+			customersTab.setBorder(BorderFactory.createMatteBorder(0, 0, 3, 0, ACCENT_GOLD));
 		} else {
-			customersTab.setBackground(TAB_INACTIVE);
+			customersTab.setBackground(CONTENT_BG);
 			customersTab.setForeground(TEXT_DARK);
-			customersTab.setBorder(new EmptyBorder(10, 20, 13, 20));
+			customersTab.setBorder(BorderFactory.createEmptyBorder(5, 15, 8, 15));
 		}
 	}
 
 	private static void switchTab(int tabIndex) {
-		if (currentTab == tabIndex) return;
+		if (currentTab == tabIndex)
+			return;
 
 		// Fade out effect
 		Timer fadeOut = new Timer(10, null);
-		final float[] opacity = {1.0f};
-		
+		final float[] opacity = { 1.0f };
+
 		fadeOut.addActionListener(e -> {
 			opacity[0] -= 0.1f;
 			if (opacity[0] <= 0) {
 				fadeOut.stop();
-				
+
 				// Switch content
 				currentTab = tabIndex;
 				updateTabStyles();
 				loadTabContent();
-				
+
 				// Fade in effect
 				Timer fadeIn = new Timer(10, null);
 				fadeIn.addActionListener(e2 -> {
@@ -304,10 +296,10 @@ public class DeliveryDetailsPage {
 				// Initialize both tabs
 				DeliveryOverviewTab.initialize();
 				CustomerDeliveriesTab.initialize();
-				
+
 				// Load initial tab content
 				loadTabContent();
-				
+
 				hideLoading();
 			});
 		}, (errorMsg) -> {
