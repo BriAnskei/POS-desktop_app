@@ -38,6 +38,14 @@ public class BranchDeliveryDao {
 		this.conn = conn;
 	}
 
+	public void insertAll(int customerDeliveryId, List<BranchDelivery> list) {
+		try {
+			insertAll(conn, customerDeliveryId, list);
+		} catch (SQLException e) {
+			throw new RuntimeException("Error inserting branch deliveries", e);
+		}
+	}
+
 	public void insertAll(Connection conn, int customerDeliveryId, List<BranchDelivery> list) throws SQLException {
 
 		try (PreparedStatement ps = conn.prepareStatement(INSERT)) {

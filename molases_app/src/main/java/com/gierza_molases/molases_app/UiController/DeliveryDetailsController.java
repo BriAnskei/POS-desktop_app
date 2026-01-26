@@ -1,5 +1,6 @@
 package com.gierza_molases.molases_app.UiController;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -149,6 +150,202 @@ public class DeliveryDetailsController {
 	}
 
 	/*
+	 * ====================== Product Management Operations (NEW)
+	 * ======================
+	 */
+
+	/**
+	 * Add a product to an existing branch
+	 */
+	public void addProductToBranch(Customer customer, Branch branch, ProductWithQuantity productWithQty,
+			Runnable onSuccess, Consumer<String> onError) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					// Validate inputs
+					if (customer == null) {
+						error = new IllegalArgumentException("Customer cannot be null");
+						return null;
+					}
+					if (branch == null) {
+						error = new IllegalArgumentException("Branch cannot be null");
+						return null;
+					}
+					if (productWithQty == null) {
+						error = new IllegalArgumentException("Product cannot be null");
+						return null;
+					}
+
+					// Check if customer exists
+					if (!state.getMappedCustomerDeliveries().containsKey(customer)) {
+						error = new IllegalStateException("Customer does not exist in this delivery");
+						return null;
+					}
+
+					// Check if branch exists for this customer
+					Map<Branch, List<ProductWithQuantity>> customerBranches = state.getMappedCustomerDeliveries()
+							.get(customer);
+					if (!customerBranches.containsKey(branch)) {
+						error = new IllegalStateException("Branch does not exist for this customer");
+						return null;
+					}
+
+					// Check if product already exists in this branch
+					List<ProductWithQuantity> branchProducts = customerBranches.get(branch);
+					for (ProductWithQuantity existing : branchProducts) {
+						if (existing.getProduct().getId() == productWithQty.getProduct().getId()) {
+							error = new IllegalStateException(
+									"Product already exists in this branch. Use edit quantity instead.");
+							return null;
+						}
+					}
+
+					// Add product via state
+					state.addProductToBranch(customer, branch, productWithQty);
+
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to add product: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
+	}
+
+	/**
+	 * Remove a product from a branch
+	 */
+	public void removeProductFromBranch(Customer customer, Branch branch, ProductWithQuantity productToRemove,
+			Runnable onSuccess, Consumer<String> onError) {
+		new SwingWorker<Boolean, Void>() {
+			private Exception error;
+			private boolean result = false;
+
+			@Override
+			protected Boolean doInBackground() {
+				try {
+					// Validate inputs
+					if (customer == null) {
+						error = new IllegalArgumentException("Customer cannot be null");
+						return false;
+					}
+					if (branch == null) {
+						error = new IllegalArgumentException("Branch cannot be null");
+						return false;
+					}
+					if (productToRemove == null) {
+						error = new IllegalArgumentException("Product cannot be null");
+						return false;
+					}
+
+					// Remove product via state
+					result = state.removeProductFromBranch(customer, branch, productToRemove);
+
+					if (!result) {
+						error = new IllegalStateException(
+								"Cannot remove product. It may be the last product in the branch.");
+						return false;
+					}
+
+					return true;
+
+				} catch (Exception e) {
+					error = e;
+					return false;
+				}
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to remove product: " + error.getMessage());
+					}
+				} else if (result) {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				} else {
+					if (onError != null) {
+						onError.accept("Failed to remove product");
+					}
+				}
+			}
+		}.execute();
+	}
+
+	/**
+	 * Edit product quantity in a branch
+	 */
+	public void editProductQuantity(Customer customer, Branch branch, ProductWithQuantity productWithQty,
+			int newQuantity, Runnable onSuccess, Consumer<String> onError) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					// Validate inputs
+					if (customer == null) {
+						error = new IllegalArgumentException("Customer cannot be null");
+						return null;
+					}
+					if (branch == null) {
+						error = new IllegalArgumentException("Branch cannot be null");
+						return null;
+					}
+					if (productWithQty == null) {
+						error = new IllegalArgumentException("Product cannot be null");
+						return null;
+					}
+					if (newQuantity <= 0) {
+						error = new IllegalArgumentException("Quantity must be greater than 0");
+						return null;
+					}
+
+					// Edit product quantity via state
+					state.editProductQuantity(customer, branch, productWithQty, newQuantity);
+
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to edit quantity: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
+	}
+
+	/*
 	 * ====================== Expense Operations ======================
 	 */
 
@@ -242,6 +439,81 @@ public class DeliveryDetailsController {
 	 */
 
 	/**
+	 * Add a new branch with products to an existing customer delivery
+	 */
+	public void addBranchToCustomer(Customer customer, Branch branch, List<ProductWithQuantity> products,
+			Runnable onSuccess, Consumer<String> onError) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					// Validate inputs
+					if (customer == null) {
+						error = new IllegalArgumentException("Customer cannot be null");
+						return null;
+					}
+					if (branch == null) {
+						error = new IllegalArgumentException("Branch cannot be null");
+						return null;
+					}
+					if (products == null || products.isEmpty()) {
+						error = new IllegalArgumentException("Branch must have at least one product");
+						return null;
+					}
+
+					// Check if customer exists in delivery
+					if (!state.getMappedCustomerDeliveries().containsKey(customer)) {
+						error = new IllegalStateException("Customer does not exist in this delivery");
+						return null;
+					}
+
+					// Check if branch already exists for this customer
+					Map<Branch, List<ProductWithQuantity>> customerBranches = state.getMappedCustomerDeliveries()
+							.get(customer);
+					for (Branch existingBranch : customerBranches.keySet()) {
+						if (existingBranch.getId() == branch.getId()) {
+							error = new IllegalStateException("Branch already exists for this customer");
+							return null;
+						}
+					}
+
+					// Add branch to customer's deliveries
+					customerBranches.put(branch, new ArrayList<>(products));
+
+					// Initialize branch status as "Delivered"
+					state.setBranchDeliveryStatus(branch, "Delivered");
+
+					// Track this branch as newly added
+					state.trackAddedBranch(customer, branch, products); // ADD THIS LINE
+
+					// Recalculate financials
+					state.recalculateAllFinancials();
+
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to add branch: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
+	}
+
+	/**
 	 * Set delivery status for a branch (Delivered/Cancelled) This triggers
 	 * financial recalculation and is stored locally until saved to DB
 	 */
@@ -322,6 +594,17 @@ public class DeliveryDetailsController {
 					// TODO: Call service method to save branch statuses to DB
 					// deliveryService.saveBranchStatuses(deliveryId,
 					// state.getBranchDeliveryStatuses());
+
+					// TODO: Save removed products to DB
+					// deliveryService.saveRemovedProducts(deliveryId, state.getRemovedProducts());
+
+					// TODO: Save added products to DB
+					// deliveryService.saveAddedProducts(deliveryId, state.getAddedProducts());
+
+					// TODO: Save edited product quantities to DB
+					// deliveryService.saveEditedProductQuantities(deliveryId,
+					// state.getEditedProductQuantities());
+
 					throw new UnsupportedOperationException("Database save not yet implemented");
 				} catch (Exception e) {
 					error = e;

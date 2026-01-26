@@ -40,7 +40,6 @@ public class ProductService {
 	}
 
 	public List<Product> getallProductsForSelection(int customerId, String search) {
-		System.out.println("Fetching product + " + customerId + search);
 		return productDao.getProductsAndAssocitedByCustomerId(customerId, search);
 	}
 

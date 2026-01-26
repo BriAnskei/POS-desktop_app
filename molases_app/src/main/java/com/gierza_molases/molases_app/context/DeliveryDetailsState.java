@@ -1,5 +1,6 @@
 package com.gierza_molases.molases_app.context;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -7,6 +8,7 @@ import java.util.Map;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.Delivery;
+import com.gierza_molases.molases_app.model.Product;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
 
 public class DeliveryDetailsState {
@@ -29,11 +31,56 @@ public class DeliveryDetailsState {
 	// to DB
 	private Map<Branch, String> branchDeliveryStatuses;
 
+	// ----------------New data holder
+
+	// NEW: Track removed products from branches
+	private Map<Branch, List<ProductWithQuantity>> removedProducts;
+
+	// NEW: Track newly added products to existing branches
+	private Map<Branch, List<ProductWithQuantity>> addedProducts;
+
+	// NEW: Track edited product quantities (Branch -> Product -> QuantityChange)
+	private Map<Branch, Map<Product, QuantityChange>> editedProductQuantities;
+
+	// NEW: Track newly added branches to existing customers
+	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> addedBranches;
+
+	// Inner class to track quantity changes
+	public static class QuantityChange {
+		private final int originalQuantity;
+		private int newQuantity;
+
+		public QuantityChange(int originalQuantity, int newQuantity) {
+			this.originalQuantity = originalQuantity;
+			this.newQuantity = newQuantity;
+		}
+
+		public int getOriginalQuantity() {
+			return originalQuantity;
+		}
+
+		public int getNewQuantity() {
+			return newQuantity;
+		}
+
+		public void setNewQuantity(int newQuantity) {
+			this.newQuantity = newQuantity;
+		}
+
+		public int getQuantityDifference() {
+			return newQuantity - originalQuantity;
+		}
+	}
+
 	public DeliveryDetailsState() {
 		this.mappedCustomerDeliveries = new HashMap<>();
 		this.additionalCustomerDelivery = new HashMap<>();
 		this.temporaryPaymentTypes = new HashMap<>();
 		this.branchDeliveryStatuses = new HashMap<>();
+		this.removedProducts = new HashMap<>();
+		this.addedProducts = new HashMap<>();
+		this.editedProductQuantities = new HashMap<>();
+		this.addedBranches = new HashMap<>();
 	}
 
 	/*
@@ -77,6 +124,34 @@ public class DeliveryDetailsState {
 	 */
 	public String getBranchDeliveryStatus(Branch branch) {
 		return branchDeliveryStatuses.getOrDefault(branch, "Delivered");
+	}
+
+	/**
+	 * Get removed products map
+	 */
+	public Map<Branch, List<ProductWithQuantity>> getRemovedProducts() {
+		return removedProducts;
+	}
+
+	/**
+	 * Get added products map
+	 */
+	public Map<Branch, List<ProductWithQuantity>> getAddedProducts() {
+		return addedProducts;
+	}
+
+	/**
+	 * Get edited product quantities map
+	 */
+	public Map<Branch, Map<Product, QuantityChange>> getEditedProductQuantities() {
+		return editedProductQuantities;
+	}
+
+	/**
+	 * Get added branches map
+	 */
+	public Map<Customer, Map<Branch, List<ProductWithQuantity>>> getAddedBranches() {
+		return addedBranches;
 	}
 
 	/*
@@ -135,6 +210,10 @@ public class DeliveryDetailsState {
 		this.temporaryPaymentTypes = new HashMap<>();
 		this.branchDeliveryStatuses = new HashMap<>();
 		this.additionalCustomerDelivery = new HashMap<>();
+		this.removedProducts = new HashMap<>();
+		this.addedProducts = new HashMap<>();
+		this.editedProductQuantities = new HashMap<>();
+		this.addedBranches = new HashMap<>(); // ADD THIS LINE
 	}
 
 	/**
@@ -238,6 +317,200 @@ public class DeliveryDetailsState {
 		}
 	}
 
+	/*
+	 * ====================== Product/Branch Management Methods (NEW)
+	 * ======================
+	 */
+
+	/**
+	 * Track a newly added branch for an existing customer
+	 */
+	public void trackAddedBranch(Customer customer, Branch branch, List<ProductWithQuantity> products) {
+		if (customer == null || branch == null || products == null) {
+			return;
+		}
+
+		// Initialize customer entry if needed
+		addedBranches.putIfAbsent(customer, new HashMap<>());
+
+		// Add the branch with its products
+		addedBranches.get(customer).put(branch, new ArrayList<>(products));
+	}
+
+	/**
+	 * Add a product to an existing branch Tracks in addedProducts and updates
+	 * mappedCustomerDeliveries
+	 */
+	public void addProductToBranch(Customer customer, Branch branch, ProductWithQuantity productWithQty) {
+		if (customer == null || branch == null || productWithQty == null) {
+			return;
+		}
+
+		// Get customer's branches
+		Map<Branch, List<ProductWithQuantity>> customerBranches = mappedCustomerDeliveries.get(customer);
+		if (customerBranches == null) {
+			return; // Customer doesn't exist
+		}
+
+		// Get branch's products
+		List<ProductWithQuantity> branchProducts = customerBranches.get(branch);
+		if (branchProducts == null) {
+			return; // Branch doesn't exist
+		}
+
+		// Check if product already exists in this branch
+		for (ProductWithQuantity existing : branchProducts) {
+			if (existing.getProduct().getId() == productWithQty.getProduct().getId()) {
+				// Product already exists, don't add duplicate
+				return;
+			}
+		}
+
+		// Add to mappedCustomerDeliveries
+		branchProducts.add(productWithQty);
+
+		// Track in addedProducts
+		addedProducts.putIfAbsent(branch, new ArrayList<>());
+		addedProducts.get(branch).add(productWithQty);
+
+		// Recalculate financials
+		recalculateAllFinancials();
+	}
+
+	/**
+	 * Remove a product from a branch Tracks in removedProducts and updates
+	 * mappedCustomerDeliveries Returns false if it's the last product (not allowed
+	 * to remove)
+	 */
+	public boolean removeProductFromBranch(Customer customer, Branch branch, ProductWithQuantity productToRemove) {
+		if (customer == null || branch == null || productToRemove == null) {
+			return false;
+		}
+
+		// Get customer's branches
+		Map<Branch, List<ProductWithQuantity>> customerBranches = mappedCustomerDeliveries.get(customer);
+		if (customerBranches == null) {
+			return false;
+		}
+
+		// Get branch's products
+		List<ProductWithQuantity> branchProducts = customerBranches.get(branch);
+		if (branchProducts == null || branchProducts.isEmpty()) {
+			return false;
+		}
+
+		// Check if this is the last product
+		if (branchProducts.size() <= 1) {
+			return false; // Cannot remove last product
+		}
+
+		// Check if this product was newly added (in addedProducts)
+		boolean wasRecentlyAdded = false;
+		if (addedProducts.containsKey(branch)) {
+			List<ProductWithQuantity> addedList = addedProducts.get(branch);
+			for (int i = 0; i < addedList.size(); i++) {
+				ProductWithQuantity added = addedList.get(i);
+				if (added.getProduct().getId() == productToRemove.getProduct().getId()) {
+					// Remove from addedProducts instead of tracking in removedProducts
+					addedList.remove(i);
+					if (addedList.isEmpty()) {
+						addedProducts.remove(branch);
+					}
+					wasRecentlyAdded = true;
+					break;
+				}
+			}
+		}
+
+		// Remove from mappedCustomerDeliveries
+		branchProducts.remove(productToRemove);
+
+		// If it wasn't recently added, track in removedProducts
+		if (!wasRecentlyAdded) {
+			removedProducts.putIfAbsent(branch, new ArrayList<>());
+			removedProducts.get(branch).add(productToRemove);
+		}
+
+		// Remove from editedProductQuantities if it exists there
+		if (editedProductQuantities.containsKey(branch)) {
+			editedProductQuantities.get(branch).remove(productToRemove.getProduct());
+			if (editedProductQuantities.get(branch).isEmpty()) {
+				editedProductQuantities.remove(branch);
+			}
+		}
+
+		// Recalculate financials
+		recalculateAllFinancials();
+
+		return true;
+	}
+
+	/**
+	 * Edit product quantity in a branch Tracks in editedProductQuantities and
+	 * updates mappedCustomerDeliveries
+	 */
+	public void editProductQuantity(Customer customer, Branch branch, ProductWithQuantity productWithQty,
+			int newQuantity) {
+		if (customer == null || branch == null || productWithQty == null || newQuantity <= 0) {
+			return;
+		}
+
+		// Get customer's branches
+		Map<Branch, List<ProductWithQuantity>> customerBranches = mappedCustomerDeliveries.get(customer);
+		if (customerBranches == null) {
+			return;
+		}
+
+		// Get branch's products
+		List<ProductWithQuantity> branchProducts = customerBranches.get(branch);
+		if (branchProducts == null) {
+			return;
+		}
+
+		// Find the product and update its quantity
+		int originalQuantity = productWithQty.getQuantity();
+
+		for (ProductWithQuantity product : branchProducts) {
+			if (product.getProduct().getId() == productWithQty.getProduct().getId()) {
+
+				// Check if this product was recently added
+				boolean wasRecentlyAdded = false;
+				if (addedProducts.containsKey(branch)) {
+					for (ProductWithQuantity added : addedProducts.get(branch)) {
+						if (added.getProduct().getId() == product.getProduct().getId()) {
+							// Update quantity in addedProducts
+							added.setQuantity(newQuantity);
+							wasRecentlyAdded = true;
+							break;
+						}
+					}
+				}
+
+				// Update quantity in mappedCustomerDeliveries
+				product.setQuantity(newQuantity);
+
+				// Track in editedProductQuantities only if it wasn't recently added
+				if (!wasRecentlyAdded) {
+					editedProductQuantities.putIfAbsent(branch, new HashMap<>());
+					Map<Product, QuantityChange> branchEdits = editedProductQuantities.get(branch);
+
+					if (branchEdits.containsKey(product.getProduct())) {
+						// Update existing quantity change
+						branchEdits.get(product.getProduct()).setNewQuantity(newQuantity);
+					} else {
+						// Create new quantity change record
+						branchEdits.put(product.getProduct(), new QuantityChange(originalQuantity, newQuantity));
+					}
+				}
+
+				break;
+			}
+		}
+
+		// Recalculate financials
+		recalculateAllFinancials();
+	}
+
 	/**
 	 * Add or update an expense in the delivery Also recalculates net profit
 	 */
@@ -313,6 +586,10 @@ public class DeliveryDetailsState {
 		return "DeliveryDetailsState{" + "deliveryId=" + (delivery != null ? delivery.getId() : "null")
 				+ ", deliveryName='" + (delivery != null ? delivery.getName() : "null") + '\'' + ", totalCustomers="
 				+ (mappedCustomerDeliveries != null ? mappedCustomerDeliveries.size() : 0) + ", isLoaded=" + isLoaded()
-				+ '}';
+				+ ", removedProducts=" + removedProducts.size() + ", addedProducts=" + addedProducts.size()
+				+ ", editedProducts=" + editedProductQuantities.size() + ", addedBranches=" + addedBranches.size() + // ADD
+																														// THIS
+																														// LINE
+				'}';
 	}
 }

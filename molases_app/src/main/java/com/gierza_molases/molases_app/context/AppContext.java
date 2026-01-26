@@ -37,7 +37,6 @@ public class AppContext {
 	public static CustomersController customersController;
 	public static BranchesController branchesController;
 	public static ProductsController productsController;
-
 	public static DeliveryController deliveryController;
 	public static NewDeliveryController newDeliveryController;
 	public static DeliveryDetailsController deliveryDetialsController;

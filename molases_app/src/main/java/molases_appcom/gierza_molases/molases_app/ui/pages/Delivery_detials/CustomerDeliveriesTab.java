@@ -318,17 +318,12 @@ public class CustomerDeliveriesTab {
 			Map<Branch, List<ProductWithQuantity>> branchDeliveries = AppContext.deliveryDetialsController.getState()
 					.getMappedCustomerDeliveries().get(customer);
 
-			System.out.println("=== DEBUG: Customer Branch Deliveries ===");
-			System.out.println("Customer: " + customer.getDisplayName());
-
 			if (branchDeliveries == null) {
-				System.err.println("ERROR: branchDeliveries is NULL for customer: " + customer.getDisplayName());
+
 				ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
 						"No branch deliveries found for this customer");
 				return;
 			}
-
-			System.out.println("Number of branches: " + branchDeliveries.size());
 
 			int nullBranchCount = 0;
 			int validBranchCount = 0;
@@ -339,18 +334,12 @@ public class CustomerDeliveriesTab {
 
 				if (branch == null) {
 					nullBranchCount++;
-					System.err.println("  ERROR: Found NULL branch with "
-							+ (products != null ? products.size() : "NULL") + " products");
+
 				} else {
 					validBranchCount++;
-					System.out.println("  Branch: " + branch.getAddress() + " (ID: " + branch.getId() + ") - Products: "
-							+ (products != null ? products.size() : "NULL"));
+
 				}
 			}
-
-			System.out.println("Valid branches: " + validBranchCount);
-			System.out.println("NULL branches: " + nullBranchCount);
-			System.out.println("=======================================");
 
 			if (branchDeliveries.isEmpty()) {
 				ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),

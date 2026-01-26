@@ -63,6 +63,15 @@ public class DeliveryService {
 		});
 	}
 
+	/**
+	 * Service function for creating new branch delivery for specific customer
+	 * delivery
+	 * 
+	 */
+	public void addNewBranchDelivery(int customerDeliveryId, List<BranchDelivery> branchDelivery) {
+		branchDeliveryDao.insertAll(customerDeliveryId, branchDelivery);
+	}
+
 	public List<Delivery> fetchNextPage(Long lastSeenId, String search, Date startAt, Date endAt) {
 		return deliveryDao.fetchNextPageNewest(lastSeenId, search, startAt, endAt, 15); // page size fixed to 15
 	}
@@ -82,6 +91,9 @@ public class DeliveryService {
 		return response;
 	}
 
+	/**
+	 * Assembles the deliveries object: row and
+	 */
 	private void assembleCustomerDeliveries(DeliveryViewResponse response, List<CustomerDelivery> customerDeliveries,
 			Connection conn) throws SQLException {
 		Map<CustomerDelivery, List<BranchDelivery>> raw = new HashMap<>();

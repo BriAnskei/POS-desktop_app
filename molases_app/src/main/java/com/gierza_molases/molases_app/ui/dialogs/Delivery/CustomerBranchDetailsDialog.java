@@ -12,6 +12,7 @@ import java.awt.Insets;
 import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,6 +37,7 @@ import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.ui.components.delivery.UIComponentFactory;
+import com.gierza_molases.molases_app.ui.dialogs.Delivery.SelectProductDialog.ProductSelectionResult;
 
 import molases_appcom.gierza_molases.molases_app.ui.pages.Delivery_detials.CustomerDeliveriesTab;
 import molases_appcom.gierza_molases.molases_app.ui.pages.Delivery_detials.DeliveryOverviewTab;
@@ -53,6 +55,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 	private Map<Branch, List<ProductWithQuantity>> branchDeliveries;
 	private Runnable onUpdate;
 	private JPanel branchesContainer;
+	private String deliveryStatus;
 
 	public CustomerBranchDetailsDialog(Window parent, Customer customer,
 			Map<Branch, List<ProductWithQuantity>> branchDeliveries, Runnable onUpdate) {
@@ -60,6 +63,14 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		this.customer = customer;
 		this.branchDeliveries = new HashMap<>(branchDeliveries); // Make a copy to work with
 		this.onUpdate = onUpdate;
+
+		// Get delivery status
+		if (AppContext.deliveryDetialsController.getState().getDelivery() != null) {
+			this.deliveryStatus = capitalizeStatus(
+					AppContext.deliveryDetialsController.getState().getDelivery().getStatus());
+		} else {
+			this.deliveryStatus = "Scheduled";
+		}
 
 		setLayout(new BorderLayout());
 		setBackground(CONTENT_BG);
@@ -88,6 +99,13 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		setLocationRelativeTo(parent);
 	}
 
+	private String capitalizeStatus(String status) {
+		if (status == null || status.isEmpty()) {
+			return "Scheduled";
+		}
+		return status.substring(0, 1).toUpperCase() + status.substring(1);
+	}
+
 	private JPanel createHeader() {
 		JPanel header = new JPanel(new BorderLayout());
 		header.setBackground(SIDEBAR_ACTIVE);
@@ -111,21 +129,55 @@ public class CustomerBranchDetailsDialog extends JDialog {
 
 		header.add(textPanel, BorderLayout.WEST);
 
-		// Add Branch Button (for future implementation)
-		JButton addBranchBtn = UIComponentFactory.createStyledButton("+ Add Branch", ACCENT_GOLD);
-		addBranchBtn.setPreferredSize(new Dimension(150, 40));
-		addBranchBtn.addActionListener(e -> {
-			JOptionPane.showMessageDialog(this, "Add Branch feature will be implemented later", "Coming Soon",
-					JOptionPane.INFORMATION_MESSAGE);
-		});
+		// Add "Add New Branch" button on the right (only if not delivered)
+		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
+			JButton addBranchBtn = UIComponentFactory.createStyledButton("+ Add New Branch", ACCENT_GOLD);
+			addBranchBtn.setPreferredSize(new Dimension(160, 50));
+			addBranchBtn.setFont(new Font("Arial", Font.BOLD, 14));
+			addBranchBtn.addActionListener(e -> handleAddNewBranch());
 
-		JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
-		buttonPanel.setBackground(SIDEBAR_ACTIVE);
-		buttonPanel.add(addBranchBtn);
+			JPanel buttonPanel = new JPanel();
+			buttonPanel.setBackground(SIDEBAR_ACTIVE);
+			buttonPanel.add(addBranchBtn);
 
-		header.add(buttonPanel, BorderLayout.EAST);
+			header.add(buttonPanel, BorderLayout.EAST);
+		}
 
 		return header;
+	}
+
+	/**
+	 * Handle adding a new branch to the delivery TODO: Implement functionality
+	 */
+	private void handleAddNewBranch() {
+		// Get list of already added branch addresses
+		List<String> alreadyAddedAddresses = new ArrayList<>();
+		for (Branch branch : branchDeliveries.keySet()) {
+			if (branch != null) {
+				alreadyAddedAddresses.add(branch.getAddress());
+			}
+		}
+
+		// Show the AddBranchToCustomerDialog
+		AddBranchToCustomerDialog.show(this, customer, alreadyAddedAddresses, () -> {
+			SwingUtilities.invokeLater(() -> {
+				// Reload branch deliveries from state
+				branchDeliveries = AppContext.deliveryDetialsController.getState().getMappedCustomerDeliveries()
+						.get(customer);
+
+				// Rebuild UI
+				buildBranchesContent();
+
+				// Update parent tabs
+				CustomerDeliveriesTab.refreshFinancials();
+				DeliveryOverviewTab.updateFinancialSummary();
+
+				// Trigger parent callback
+				if (onUpdate != null) {
+					onUpdate.run();
+				}
+			});
+		});
 	}
 
 	private void buildBranchesContent() {
@@ -174,14 +226,13 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
 		rightPanel.setBackground(BRANCH_BG);
 
-		// Add Product Button (for future implementation)
-		JButton addProductBtn = UIComponentFactory.createStyledButton("+ Add Product", ACCENT_GOLD);
-		addProductBtn.setPreferredSize(new Dimension(140, 35));
-		addProductBtn.addActionListener(e -> {
-			JOptionPane.showMessageDialog(this, "Add Product feature will be implemented later", "Coming Soon",
-					JOptionPane.INFORMATION_MESSAGE);
-		});
-		rightPanel.add(addProductBtn);
+		// Add Product Button (only if not delivered)
+		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
+			JButton addProductBtn = UIComponentFactory.createStyledButton("+ Add Product", ACCENT_GOLD);
+			addProductBtn.setPreferredSize(new Dimension(140, 35));
+			addProductBtn.addActionListener(e -> handleAddProduct(branch));
+			rightPanel.add(addProductBtn);
+		}
 
 		// Status selector
 		JLabel statusLabel = new JLabel("Status:");
@@ -294,31 +345,33 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		nameLabel.setForeground(TEXT_DARK);
 		row.add(nameLabel, gbc);
 
-		// Actions button (first row, right side)
-		gbc.gridx = 6;
-		gbc.gridwidth = 1;
-		gbc.anchor = GridBagConstraints.EAST;
-		JLabel actionsLabel = new JLabel("⚙ Actions");
-		actionsLabel.setFont(new Font("Arial", Font.BOLD, 12));
-		actionsLabel.setForeground(SIDEBAR_ACTIVE);
-		actionsLabel.setCursor(new Cursor(Cursor.HAND_CURSOR));
-		actionsLabel.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				showProductActionMenu(productWithQty, branch);
-			}
+		// Actions button (first row, right side) - only if not delivered
+		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
+			gbc.gridx = 6;
+			gbc.gridwidth = 1;
+			gbc.anchor = GridBagConstraints.EAST;
+			JLabel actionsLabel = new JLabel("⚙ Actions");
+			actionsLabel.setFont(new Font("Arial", Font.BOLD, 12));
+			actionsLabel.setForeground(SIDEBAR_ACTIVE);
+			actionsLabel.setCursor(new Cursor(Cursor.HAND_CURSOR));
+			actionsLabel.addMouseListener(new MouseAdapter() {
+				@Override
+				public void mouseClicked(MouseEvent e) {
+					showProductActionMenu(productWithQty, branch);
+				}
 
-			@Override
-			public void mouseEntered(MouseEvent e) {
-				actionsLabel.setForeground(ACCENT_GOLD);
-			}
+				@Override
+				public void mouseEntered(MouseEvent e) {
+					actionsLabel.setForeground(ACCENT_GOLD);
+				}
 
-			@Override
-			public void mouseExited(MouseEvent e) {
-				actionsLabel.setForeground(SIDEBAR_ACTIVE);
-			}
-		});
-		row.add(actionsLabel, gbc);
+				@Override
+				public void mouseExited(MouseEvent e) {
+					actionsLabel.setForeground(SIDEBAR_ACTIVE);
+				}
+			});
+			row.add(actionsLabel, gbc);
+		}
 
 		// Second row - details
 		gbc.gridy = 1;
@@ -360,6 +413,42 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		return row;
 	}
 
+	/**
+	 * Handle adding a product to a branch
+	 */
+	private void handleAddProduct(Branch branch) {
+		// Note: SelectProductDialog needs to be adapted to work with
+		// DeliveryDetailsController
+		// For now, show a message
+		SelectProductDialog.show(this, (ProductSelectionResult result) -> {
+			// Create ProductWithQuantity from selection
+			ProductWithQuantity newProduct = new ProductWithQuantity(result.product, result.quantity);
+
+			// Add via controller
+			AppContext.deliveryDetialsController.addProductToBranch(customer, branch, newProduct, () -> {
+				SwingUtilities.invokeLater(() -> {
+					// Rebuild UI
+					buildBranchesContent();
+
+					// Update parent tabs
+					CustomerDeliveriesTab.refreshFinancials();
+					DeliveryOverviewTab.updateFinancialSummary();
+
+					// Trigger parent callback
+					if (onUpdate != null) {
+						onUpdate.run();
+					}
+
+					ToastNotification.showSuccess(this, "Product added successfully!");
+				});
+			}, (error) -> {
+				SwingUtilities.invokeLater(() -> {
+					ToastNotification.showError(this, "Failed to add product: " + error);
+				});
+			});
+		}, AppContext.newDeliveryController, customer.getId());
+	}
+
 	private void showProductActionMenu(ProductWithQuantity product, Branch branch) {
 		JDialog actionDialog = new JDialog(this, "Product Actions");
 		actionDialog.setLayout(new GridBagLayout());
@@ -382,8 +471,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		JButton editBtn = createActionButton("✏️ Edit Quantity", ACCENT_GOLD);
 		editBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			JOptionPane.showMessageDialog(this, "Edit Quantity feature will be implemented later", "Coming Soon",
-					JOptionPane.INFORMATION_MESSAGE);
+			handleEditQuantity(product, branch);
 		});
 		actionDialog.add(editBtn, gbc);
 
@@ -405,6 +493,37 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		actionDialog.setMinimumSize(new Dimension(380, 220));
 		actionDialog.setLocationRelativeTo(null);
 		actionDialog.setVisible(true);
+	}
+
+	/**
+	 * Handle editing product quantity
+	 */
+	private void handleEditQuantity(ProductWithQuantity product, Branch branch) {
+		EditQuantityDialog.show(this, product, (newQuantity) -> {
+			// Update via controller
+			AppContext.deliveryDetialsController.editProductQuantity(customer, branch, product, newQuantity, () -> {
+				SwingUtilities.invokeLater(() -> {
+					// Rebuild UI
+					buildBranchesContent();
+
+					// Update parent tabs
+					CustomerDeliveriesTab.refreshFinancials();
+					DeliveryOverviewTab.updateFinancialSummary();
+
+					// Trigger parent callback
+					if (onUpdate != null) {
+						onUpdate.run();
+					}
+
+					ToastNotification.showSuccess(this,
+							"Quantity updated from " + product.getQuantity() + " to " + newQuantity);
+				});
+			}, (error) -> {
+				SwingUtilities.invokeLater(() -> {
+					ToastNotification.showError(this, "Failed to update quantity: " + error);
+				});
+			});
+		});
 	}
 
 	private void showRemoveProductConfirmation(ProductWithQuantity product, Branch branch) {
@@ -459,24 +578,28 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		removeBtn.addActionListener(e -> {
 			confirmDialog.dispose();
 
-			// Remove product from branch data
-			products.remove(product);
+			// Remove via controller
+			AppContext.deliveryDetialsController.removeProductFromBranch(customer, branch, product, () -> {
+				SwingUtilities.invokeLater(() -> {
+					// Rebuild UI
+					buildBranchesContent();
 
-			// TODO: Update database when implemented
+					// Update parent tabs
+					CustomerDeliveriesTab.refreshFinancials();
+					DeliveryOverviewTab.updateFinancialSummary();
 
-			// Rebuild UI
-			buildBranchesContent();
+					// Trigger parent callback
+					if (onUpdate != null) {
+						onUpdate.run();
+					}
 
-			// Recalculate financials
-			AppContext.deliveryDetialsController.getState().recalculateAllFinancials();
-
-			// Update parent page
-			if (onUpdate != null) {
-				onUpdate.run();
-			}
-
-			// Update overview tab
-			DeliveryOverviewTab.updateFinancialSummary();
+					ToastNotification.showSuccess(this, "Product removed successfully!");
+				});
+			}, (error) -> {
+				SwingUtilities.invokeLater(() -> {
+					ToastNotification.showError(this, "Failed to remove product: " + error);
+				});
+			});
 		});
 		confirmDialog.add(removeBtn, gbc);
 
