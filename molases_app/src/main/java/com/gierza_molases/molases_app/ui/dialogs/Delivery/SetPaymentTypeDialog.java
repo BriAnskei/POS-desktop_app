@@ -9,6 +9,8 @@ import java.awt.Font;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Date;
 
 import javax.swing.BorderFactory;
@@ -32,13 +34,15 @@ public class SetPaymentTypeDialog {
 	private static final Color TEXT_DARK = new Color(62, 39, 35);
 	private static final Color ACCENT_GOLD = new Color(184, 134, 11);
 	private static final Color SIDEBAR_ACTIVE = new Color(139, 90, 43);
+	private static final Color INFO_TEXT = new Color(100, 100, 100);
 
 	@FunctionalInterface
 	public interface PaymentCallback {
 		void onSave(String paymentType, Double partialAmount, Date loadDate);
 	}
 
-	public static void show(Component parent, Customer customer, String currentPaymentType, PaymentCallback callback) {
+	public static void show(Component parent, Customer customer, String currentPaymentType, double totalSales,
+			PaymentCallback callback) {
 		JDialog dialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Set Payment Type");
 		dialog.setLayout(new BorderLayout());
 		dialog.getContentPane().setBackground(Color.WHITE);
@@ -67,7 +71,15 @@ public class SetPaymentTypeDialog {
 		gbc.fill = GridBagConstraints.HORIZONTAL;
 		gbc.insets = new Insets(0, 0, 15, 0);
 
+		// Total Sales Info Label
+		JLabel totalSalesInfoLabel = new JLabel(String.format("Total Sales: ₱%,.2f", totalSales));
+		totalSalesInfoLabel.setFont(new Font("Arial", Font.BOLD, 15));
+		totalSalesInfoLabel.setForeground(SIDEBAR_ACTIVE);
+		contentPanel.add(totalSalesInfoLabel, gbc);
+
 		// Payment Type Label
+		gbc.gridy++;
+		gbc.insets = new Insets(10, 0, 15, 0);
 		JLabel paymentLabel = new JLabel("Payment Type: *");
 		paymentLabel.setFont(new Font("Arial", Font.BOLD, 14));
 		paymentLabel.setForeground(TEXT_DARK);
@@ -76,7 +88,7 @@ public class SetPaymentTypeDialog {
 		// Payment Type Dropdown
 		gbc.gridy++;
 		gbc.insets = new Insets(0, 0, 20, 0);
-		String[] paymentTypes = { "Paid Cheque", "Paid Cash", "Partial", "Load" };
+		String[] paymentTypes = { "Paid Cheque", "Paid Cash", "Partial", "Loan" };
 		JComboBox<String> paymentCombo = new JComboBox<>(paymentTypes);
 		paymentCombo.setFont(new Font("Arial", Font.PLAIN, 14));
 		paymentCombo.setPreferredSize(new Dimension(300, 35));
@@ -113,35 +125,51 @@ public class SetPaymentTypeDialog {
 				BorderFactory.createLineBorder(new Color(200, 190, 180), 1), new EmptyBorder(5, 10, 5, 10)));
 		partialPanel.add(partialField, partialGbc);
 
-		// Load Date Chooser
-		JPanel loadPanel = new JPanel(new GridBagLayout());
-		loadPanel.setBackground(CONTENT_BG);
+		// Add hint text for partial payment
+		partialGbc.gridy++;
+		partialGbc.insets = new Insets(5, 0, 0, 0);
+		JLabel partialHintLabel = new JLabel(String.format("Must be less than ₱%,.2f", totalSales));
+		partialHintLabel.setFont(new Font("Arial", Font.ITALIC, 12));
+		partialHintLabel.setForeground(INFO_TEXT);
+		partialPanel.add(partialHintLabel, partialGbc);
 
-		GridBagConstraints loadGbc = new GridBagConstraints();
-		loadGbc.gridx = 0;
-		loadGbc.gridy = 0;
-		loadGbc.anchor = GridBagConstraints.WEST;
-		loadGbc.fill = GridBagConstraints.HORIZONTAL;
-		loadGbc.insets = new Insets(0, 0, 10, 0);
+		// Loan Date Chooser
+		JPanel loanPanel = new JPanel(new GridBagLayout());
+		loanPanel.setBackground(CONTENT_BG);
 
-		JLabel loadLabel = new JLabel("Promise to Pay Date: *");
-		loadLabel.setFont(new Font("Arial", Font.BOLD, 14));
-		loadLabel.setForeground(TEXT_DARK);
-		loadPanel.add(loadLabel, loadGbc);
+		GridBagConstraints loanGbc = new GridBagConstraints();
+		loanGbc.gridx = 0;
+		loanGbc.gridy = 0;
+		loanGbc.anchor = GridBagConstraints.WEST;
+		loanGbc.fill = GridBagConstraints.HORIZONTAL;
+		loanGbc.insets = new Insets(0, 0, 10, 0);
 
-		loadGbc.gridy++;
-		JDateChooser loadDateChooser = new JDateChooser();
-		loadDateChooser.setDateFormatString("MM/dd/yyyy");
-		loadDateChooser.setPreferredSize(new Dimension(300, 35));
-		loadDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
-		loadPanel.add(loadDateChooser, loadGbc);
+		JLabel loanLabel = new JLabel("Promise to Pay Date: *");
+		loanLabel.setFont(new Font("Arial", Font.BOLD, 14));
+		loanLabel.setForeground(TEXT_DARK);
+		loanPanel.add(loanLabel, loanGbc);
+
+		loanGbc.gridy++;
+		JDateChooser loanDateChooser = new JDateChooser();
+		loanDateChooser.setDateFormatString("MM/dd/yyyy");
+		loanDateChooser.setPreferredSize(new Dimension(300, 35));
+		loanDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
+		loanPanel.add(loanDateChooser, loanGbc);
+
+		// Add hint text for loan date
+		loanGbc.gridy++;
+		loanGbc.insets = new Insets(5, 0, 0, 0);
+		JLabel loanHintLabel = new JLabel("Date must be in the future");
+		loanHintLabel.setFont(new Font("Arial", Font.ITALIC, 12));
+		loanHintLabel.setForeground(INFO_TEXT);
+		loanPanel.add(loanHintLabel, loanGbc);
 
 		// Update conditional panel based on selection
-		updateConditionalPanel(conditionalPanel, paymentCombo.getSelectedItem().toString(), partialPanel, loadPanel);
+		updateConditionalPanel(conditionalPanel, paymentCombo.getSelectedItem().toString(), partialPanel, loanPanel);
 
 		paymentCombo.addActionListener(e -> {
 			String selected = (String) paymentCombo.getSelectedItem();
-			updateConditionalPanel(conditionalPanel, selected, partialPanel, loadPanel);
+			updateConditionalPanel(conditionalPanel, selected, partialPanel, loanPanel);
 		});
 
 		dialog.add(contentPanel, BorderLayout.CENTER);
@@ -161,7 +189,7 @@ public class SetPaymentTypeDialog {
 		saveBtn.addActionListener(e -> {
 			String paymentType = (String) paymentCombo.getSelectedItem();
 			Double partialAmount = null;
-			Date loadDate = null;
+			Date loanDate = null;
 
 			// Validate based on payment type
 			if ("Partial".equals(paymentType)) {
@@ -173,23 +201,40 @@ public class SetPaymentTypeDialog {
 
 				try {
 					partialAmount = Double.parseDouble(amountStr);
+
 					if (partialAmount <= 0) {
 						ToastNotification.showError(dialog, "Amount must be greater than 0");
+						return;
+					}
+
+					// NEW VALIDATION: Check if partial amount is >= total sales
+					if (partialAmount >= totalSales) {
+						ToastNotification.showError(dialog, String.format(
+								"Partial payment cannot be equal to or greater than total sales (₱%,.2f)", totalSales));
 						return;
 					}
 				} catch (NumberFormatException ex) {
 					ToastNotification.showError(dialog, "Please enter a valid amount");
 					return;
 				}
-			} else if ("Load".equals(paymentType)) {
-				loadDate = loadDateChooser.getDate();
-				if (loadDate == null) {
+			} else if ("Loan".equals(paymentType)) {
+				loanDate = loanDateChooser.getDate();
+				if (loanDate == null) {
 					ToastNotification.showError(dialog, "Please select promise to pay date");
+					return;
+				}
+
+				LocalDate today = LocalDate.now();
+
+				LocalDate selectedDate = loanDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+
+				if (selectedDate.isBefore(today)) {
+					ToastNotification.showError(dialog, "Promise to pay date cannot be in the past");
 					return;
 				}
 			}
 
-			callback.onSave(paymentType, partialAmount, loadDate);
+			callback.onSave(paymentType, partialAmount, loanDate);
 			dialog.dispose();
 		});
 		footerPanel.add(saveBtn);
@@ -197,13 +242,14 @@ public class SetPaymentTypeDialog {
 		dialog.add(footerPanel, BorderLayout.SOUTH);
 
 		dialog.pack();
-		dialog.setMinimumSize(new Dimension(450, 350));
+		dialog.setMinimumSize(new Dimension(450, 380));
 		dialog.setLocationRelativeTo(parent);
 		dialog.setVisible(true);
+
 	}
 
 	private static void updateConditionalPanel(JPanel conditionalPanel, String paymentType, JPanel partialPanel,
-			JPanel loadPanel) {
+			JPanel loanPanel) {
 		conditionalPanel.removeAll();
 
 		GridBagConstraints gbc = new GridBagConstraints();
@@ -214,8 +260,8 @@ public class SetPaymentTypeDialog {
 
 		if ("Partial".equals(paymentType)) {
 			conditionalPanel.add(partialPanel, gbc);
-		} else if ("Load".equals(paymentType)) {
-			conditionalPanel.add(loadPanel, gbc);
+		} else if ("Loan".equals(paymentType)) {
+			conditionalPanel.add(loanPanel, gbc);
 		}
 
 		conditionalPanel.revalidate();

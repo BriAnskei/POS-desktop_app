@@ -19,7 +19,7 @@ public class DeliveryDetailsState {
 	// Mapped customer deliveries data (Customer -> Branch -> Products)
 	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> mappedCustomerDeliveries;
 
-	// Newly added customer delivey
+	// Newly added customer deliveries
 	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> additionalCustomerDelivery;
 
 	// Temporary payment types tracked in UI (not yet saved to DB)
@@ -44,6 +44,13 @@ public class DeliveryDetailsState {
 
 	// NEW: Track newly added branches to existing customers
 	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> addedBranches;
+
+	// NEW: Track original expenses at load time (for calculating new expenses)
+	private Map<String, Double> originalExpenses;
+
+	// NEW: Track cancelled customer deliveries (Customer -> all their branches with
+	// products)
+	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> cancelledCustomerDeliveries;
 
 	// Inner class to track quantity changes
 	public static class QuantityChange {
@@ -81,6 +88,8 @@ public class DeliveryDetailsState {
 		this.addedProducts = new HashMap<>();
 		this.editedProductQuantities = new HashMap<>();
 		this.addedBranches = new HashMap<>();
+		this.originalExpenses = new HashMap<>();
+		this.cancelledCustomerDeliveries = new HashMap<>();
 	}
 
 	/*
@@ -154,6 +163,20 @@ public class DeliveryDetailsState {
 		return addedBranches;
 	}
 
+	/**
+	 * Get original expenses (at load time)
+	 */
+	public Map<String, Double> getOriginalExpenses() {
+		return originalExpenses;
+	}
+
+	/**
+	 * Get cancelled customer deliveries
+	 */
+	public Map<Customer, Map<Branch, List<ProductWithQuantity>>> getCancelledCustomerDeliveries() {
+		return cancelledCustomerDeliveries;
+	}
+
 	/*
 	 * ====================== Setters ======================
 	 */
@@ -166,6 +189,11 @@ public class DeliveryDetailsState {
 			Map<Customer, Map<Branch, List<ProductWithQuantity>>> mappedCustomerDeliveries) {
 		this.mappedCustomerDeliveries = mappedCustomerDeliveries != null ? new HashMap<>(mappedCustomerDeliveries)
 				: new HashMap<>();
+
+		// Store original expenses when delivery is loaded
+		if (delivery != null && delivery.getExpenses() != null) {
+			this.originalExpenses = new HashMap<>(delivery.getExpenses());
+		}
 
 		// Initialize branch statuses for all branches as "Delivered"
 		if (mappedCustomerDeliveries != null) {
@@ -213,7 +241,9 @@ public class DeliveryDetailsState {
 		this.removedProducts = new HashMap<>();
 		this.addedProducts = new HashMap<>();
 		this.editedProductQuantities = new HashMap<>();
-		this.addedBranches = new HashMap<>(); // ADD THIS LINE
+		this.addedBranches = new HashMap<>();
+		this.originalExpenses = new HashMap<>();
+		this.cancelledCustomerDeliveries = new HashMap<>();
 	}
 
 	/**
@@ -221,6 +251,10 @@ public class DeliveryDetailsState {
 	 */
 	public boolean isLoaded() {
 		return delivery != null && mappedCustomerDeliveries != null && !mappedCustomerDeliveries.isEmpty();
+	}
+
+	public boolean wasCancelledCustomerNewlyAdded(Customer customer) {
+		return this.getAdditionalCustomerDelivery().containsKey(customer);
 	}
 
 	/*
@@ -315,6 +349,48 @@ public class DeliveryDetailsState {
 			this.mappedCustomerDeliveries.remove(customer);
 			this.temporaryPaymentTypes.remove(customer);
 		}
+	}
+
+	/**
+	 * Cancel a customer's entire delivery (all branches) Tracks the cancellation
+	 * and removes from active deliveries
+	 */
+	public void cancelCustomerDelivery(Customer customer) {
+		if (customer == null) {
+			return;
+		}
+
+		// Get the customer's current branches and products
+		Map<Branch, List<ProductWithQuantity>> customerBranches = this.mappedCustomerDeliveries.get(customer);
+
+		if (customerBranches == null || customerBranches.isEmpty()) {
+			return; // Customer doesn't exist or has no branches
+		}
+
+		// Check if this was a newly added customer (in additionalCustomerDelivery)
+		boolean wasNewlyAdded = this.additionalCustomerDelivery.containsKey(customer);
+
+		// Store a copy of their branches/products before removing
+		this.cancelledCustomerDeliveries.put(customer, new HashMap<>(customerBranches));
+
+		// Remove from additionalCustomerDelivery if it was newly added
+		if (wasNewlyAdded) {
+			this.additionalCustomerDelivery.remove(customer);
+		}
+
+		// Remove branch statuses for this customer's branches
+		for (Branch branch : customerBranches.keySet()) {
+			this.branchDeliveryStatuses.remove(branch);
+		}
+
+		// Remove from mapped customer deliveries
+		this.mappedCustomerDeliveries.remove(customer);
+
+		// Remove payment type
+		this.temporaryPaymentTypes.remove(customer);
+
+		// Recalculate financials
+		recalculateAllFinancials();
 	}
 
 	/*
@@ -587,9 +663,8 @@ public class DeliveryDetailsState {
 				+ ", deliveryName='" + (delivery != null ? delivery.getName() : "null") + '\'' + ", totalCustomers="
 				+ (mappedCustomerDeliveries != null ? mappedCustomerDeliveries.size() : 0) + ", isLoaded=" + isLoaded()
 				+ ", removedProducts=" + removedProducts.size() + ", addedProducts=" + addedProducts.size()
-				+ ", editedProducts=" + editedProductQuantities.size() + ", addedBranches=" + addedBranches.size() + // ADD
-																														// THIS
-																														// LINE
-				'}';
+				+ ", editedProducts=" + editedProductQuantities.size() + ", addedBranches=" + addedBranches.size()
+				+ ", originalExpenses=" + originalExpenses.size() + ", cancelledCustomers="
+				+ cancelledCustomerDeliveries.size() + '}';
 	}
 }

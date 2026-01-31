@@ -15,7 +15,9 @@ import com.gierza_molases.molases_app.dao.CustomerDeliveryDao;
 import com.gierza_molases.molases_app.dao.DeliveryDao;
 import com.gierza_molases.molases_app.dao.ProductAssociationDao;
 import com.gierza_molases.molases_app.dao.ProductDao;
+import com.gierza_molases.molases_app.service.BranchDeliveryService;
 import com.gierza_molases.molases_app.service.BranchService;
+import com.gierza_molases.molases_app.service.CustomerDeliveryService;
 import com.gierza_molases.molases_app.service.CustomerService;
 import com.gierza_molases.molases_app.service.DeliveryService;
 import com.gierza_molases.molases_app.service.ProductAssociationService;
@@ -32,6 +34,8 @@ public class AppContext {
 	public static ProductService productService;
 	public static ProductAssociationService productAssociationService;
 	private static DeliveryService deliveryService;
+	private static CustomerDeliveryService customerDeliveryService;
+	private static BranchDeliveryService branchDeliveryService;
 
 	// Controllers
 	public static CustomersController customersController;
@@ -64,6 +68,8 @@ public class AppContext {
 		productAssociationService = new ProductAssociationService(productAssociationDao);
 		deliveryService = new DeliveryService(deliveryDao, customerDeliveryDao, branchDeliveryDao, customerDao,
 				branchDao, productDao);
+		customerDeliveryService = new CustomerDeliveryService(customerDeliveryDao, branchDeliveryDao);
+		branchDeliveryService = new BranchDeliveryService(branchDeliveryDao);
 
 		// Initialize controller with a new state instance
 		customersController = new CustomersController(new CustomerState(), customerService);
@@ -73,7 +79,8 @@ public class AppContext {
 		deliveryController = new DeliveryController(new DeliveryState(), deliveryService);
 		newDeliveryController = new NewDeliveryController(new NewDeliveryState(), customersController,
 				branchesController, productsController, deliveryService);
-		deliveryDetialsController = new DeliveryDetailsController(new DeliveryDetailsState(), deliveryService);
+		deliveryDetialsController = new DeliveryDetailsController(new DeliveryDetailsState(), deliveryService,
+				customerDeliveryService, branchDeliveryService);
 
 	}
 

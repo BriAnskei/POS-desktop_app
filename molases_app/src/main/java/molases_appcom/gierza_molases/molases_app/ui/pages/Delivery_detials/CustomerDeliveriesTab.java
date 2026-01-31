@@ -265,6 +265,114 @@ public class CustomerDeliveriesTab {
 		}
 	}
 
+	/**
+	 * Calculate total sales for a specific customer (excluding cancelled branches)
+	 */
+	private static double calculateCustomerTotalSales(Customer customer) {
+		Map<Branch, List<ProductWithQuantity>> branches = AppContext.deliveryDetialsController.getState()
+				.getMappedCustomerDeliveries().get(customer);
+
+		if (branches == null) {
+			return 0.0;
+		}
+
+		double totalSales = 0.0;
+
+		for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
+			Branch branch = branchEntry.getKey();
+
+			// Skip cancelled branches
+			String branchStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
+			if ("Cancelled".equalsIgnoreCase(branchStatus)) {
+				continue;
+			}
+
+			List<ProductWithQuantity> products = branchEntry.getValue();
+
+			for (ProductWithQuantity product : products) {
+				totalSales += product.getTotalSellingPrice();
+			}
+		}
+
+		return totalSales;
+	}
+
+	/**
+	 * Show confirmation dialog for cancelling customer delivery
+	 */
+	private static void showCancelDeliveryConfirmation(Component parent, Customer customer) {
+		JDialog confirmDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Confirm Cancel Delivery");
+		confirmDialog.setLayout(new GridBagLayout());
+		confirmDialog.getContentPane().setBackground(Color.WHITE);
+
+		GridBagConstraints gbc = new GridBagConstraints();
+		gbc.gridx = 0;
+		gbc.gridy = 0;
+		gbc.gridwidth = 2;
+		gbc.insets = new Insets(20, 30, 10, 30);
+
+		JLabel messageLabel = new JLabel(
+				"<html><center>Are you sure you want to cancel delivery for<br><b>" + customer.getDisplayName()
+						+ "</b>?<br><br>This will cancel ALL branches for this customer.</center></html>");
+		messageLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+		messageLabel.setForeground(TEXT_DARK);
+		messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		confirmDialog.add(messageLabel, gbc);
+
+		gbc.gridy++;
+		gbc.insets = new Insets(5, 30, 10, 30);
+		JLabel warningLabel = new JLabel("This action cannot be undone unlist reviwiewing the page");
+		warningLabel.setFont(new Font("Arial", Font.ITALIC, 13));
+		warningLabel.setForeground(new Color(180, 50, 50));
+		warningLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		confirmDialog.add(warningLabel, gbc);
+
+		gbc.gridy++;
+		gbc.gridwidth = 1;
+		gbc.insets = new Insets(20, 30, 20, 10);
+
+		JButton cancelBtn = createActionButton("Cancel", new Color(120, 120, 120));
+		cancelBtn.setPreferredSize(new Dimension(120, 40));
+		cancelBtn.addActionListener(e -> confirmDialog.dispose());
+		confirmDialog.add(cancelBtn, gbc);
+
+		gbc.gridx = 1;
+		gbc.insets = new Insets(20, 10, 20, 30);
+		JButton confirmBtn = createActionButton("Confirm", new Color(180, 50, 50));
+		confirmBtn.setPreferredSize(new Dimension(120, 40));
+		confirmBtn.addActionListener(e -> {
+			confirmDialog.dispose();
+			confirmBtn.setEnabled(false);
+
+			// Call controller to cancel customer delivery
+			AppContext.deliveryDetialsController.cancelCustomerDelivery(customer, () -> {
+				SwingUtilities.invokeLater(() -> {
+					// Update customer table
+					updateCustomerTable();
+
+					// Update financial summary in overview tab
+					DeliveryOverviewTab.updateFinancialSummary();
+
+					// Show success notification
+					ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(parent),
+							"Customer delivery cancelled successfully!");
+				});
+			}, (error) -> {
+				SwingUtilities.invokeLater(() -> {
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
+							"Failed to cancel delivery: " + error);
+					confirmBtn.setEnabled(true);
+				});
+			});
+		});
+		confirmDialog.add(confirmBtn, gbc);
+
+		confirmDialog.pack();
+		confirmDialog.setMinimumSize(new Dimension(450, 240));
+		confirmDialog.setLocationRelativeTo(null);
+		confirmDialog.setVisible(true);
+	}
+
 	private static void showActionMenu(Component parent, Customer customer) {
 		JDialog actionDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Actions");
 		actionDialog.setLayout(new GridBagLayout());
@@ -289,16 +397,26 @@ public class CustomerDeliveriesTab {
 			setPaymentBtn.addActionListener(e -> {
 				actionDialog.dispose();
 
+				// Calculate customer's total sales
+				double totalSales = calculateCustomerTotalSales(customer);
+
+				// Check if total sales is 0
+				if (totalSales <= 0) {
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
+							String.format("Cannot set payment type. Customer has no sales (₱0.00)"));
+					return;
+				}
+
 				String currentPaymentType = AppContext.deliveryDetialsController.getState().getPaymentType(customer);
 
 				SetPaymentTypeDialog.show(SwingUtilities.getWindowAncestor(parent), customer, currentPaymentType,
-						(paymentType, partialAmount, loadDate) -> {
+						totalSales, (paymentType, partialAmount, loanDate) -> {
 							String displayText = paymentType;
 							if (paymentType.equals("Partial") && partialAmount != null) {
 								displayText = String.format("Partial (₱%.2f)", partialAmount);
-							} else if (paymentType.equals("Load") && loadDate != null) {
+							} else if (paymentType.equals("Loan") && loanDate != null) {
 								SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
-								displayText = "Load (Due: " + sdf.format(loadDate) + ")";
+								displayText = "Loan (Due: " + sdf.format(loanDate) + ")";
 							}
 
 							AppContext.deliveryDetialsController.setTemporaryPaymentType(customer, displayText);
@@ -360,6 +478,18 @@ public class CustomerDeliveriesTab {
 		});
 		actionDialog.add(viewDetailsBtn, gbc);
 
+		// Add Cancel Delivery button (only if not delivered)
+		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
+			gbc.gridy++;
+			gbc.insets = new Insets(5, 20, 5, 20);
+			JButton cancelDeliveryBtn = createActionButton("❌ Cancel Delivery", new Color(180, 50, 50));
+			cancelDeliveryBtn.addActionListener(e -> {
+				actionDialog.dispose();
+				showCancelDeliveryConfirmation(parent, customer);
+			});
+			actionDialog.add(cancelDeliveryBtn, gbc);
+		}
+
 		gbc.gridy++;
 		gbc.insets = new Insets(10, 20, 15, 20);
 		JButton cancelBtn = createActionButton("Cancel", new Color(120, 120, 120));
@@ -367,7 +497,7 @@ public class CustomerDeliveriesTab {
 		actionDialog.add(cancelBtn, gbc);
 
 		actionDialog.pack();
-		actionDialog.setMinimumSize(new Dimension(380, deliveryStatus.equalsIgnoreCase("Delivered") ? 180 : 220));
+		actionDialog.setMinimumSize(new Dimension(380, deliveryStatus.equalsIgnoreCase("Delivered") ? 180 : 280));
 		actionDialog.setLocationRelativeTo(null);
 		actionDialog.setVisible(true);
 	}

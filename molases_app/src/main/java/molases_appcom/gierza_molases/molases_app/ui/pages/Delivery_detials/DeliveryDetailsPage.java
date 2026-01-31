@@ -24,10 +24,12 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
 import com.gierza_molases.molases_app.context.AppContext;
+import com.gierza_molases.molases_app.context.DeliveryChangesCalculator;
 import com.gierza_molases.molases_app.model.Delivery;
 import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.ui.components.delivery.UIComponentFactory;
+import com.gierza_molases.molases_app.ui.dialogs.Delivery.DeliveryDetialsConfirmation;
 
 public class DeliveryDetailsPage {
 
@@ -35,9 +37,6 @@ public class DeliveryDetailsPage {
 	private static final Color TEXT_DARK = new Color(62, 39, 35);
 	private static final Color ACCENT_GOLD = new Color(184, 134, 11);
 	private static final Color SIDEBAR_ACTIVE = new Color(139, 90, 43);
-	private static final Color TEXT_LIGHT = new Color(245, 239, 231);
-	private static final Color TAB_ACTIVE = new Color(184, 134, 11);
-	private static final Color TAB_INACTIVE = new Color(200, 190, 180);
 
 	private static int deliveryId;
 	private static JLayeredPane layeredPane;
@@ -390,6 +389,7 @@ public class DeliveryDetailsPage {
 	}
 
 	private static void markAsDelivered() {
+		// First validate that all payments are set
 		boolean allPaymentsSet = CustomerDeliveriesTab.validateAllPaymentsSet();
 
 		if (!allPaymentsSet) {
@@ -399,15 +399,17 @@ public class DeliveryDetailsPage {
 			return;
 		}
 
-		int result = JOptionPane.showConfirmDialog(null,
-				"Are you sure you want to mark this delivery as DELIVERED?\nAll payment information will be saved and the delivery cannot be modified further.",
-				"Confirm Delivery", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+		// Calculate financial changes
+		DeliveryChangesCalculator.FinancialChanges changes = DeliveryChangesCalculator
+				.calculate(AppContext.deliveryDetialsController.getState());
 
-		if (result == JOptionPane.YES_OPTION) {
-			JOptionPane.showMessageDialog(null,
-					"Mark as Delivered feature will be implemented later.\nThis will save payment information to customer_payments table.",
-					"Info", JOptionPane.INFORMATION_MESSAGE);
-		}
+		// Show confirmation dialog with changes summary
+		DeliveryDetialsConfirmation.show(SwingUtilities.getWindowAncestor(layeredPane), changes, () -> {
+
+			// For now, just show success message
+			ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(layeredPane),
+					"Delivery marked as delivered successfully! (Backend save pending implementation)");
+		});
 	}
 
 	public static JLayeredPane getLayeredPane() {

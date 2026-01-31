@@ -12,16 +12,25 @@ import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.model.response.DeliveryViewResponse;
+import com.gierza_molases.molases_app.service.BranchDeliveryService;
+import com.gierza_molases.molases_app.service.CustomerDeliveryService;
 import com.gierza_molases.molases_app.service.DeliveryService;
 
 public class DeliveryDetailsController {
 
 	private final DeliveryDetailsState state;
-	private final DeliveryService deliveryService;
 
-	public DeliveryDetailsController(DeliveryDetailsState state, DeliveryService deliveryService) {
+	// service
+	private final DeliveryService deliveryService;
+	private final CustomerDeliveryService customerDeliveryService;
+	private final BranchDeliveryService branchDeliveryService;
+
+	public DeliveryDetailsController(DeliveryDetailsState state, DeliveryService deliveryService,
+			CustomerDeliveryService customerDeliveryService, BranchDeliveryService branchDeliveryService) {
 		this.state = state;
 		this.deliveryService = deliveryService;
+		this.customerDeliveryService = customerDeliveryService;
+		this.branchDeliveryService = branchDeliveryService;
 	}
 
 	public DeliveryDetailsState getState() {
@@ -141,14 +150,52 @@ public class DeliveryDetailsController {
 	}
 
 	/**
-	 * Remove a customer from the delivery
+	 * Cancel a customer's entire delivery (all branches) This tracks the
+	 * cancellation and removes them from active deliveries
 	 */
-	public void removeCustomerDelivery(Customer customer) {
-		// TODO: Implement database deletion
-		// For now, just remove from state
-		state.removeCustomerDelivery(customer);
-	}
+	public void cancelCustomerDelivery(Customer customer, Runnable onSuccess, Consumer<String> onError) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
 
+			@Override
+			protected Void doInBackground() {
+				try {
+					// Validate input
+					if (customer == null) {
+						error = new IllegalArgumentException("Customer cannot be null");
+						return null;
+					}
+
+					// Check if customer exists in delivery
+					if (!state.getMappedCustomerDeliveries().containsKey(customer)) {
+						error = new IllegalStateException("Customer does not exist in this delivery");
+						return null;
+					}
+
+					// Cancel via state (this will track and remove)
+					state.cancelCustomerDelivery(customer);
+
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to cancel customer delivery: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
+	}
 	/*
 	 * ====================== Product Management Operations (NEW)
 	 * ======================

@@ -280,30 +280,16 @@ ON customer_payments (created_at);
 
 
 
-CREATE TABLE IF NOT EXISTS customer_delivery_history (
-	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	customer_id INTEGER NOT NULL,
-	delivery_id INTEGER NOT NULL,
 
-	FOREIGN KEY (customer_id)
-        REFERENCES customer(id)
-        ON UPDATE CASCADE
-        ON DELETE CASCADE,
-        
-    FOREIGN KEY (delivery_id)
-        REFERENCES delivery(id)
+CREATE TABLE IF NOT EXISTS payment_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    customer_payment_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+
+    FOREIGN KEY (customer_payment_id)
+        REFERENCES customer_payments (id)
         ON UPDATE CASCADE
         ON DELETE CASCADE
 );
-
-CREATE INDEX IF NOT EXISTS idx_cdh_customer_id
-ON customer_delivery_history (customer_id);
-
-CREATE INDEX IF NOT EXISTS idx_cdh_delivery_id
-ON customer_delivery_history (delivery_id);
-
- 
- -- uniqueness constrains
-CREATE UNIQUE INDEX IF NOT EXISTS idx_cdh_customer_delivery_unique
-ON customer_delivery_history (customer_id, delivery_id);
+    
 
