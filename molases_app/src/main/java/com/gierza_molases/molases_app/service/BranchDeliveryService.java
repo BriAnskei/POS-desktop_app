@@ -1,9 +1,6 @@
 package com.gierza_molases.molases_app.service;
 
-import java.util.List;
-
 import com.gierza_molases.molases_app.dao.BranchDeliveryDao;
-import com.gierza_molases.molases_app.model.BranchDelivery;
 
 public class BranchDeliveryService {
 
@@ -13,8 +10,8 @@ public class BranchDeliveryService {
 		this.branchDeliveryDao = branchDeliveryDao;
 	}
 
-	public void insertAllBranchDelivery(int customerDeliveryId, List<BranchDelivery> list) {
-		this.branchDeliveryDao.insertAll(customerDeliveryId, list);
-	}
+//	public void insertAllBranchDelivery(int customerDeliveryId, List<BranchDelivery> list) {
+//		this.branchDeliveryDao.insertAll(customerDeliveryId, list);
+//	}
 
 }

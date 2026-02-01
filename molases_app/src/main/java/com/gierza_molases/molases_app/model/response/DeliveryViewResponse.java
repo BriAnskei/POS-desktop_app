@@ -3,10 +3,9 @@ package com.gierza_molases.molases_app.model.response;
 import java.util.List;
 import java.util.Map;
 
+import com.gierza_molases.molases_app.dto.delivery.CustomerBranchDelivery;
 import com.gierza_molases.molases_app.model.Branch;
-import com.gierza_molases.molases_app.model.BranchDelivery;
 import com.gierza_molases.molases_app.model.Customer;
-import com.gierza_molases.molases_app.model.CustomerDelivery;
 import com.gierza_molases.molases_app.model.Delivery;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
 
@@ -14,8 +13,7 @@ public class DeliveryViewResponse {
 
 	private Delivery delivery;
 
-	// exact DB model; on fetch
-	private Map<CustomerDelivery, List<BranchDelivery>> customerDeliveries;
+	private List<CustomerBranchDelivery> customerBranchDeliveries;
 
 	// mapped customer deliveries data
 	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> mappedCustomerDeliveries;
@@ -24,17 +22,19 @@ public class DeliveryViewResponse {
 
 	}
 
-	public DeliveryViewResponse(Delivery delivery, Map<CustomerDelivery, List<BranchDelivery>> customerDeliveries) {
+	public DeliveryViewResponse(Delivery delivery, List<CustomerBranchDelivery> customerBranchDelivery,
+			List<CustomerBranchDelivery> customerBranchDeliveries) {
 		this.delivery = delivery;
-		this.customerDeliveries = customerDeliveries;
+		this.customerBranchDeliveries = customerBranchDeliveries;
+		this.customerBranchDeliveries = customerBranchDelivery;
 	}
 
 	public Delivery getDeliveryDetials() {
 		return delivery;
 	}
 
-	public Map<CustomerDelivery, List<BranchDelivery>> getCustomerDeliveries() {
-		return customerDeliveries;
+	public List<CustomerBranchDelivery> getCustomerDeliveries() {
+		return customerBranchDeliveries;
 	}
 
 	public Map<Customer, Map<Branch, List<ProductWithQuantity>>> getMappedCustomerDeliveries() {
@@ -45,8 +45,8 @@ public class DeliveryViewResponse {
 		this.delivery = delivery;
 	}
 
-	public void setCustomerDeliveries(Map<CustomerDelivery, List<BranchDelivery>> customerDeliveries) {
-		this.customerDeliveries = customerDeliveries;
+	public void setCustomerDeliveries(List<CustomerBranchDelivery> customerBranchDeliveries) {
+		this.customerBranchDeliveries = customerBranchDeliveries;
 	}
 
 	public void setMappedCustomerDelivery(

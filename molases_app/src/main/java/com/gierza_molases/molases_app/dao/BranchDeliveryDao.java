@@ -4,8 +4,10 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.gierza_molases.molases_app.model.BranchDelivery;
 
@@ -16,12 +18,11 @@ public class BranchDeliveryDao {
 	// INSERT
 	private static final String INSERT = """
 			    INSERT INTO branch_delivery (
-			        customer_delivery_id, branch_id, product_id, quantity, status
-			    ) VALUES (?, ?, ?, ?, ?)
+			        customer_delivery_id, branch_id, status
+			    ) VALUES (?, ?, ?)
 			""";
 
 	// REACD
-
 	private static final String SELECT_BY_CUSTOMER_DELIVERY_SQL = """
 			 SELECT * FROM  branch_delivery WHERE customer_delivery_id = ?
 			""";
@@ -34,32 +35,42 @@ public class BranchDeliveryDao {
 			    )
 			""";
 
+	// UPDATE
+	private static final String UPDATE_STATUSES_SQL = """
+			     UPDATE branch_delivery
+			      SET status = ?
+			      WHERE customer_delivery_id = ?
+			""";
+
 	public BranchDeliveryDao(Connection conn) {
 		this.conn = conn;
 	}
 
-	public void insertAll(int customerDeliveryId, List<BranchDelivery> list) {
+	public void insert(int customerDeliveryId, BranchDelivery branchDelivery) {
 		try {
-			insertAll(conn, customerDeliveryId, list);
+			insert(conn, customerDeliveryId, branchDelivery);
 		} catch (SQLException e) {
 			throw new RuntimeException("Error inserting branch deliveries", e);
 		}
 	}
 
-	public void insertAll(Connection conn, int customerDeliveryId, List<BranchDelivery> list) throws SQLException {
+	public int insert(Connection conn, int customerDeliveryId, BranchDelivery branchDelivery) throws SQLException {
 
-		try (PreparedStatement ps = conn.prepareStatement(INSERT)) {
+		try (PreparedStatement ps = conn.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
 
-			for (BranchDelivery bd : list) {
-				ps.setInt(1, customerDeliveryId);
-				ps.setInt(2, bd.getBranchId());
-				ps.setInt(3, bd.getProductId());
-				ps.setInt(4, bd.getQuantity());
-				ps.setString(5, bd.getStatus());
-				ps.addBatch();
+			ps.setInt(1, customerDeliveryId);
+			ps.setInt(2, branchDelivery.getBranchId());
+			ps.setString(3, branchDelivery.getStatus());
+
+			ps.executeUpdate();
+
+			try (ResultSet rs = ps.getGeneratedKeys()) {
+				if (rs.next()) {
+					return rs.getInt(1); // generated ID
+				} else {
+					throw new SQLException("Creating branch_delivery failed, no ID obtained.");
+				}
 			}
-
-			ps.executeBatch();
 		}
 	}
 
@@ -98,9 +109,31 @@ public class BranchDeliveryDao {
 		return false;
 	}
 
+	public void setBranchDeliverStatus(Map<BranchDelivery, String> branchDeliveryStatuses, Connection conn)
+			throws SQLException {
+		if (branchDeliveryStatuses == null || branchDeliveryStatuses.isEmpty()) {
+			return;
+		}
+
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_STATUSES_SQL)) {
+
+			for (Map.Entry<BranchDelivery, String> entry : branchDeliveryStatuses.entrySet()) {
+				BranchDelivery branchDelivery = entry.getKey();
+				String status = entry.getValue();
+
+				ps.setString(1, status);
+				ps.setInt(2, branchDelivery.getId());
+				ps.addBatch();
+			}
+
+			ps.executeBatch();
+
+		}
+	}
+
 	private BranchDelivery mapToCustomerDelivery(ResultSet rs) throws SQLException {
 		return new BranchDelivery(rs.getInt("id"), rs.getInt("branch_id"), rs.getInt("customer_delivery_id"),
-				rs.getInt("product_id"), rs.getInt("quantity"), rs.getString("status"));
+				rs.getString("status"));
 	}
 
 }

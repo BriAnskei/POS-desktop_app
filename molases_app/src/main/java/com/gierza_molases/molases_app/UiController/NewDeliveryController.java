@@ -3,7 +3,7 @@ package com.gierza_molases.molases_app.UiController;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
@@ -14,11 +14,14 @@ import com.gierza_molases.molases_app.context.BranchState;
 import com.gierza_molases.molases_app.context.CustomerState;
 import com.gierza_molases.molases_app.context.NewDeliveryState;
 import com.gierza_molases.molases_app.context.ProductState;
+import com.gierza_molases.molases_app.dto.delivery.CustomerBranchDelivery;
+import com.gierza_molases.molases_app.dto.delivery.NewDelivery;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.BranchDelivery;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.CustomerDelivery;
 import com.gierza_molases.molases_app.model.Delivery;
+import com.gierza_molases.molases_app.model.ProductDelivery;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.service.DeliveryService;
 
@@ -172,9 +175,11 @@ public class NewDeliveryController {
 			protected Void doInBackground() {
 				try {
 					Delivery delivery = buildDeliveryFromState();
-					Map<CustomerDelivery, List<BranchDelivery>> customerDeliveryMap = buildCustomerDeliveryMap();
+					List<CustomerBranchDelivery> customerBranchDeliveries = buildCustomerBranchDeliveryList();
 
-					deliveryService.addNewDelivery(delivery, customerDeliveryMap);
+					NewDelivery newDelivery = new NewDelivery(delivery, customerBranchDeliveries);
+
+					deliveryService.addNewDelivery(newDelivery);
 				} catch (Exception e) {
 					error = e;
 				}
@@ -225,11 +230,15 @@ public class NewDeliveryController {
 	}
 
 	/**
-	 * Transform state's customer deliveries into the DB structure. Returns:
-	 * Map<CustomerDelivery, List<BranchDelivery>>
+	 * Transform state's customer deliveries into the new DTO structure. Returns:
+	 * List<CustomerBranchDelivery>
+	 * 
+	 * Each CustomerBranchDelivery contains: - CustomerDelivery (customerId,
+	 * deliveryId will be set by service) - Map<BranchDelivery,
+	 * List<ProductDelivery>>
 	 */
-	private Map<CustomerDelivery, List<BranchDelivery>> buildCustomerDeliveryMap() {
-		Map<CustomerDelivery, List<BranchDelivery>> result = new HashMap<>();
+	private List<CustomerBranchDelivery> buildCustomerBranchDeliveryList() {
+		List<CustomerBranchDelivery> result = new ArrayList<>();
 
 		// Get customer deliveries from state
 		Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries = state.getCustomerDeliveries();
@@ -241,36 +250,43 @@ public class NewDeliveryController {
 			Customer customer = customerEntry.getKey();
 			Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
 
-			// Create CustomerDelivery object (without deliveryId for now, will be set by
-			// service)
-			// Note: deliveryId will be filled after Delivery is saved and we get the ID
+			// Create CustomerDelivery object (deliveryId will be set by service after
+			// Delivery is saved)
 			CustomerDelivery customerDelivery = new CustomerDelivery(customer.getId(), 0 // deliveryId - will be set by
-																							// service after Delivery is
-																							// inserted
+																							// service
 			);
 
-			// List to hold all BranchDelivery records for this customer
-			List<BranchDelivery> branchDeliveries = new ArrayList<>();
+			// Map to hold BranchDelivery -> List<ProductDelivery>
+			Map<BranchDelivery, List<ProductDelivery>> branchDeliveryMap = new LinkedHashMap<>();
 
 			// Loop through each branch for this customer
 			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
 				Branch branch = branchEntry.getKey();
 				List<ProductWithQuantity> products = branchEntry.getValue();
 
-				// For each product in this branch, create a BranchDelivery record
-				for (ProductWithQuantity productWithQty : products) {
-					BranchDelivery branchDelivery = new BranchDelivery(0, // customerDeliveryId - will be set by service
-																			// after CustomerDelivery is inserted
-							branch.getId(), productWithQty.getProduct().getId(), productWithQty.getQuantity(),
-							"scheduled" // status - default for new delivery
-					);
+				// Create BranchDelivery (now only has branchId and status, no products)
+				BranchDelivery branchDelivery = new BranchDelivery(0, // customerDeliveryId - will be set by service
+						branch.getId(), "scheduled" // default status for new delivery
+				);
 
-					branchDeliveries.add(branchDelivery);
+				// Create list of ProductDelivery for this branch
+				List<ProductDelivery> productDeliveries = new ArrayList<>();
+				for (ProductWithQuantity productWithQty : products) {
+					ProductDelivery productDelivery = new ProductDelivery(0, // branchDeliveryId - will be set by
+																				// service
+							productWithQty.getProduct().getId(), productWithQty.getQuantity());
+					productDeliveries.add(productDelivery);
 				}
+
+				// Add to branch delivery map
+				branchDeliveryMap.put(branchDelivery, productDeliveries);
 			}
 
-			// Add to result map
-			result.put(customerDelivery, branchDeliveries);
+			// Create CustomerBranchDelivery DTO
+			CustomerBranchDelivery customerBranchDelivery = new CustomerBranchDelivery(customerDelivery,
+					branchDeliveryMap);
+
+			result.add(customerBranchDelivery);
 		}
 
 		return result;

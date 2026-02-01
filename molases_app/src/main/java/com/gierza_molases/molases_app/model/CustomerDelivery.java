@@ -18,6 +18,10 @@ public class CustomerDelivery {
 		this.deliveryId = deliveryId;
 	}
 
+	public void setDeliveryId(int deliveryId) {
+		this.deliveryId = deliveryId;
+	}
+
 	public Integer getId() {
 		return id;
 	}

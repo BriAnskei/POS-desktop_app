@@ -219,10 +219,8 @@ CREATE TABLE IF NOT EXISTS branch_delivery (
 
     customer_delivery_id INTEGER NOT NULL,  
     branch_id INTEGER NOT NULL,          
-    product_id INTEGER NOT NULL,            
 
-    quantity INTEGER NOT NULL CHECK (quantity >= 0),
-    status TEXT, 
+    status TEXT,
 
     FOREIGN KEY (customer_delivery_id)
         REFERENCES customer_delivery(id)
@@ -232,13 +230,10 @@ CREATE TABLE IF NOT EXISTS branch_delivery (
     FOREIGN KEY (branch_id)
         REFERENCES branches (id)
         ON UPDATE CASCADE
-        ON DELETE CASCADE,
-
-    FOREIGN KEY (product_id)
-        REFERENCES product(id)
-        ON UPDATE CASCADE
         ON DELETE CASCADE
+
 );
+
 
 CREATE INDEX  IF NOT EXISTS  idx_branch_delivery_customer_delivery
     ON branch_delivery(customer_delivery_id);
@@ -246,9 +241,40 @@ CREATE INDEX  IF NOT EXISTS  idx_branch_delivery_customer_delivery
 CREATE INDEX  IF NOT EXISTS  idx_branch_delivery_branch
     ON branch_delivery(branch_id);
 
-CREATE INDEX  IF NOT EXISTS  idx_branch_delivery_product
-    ON branch_delivery(product_id);
 
+
+
+
+
+
+
+
+CREATE TABLE IF NOT EXISTS product_delivery (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,   
+
+    branch_delivery_id INTEGER NOT NULL,  
+    product_id INTEGER NOT NULL,          
+   
+    quantity INTEGER NOT NULL CHECK (quantity >= 0),
+ 
+
+    FOREIGN KEY (branch_delivery_id)
+        REFERENCES branch_delivery(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+
+
+    FOREIGN KEY (product_id)
+        REFERENCES product(id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
+);
+
+CREATE INDEX  IF NOT EXISTS  idx_product_delivery_branch
+    ON product_delivery(branch_delivery_id);
+
+CREATE INDEX  IF NOT EXISTS  idx_product_delivery
+    ON product_delivery(product_id);
 
 
 
@@ -265,7 +291,6 @@ CREATE TABLE IF NOT EXISTS customer_payments (
     balance REAL NOT NULL,
 
     note TEXT,
-
 
   	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 

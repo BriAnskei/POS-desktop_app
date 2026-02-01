@@ -2,18 +2,10 @@ package com.gierza_molases.molases_app.util;
 
 import java.time.LocalDateTime;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
-import com.gierza_molases.molases_app.model.Branch;
-import com.gierza_molases.molases_app.model.BranchDelivery;
-import com.gierza_molases.molases_app.model.Customer;
-import com.gierza_molases.molases_app.model.CustomerDelivery;
 import com.gierza_molases.molases_app.model.Delivery;
-import com.gierza_molases.molases_app.model.ProductWithQuantity;
 
 public class DeliveryControllerUtil {
 	public static Delivery buildDelivery(Date deliveryDate, String deliveryName, Map<String, Double> expenses,
@@ -26,36 +18,36 @@ public class DeliveryControllerUtil {
 				totalCapital, grossProfit, netProfit);
 	}
 
-	public static Map<CustomerDelivery, List<BranchDelivery>> buildCustomerDeliveryMap(
-			Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries) {
-
-		Map<CustomerDelivery, List<BranchDelivery>> result = new HashMap<>();
-
-		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> customerEntry : customerDeliveries
-				.entrySet()) {
-
-			Customer customer = customerEntry.getKey();
-			Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
-
-			CustomerDelivery customerDelivery = new CustomerDelivery(customer.getId(), 0 // deliveryId to be set later
-			);
-
-			List<BranchDelivery> branchDeliveries = new ArrayList<>();
-
-			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
-				Branch branch = branchEntry.getKey();
-
-				for (ProductWithQuantity productWithQty : branchEntry.getValue()) {
-					branchDeliveries.add(new BranchDelivery(0, // customerDeliveryId to be set later
-							branch.getId(), productWithQty.getProduct().getId(), productWithQty.getQuantity(),
-							"scheduled"));
-				}
-			}
-
-			result.put(customerDelivery, branchDeliveries);
-		}
-
-		return result;
-	}
+//	public static Map<CustomerDelivery, List<BranchDelivery>> buildCustomerDeliveryMap(
+//			Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries) {
+//
+//		Map<CustomerDelivery, List<BranchDelivery>> result = new HashMap<>();
+//
+//		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> customerEntry : customerDeliveries
+//				.entrySet()) {
+//
+//			Customer customer = customerEntry.getKey();
+//			Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
+//
+//			CustomerDelivery customerDelivery = new CustomerDelivery(customer.getId(), 0 // deliveryId to be set later
+//			);
+//
+//			List<BranchDelivery> branchDeliveries = new ArrayList<>();
+//
+//			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
+//				Branch branch = branchEntry.getKey();
+//
+//				for (ProductWithQuantity productWithQty : branchEntry.getValue()) {
+//					branchDeliveries.add(new BranchDelivery(0, // customerDeliveryId to be set later
+//							branch.getId(), productWithQty.getProduct().getId(), productWithQty.getQuantity(),
+//							"scheduled"));
+//				}
+//			}
+//
+//			result.put(customerDelivery, branchDeliveries);
+//		}
+//
+//		return result;
+//	}
 
 }

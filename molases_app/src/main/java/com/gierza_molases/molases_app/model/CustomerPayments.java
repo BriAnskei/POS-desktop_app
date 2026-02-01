@@ -9,6 +9,7 @@ public class CustomerPayments {
 
 	private String paymentType;
 
+	private double total;
 	private double totalPayment;
 	private double balance;
 
@@ -16,11 +17,12 @@ public class CustomerPayments {
 
 	private LocalDateTime createdAt;
 
-	public CustomerPayments(int customerId, int customerDeliveryId, String paymentType, double totalPayment,
-			double balance, String note, LocalDateTime createdAt) {
+	public CustomerPayments(int customerId, int customerDeliveryId, String paymentType, double total,
+			double totalPayment, double balance, String note, LocalDateTime createdAt) {
 		this.customerId = customerId;
 		this.customerDeliveryId = customerDeliveryId;
 		this.paymentType = paymentType;
+		this.total = total;
 		this.totalPayment = totalPayment;
 		this.balance = balance;
 		this.createdAt = createdAt;
@@ -51,6 +53,10 @@ public class CustomerPayments {
 
 	public String getPaymentType() {
 		return paymentType;
+	}
+
+	public double getTotal() {
+		return total;
 	}
 
 	public double getTotalPayment() {

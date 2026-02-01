@@ -36,10 +36,14 @@ public class DeliveryDao {
 			    LIMIT ?;
 			""";
 
-	// DELETE
 	private static final String SELECT_DELIVERY_SQL = """
 			   SELECT * FROM delivery
 			   WHERE id = ?
+			""";
+
+	// UPDATES
+	private static final String MARK_AS_DELIVERED_SQL = """
+			   UPDATE delivery SET = 'delivered' WHERE id = ?
 			""";
 
 	// DELETE
@@ -178,6 +182,15 @@ public class DeliveryDao {
 			throw new RuntimeException("Failed to delete branch", err);
 		}
 
+	}
+
+	public void markDeliveryAsDelivered(int deliveryId, Connection conn) {
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_DELIVERY_SQL)) {
+			ps.setInt(1, deliveryId);
+
+		} catch (Exception e) {
+			throw new RuntimeException("Failed to delete branch", e);
+		}
 	}
 
 	public void deleteDelivery(int deliveryId) {

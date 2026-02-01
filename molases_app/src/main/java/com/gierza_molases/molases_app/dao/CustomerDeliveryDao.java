@@ -32,19 +32,19 @@ public class CustomerDeliveryDao {
 		this.conn = conn;
 	}
 
-	public int insert(int customerId, int deliveryId) throws SQLException {
+	public int insert(CustomerDelivery cd) throws SQLException {
 		try {
-			return this.insert(conn, customerId, deliveryId);
+			return this.insert(conn, cd);
 		} catch (SQLException err) {
 			throw new SQLException("Failed to insert customer_delivery", err);
 		}
 	}
 
-	public int insert(Connection conn, int customerId, int deliveryId) throws SQLException {
+	public int insert(Connection conn, CustomerDelivery cd) throws SQLException {
 		try (PreparedStatement ps = conn.prepareStatement(INSERT_SQL, Statement.RETURN_GENERATED_KEYS)) {
 
-			ps.setInt(1, customerId);
-			ps.setInt(2, deliveryId);
+			ps.setInt(1, cd.getCustomerId());
+			ps.setInt(2, cd.getDeliveryId());
 			ps.executeUpdate();
 
 			try (ResultSet rs = ps.getGeneratedKeys()) {
