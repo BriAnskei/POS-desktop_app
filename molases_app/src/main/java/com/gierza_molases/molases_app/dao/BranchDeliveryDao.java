@@ -39,19 +39,16 @@ public class BranchDeliveryDao {
 	private static final String UPDATE_STATUSES_SQL = """
 			     UPDATE branch_delivery
 			      SET status = ?
-			      WHERE customer_delivery_id = ?
+			      WHERE id = ?
+			""";
+
+	// DELETE
+	private static final String DELETE_SQL = """
+			DELETE FROM branch_delivery WHERE id = ?
 			""";
 
 	public BranchDeliveryDao(Connection conn) {
 		this.conn = conn;
-	}
-
-	public void insert(int customerDeliveryId, BranchDelivery branchDelivery) {
-		try {
-			insert(conn, customerDeliveryId, branchDelivery);
-		} catch (SQLException e) {
-			throw new RuntimeException("Error inserting branch deliveries", e);
-		}
 	}
 
 	public int insert(Connection conn, int customerDeliveryId, BranchDelivery branchDelivery) throws SQLException {
@@ -71,6 +68,13 @@ public class BranchDeliveryDao {
 					throw new SQLException("Creating branch_delivery failed, no ID obtained.");
 				}
 			}
+		}
+	}
+
+	public void insertBatch(Connection conn, int customerDeliveryId, List<BranchDelivery> branchDeliveryList)
+			throws SQLException {
+		for (BranchDelivery bd : branchDeliveryList) {
+			insert(conn, customerDeliveryId, bd);
 		}
 	}
 
@@ -109,7 +113,7 @@ public class BranchDeliveryDao {
 		return false;
 	}
 
-	public void setBranchDeliverStatus(Map<BranchDelivery, String> branchDeliveryStatuses, Connection conn)
+	public void setBranchDeliverStatusBatch(Map<Integer, String> branchDeliveryStatuses, Connection conn)
 			throws SQLException {
 		if (branchDeliveryStatuses == null || branchDeliveryStatuses.isEmpty()) {
 			return;
@@ -117,12 +121,25 @@ public class BranchDeliveryDao {
 
 		try (PreparedStatement ps = conn.prepareStatement(UPDATE_STATUSES_SQL)) {
 
-			for (Map.Entry<BranchDelivery, String> entry : branchDeliveryStatuses.entrySet()) {
-				BranchDelivery branchDelivery = entry.getKey();
+			for (Map.Entry<Integer, String> entry : branchDeliveryStatuses.entrySet()) {
+				int branchDeliveryId = entry.getKey();
 				String status = entry.getValue();
 
 				ps.setString(1, status);
-				ps.setInt(2, branchDelivery.getId());
+				ps.setInt(2, branchDeliveryId);
+				ps.addBatch();
+			}
+
+			ps.executeBatch();
+
+		}
+	}
+
+	public void dropBatch(List<Integer> droppedIds, Connection conn) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(DELETE_SQL)) {
+
+			for (int branchDeliverId : droppedIds) {
+				ps.setInt(1, branchDeliverId);
 				ps.addBatch();
 			}
 

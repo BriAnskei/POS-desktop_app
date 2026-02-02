@@ -42,8 +42,24 @@ public class DeliveryDao {
 			""";
 
 	// UPDATES
+	private static final String UPDATE_DELIVERY_SQL = """
+			UPDATE delivery
+						SET
+						    name = ?,
+						    expenses = ?,
+						    total_customers = ?,
+						    total_branches = ?,
+						    total_gross = ?,
+						    total_capital = ?,
+						    gross_profit = ?,
+						    total_expenses = ?,
+						    net_profit = ?
+						WHERE id = ?
+
+									""";
+
 	private static final String MARK_AS_DELIVERED_SQL = """
-			   UPDATE delivery SET = 'delivered' WHERE id = ?
+			   UPDATE delivery SET  status = 'delivered' WHERE id = ?
 			""";
 
 	// DELETE
@@ -184,9 +200,36 @@ public class DeliveryDao {
 
 	}
 
-	public void markDeliveryAsDelivered(int deliveryId, Connection conn) {
-		try (PreparedStatement ps = conn.prepareStatement(SELECT_DELIVERY_SQL)) {
-			ps.setInt(1, deliveryId);
+	public void update(Delivery delivery, Connection conn) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_DELIVERY_SQL)) {
+
+			ps.setString(1, delivery.getName());
+			ps.setString(2, delivery.getExpensesAsJson());
+			ps.setInt(3, delivery.getTotalCustomers());
+			ps.setInt(4, delivery.getTotalBranches());
+
+			ps.setDouble(5, delivery.getTotalGross());
+			ps.setDouble(6, delivery.getTotalCapital());
+			ps.setDouble(7, delivery.getGrossProfit());
+			ps.setDouble(8, delivery.getTotalExpenses());
+			ps.setDouble(9, delivery.getNetProfit());
+
+			ps.setInt(10, delivery.getId());
+
+			ps.executeUpdate();
+		}
+	}
+
+	public void markDeliveryAsDelivered(Delivery delivery, Connection conn) {
+		try (PreparedStatement ps = conn.prepareStatement(MARK_AS_DELIVERED_SQL)) {
+
+			ps.setInt(1, delivery.getId());
+
+			int res = ps.executeUpdate();
+
+			if (res == 0) {
+				throw new RuntimeException("delivery id not found" + delivery.getId());
+			}
 
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to delete branch", e);

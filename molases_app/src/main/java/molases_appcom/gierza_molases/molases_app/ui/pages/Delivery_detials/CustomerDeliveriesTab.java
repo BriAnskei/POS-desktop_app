@@ -16,10 +16,12 @@ import java.util.List;
 import java.util.Map;
 
 import javax.swing.BorderFactory;
+import javax.swing.ButtonGroup;
 import javax.swing.JButton;
 import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.JRadioButton;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.SwingConstants;
@@ -52,6 +54,8 @@ public class CustomerDeliveriesTab {
 	private static final Color TABLE_ROW_EVEN = new Color(255, 255, 255);
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 	private static final Color TABLE_HOVER = new Color(245, 239, 231);
+	private static final Color STATUS_DELIVERED = new Color(34, 139, 34);
+	private static final Color STATUS_CANCELLED = new Color(180, 50, 50);
 
 	private static Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries;
 	private static String deliveryStatus;
@@ -123,8 +127,9 @@ public class CustomerDeliveriesTab {
 
 		panel.add(headerPanel, BorderLayout.NORTH);
 
-		String[] columnNames = { "Customer Name", "Payment Type", "Branches", "Total Sales (₱)", "Total Profit (₱)",
-				"Actions", "Customer" };
+		// Updated column names - added "Status" column after "Payment Type"
+		String[] columnNames = { "Customer Name", "Payment Type", "Status", "Branches", "Total Sales (₱)",
+				"Total Profit (₱)", "Actions", "Customer" };
 		customerTableModel = new DefaultTableModel(columnNames, 0) {
 			@Override
 			public boolean isCellEditable(int row, int column) {
@@ -133,7 +138,7 @@ public class CustomerDeliveriesTab {
 
 			@Override
 			public Class<?> getColumnClass(int columnIndex) {
-				if (columnIndex == 6) {
+				if (columnIndex == 7) { // Customer column moved to index 7
 					return Customer.class;
 				}
 				return Object.class;
@@ -158,24 +163,57 @@ public class CustomerDeliveriesTab {
 		header.setForeground(TEXT_LIGHT);
 		header.setPreferredSize(new Dimension(header.getPreferredSize().width, 40));
 
-		customerTable.getColumnModel().getColumn(0).setPreferredWidth(220);
-		customerTable.getColumnModel().getColumn(1).setPreferredWidth(150);
-		customerTable.getColumnModel().getColumn(2).setPreferredWidth(100);
-		customerTable.getColumnModel().getColumn(3).setPreferredWidth(130);
-		customerTable.getColumnModel().getColumn(4).setPreferredWidth(130);
-		customerTable.getColumnModel().getColumn(5).setPreferredWidth(100);
-		customerTable.getColumnModel().getColumn(6).setPreferredWidth(0);
+		// Adjust column widths
+		customerTable.getColumnModel().getColumn(0).setPreferredWidth(200); // Customer Name
+		customerTable.getColumnModel().getColumn(1).setPreferredWidth(140); // Payment Type
+		customerTable.getColumnModel().getColumn(2).setPreferredWidth(100); // Status
+		customerTable.getColumnModel().getColumn(3).setPreferredWidth(90); // Branches
+		customerTable.getColumnModel().getColumn(4).setPreferredWidth(120); // Total Sales
+		customerTable.getColumnModel().getColumn(5).setPreferredWidth(120); // Total Profit
+		customerTable.getColumnModel().getColumn(6).setPreferredWidth(100); // Actions
+		customerTable.getColumnModel().getColumn(7).setPreferredWidth(0); // Customer (hidden)
 
 		DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
 		centerRenderer.setHorizontalAlignment(SwingConstants.CENTER);
-		customerTable.getColumnModel().getColumn(2).setCellRenderer(centerRenderer);
-		customerTable.getColumnModel().getColumn(3).setCellRenderer(centerRenderer);
-		customerTable.getColumnModel().getColumn(4).setCellRenderer(centerRenderer);
-		customerTable.getColumnModel().getColumn(5).setCellRenderer(centerRenderer);
+		customerTable.getColumnModel().getColumn(2).setCellRenderer(centerRenderer); // Status
+		customerTable.getColumnModel().getColumn(3).setCellRenderer(centerRenderer); // Branches
+		customerTable.getColumnModel().getColumn(4).setCellRenderer(centerRenderer); // Total Sales
+		customerTable.getColumnModel().getColumn(5).setCellRenderer(centerRenderer); // Total Profit
+		customerTable.getColumnModel().getColumn(6).setCellRenderer(centerRenderer); // Actions
 
-		customerTable.getColumnModel().getColumn(6).setMinWidth(0);
-		customerTable.getColumnModel().getColumn(6).setMaxWidth(0);
-		customerTable.getColumnModel().getColumn(6).setWidth(0);
+		// Hide Customer column
+		customerTable.getColumnModel().getColumn(7).setMinWidth(0);
+		customerTable.getColumnModel().getColumn(7).setMaxWidth(0);
+		customerTable.getColumnModel().getColumn(7).setWidth(0);
+
+		// Custom renderer for Status column with color coding
+		customerTable.getColumnModel().getColumn(2).setCellRenderer(new DefaultTableCellRenderer() {
+			@Override
+			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+					boolean hasFocus, int row, int column) {
+				Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+				if (!isSelected) {
+					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
+				}
+
+				setHorizontalAlignment(SwingConstants.CENTER);
+
+				// Set color based on status
+				String status = value != null ? value.toString() : "";
+				if ("Delivered".equalsIgnoreCase(status)) {
+					setForeground(STATUS_DELIVERED);
+				} else if ("Cancelled".equalsIgnoreCase(status)) {
+					setForeground(STATUS_CANCELLED);
+				} else {
+					setForeground(TEXT_DARK);
+				}
+
+				setFont(new Font("Arial", Font.BOLD, 13));
+				((JLabel) c).setBorder(new EmptyBorder(6, 12, 6, 12));
+				return c;
+			}
+		});
 
 		customerTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
 			@Override
@@ -189,10 +227,16 @@ public class CustomerDeliveriesTab {
 
 				if (column == 0) {
 					setHorizontalAlignment(SwingConstants.LEFT);
-				} else if (column >= 2 && column <= 4) {
+				} else if (column >= 2 && column <= 5) {
 					setHorizontalAlignment(SwingConstants.CENTER);
 				} else {
 					setHorizontalAlignment(SwingConstants.LEFT);
+				}
+
+				// Don't override status column color
+				if (column != 2) {
+					setForeground(TEXT_DARK);
+					setFont(new Font("Arial", Font.PLAIN, 13));
 				}
 
 				((JLabel) c).setBorder(new EmptyBorder(6, 12, 6, 12));
@@ -206,8 +250,8 @@ public class CustomerDeliveriesTab {
 				int row = customerTable.rowAtPoint(e.getPoint());
 				int col = customerTable.columnAtPoint(e.getPoint());
 
-				if (col == 5 && row >= 0) {
-					Customer customer = (Customer) customerTableModel.getValueAt(row, 6);
+				if (col == 6 && row >= 0) { // Actions column
+					Customer customer = (Customer) customerTableModel.getValueAt(row, 7);
 					showActionMenu(e.getComponent(), customer);
 				}
 			}
@@ -217,7 +261,7 @@ public class CustomerDeliveriesTab {
 			@Override
 			public void mouseMoved(MouseEvent e) {
 				int col = customerTable.columnAtPoint(e.getPoint());
-				customerTable.setCursor(new Cursor(col == 5 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+				customerTable.setCursor(new Cursor(col == 6 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
 			}
 		});
 
@@ -238,21 +282,27 @@ public class CustomerDeliveriesTab {
 			double totalSales = 0.0;
 			double totalCapital = 0.0;
 
-			// Calculate totals, excluding cancelled branches
-			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
-				Branch branch = branchEntry.getKey();
+			// Get customer status
+			String customerStatus = AppContext.deliveryDetialsController.getCustomerDeliveryStatus(customer);
 
-				// Skip cancelled branches
-				String branchStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
-				if ("Cancelled".equalsIgnoreCase(branchStatus)) {
-					continue;
-				}
+			// Calculate totals only if customer is not cancelled
+			if (!"Cancelled".equalsIgnoreCase(customerStatus)) {
+				// Calculate totals, excluding cancelled branches
+				for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
+					Branch branch = branchEntry.getKey();
 
-				List<ProductWithQuantity> products = branchEntry.getValue();
+					// Skip cancelled branches
+					String branchStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
+					if ("Cancelled".equalsIgnoreCase(branchStatus)) {
+						continue;
+					}
 
-				for (ProductWithQuantity product : products) {
-					totalSales += product.getTotalSellingPrice();
-					totalCapital += product.getTotalCapital();
+					List<ProductWithQuantity> products = branchEntry.getValue();
+
+					for (ProductWithQuantity product : products) {
+						totalSales += product.getTotalSellingPrice();
+						totalCapital += product.getTotalCapital();
+					}
 				}
 			}
 
@@ -260,8 +310,9 @@ public class CustomerDeliveriesTab {
 
 			String paymentType = AppContext.deliveryDetialsController.getState().getPaymentType(customer);
 
-			customerTableModel.addRow(new Object[] { customer.getDisplayName(), paymentType, branches.size(),
-					String.format("₱%,.2f", totalSales), String.format("₱%,.2f", totalProfit), "⚙ Actions", customer });
+			customerTableModel.addRow(new Object[] { customer.getDisplayName(), paymentType, customerStatus,
+					branches.size(), String.format("₱%,.2f", totalSales), String.format("₱%,.2f", totalProfit),
+					"⚙ Actions", customer });
 		}
 	}
 
@@ -273,6 +324,12 @@ public class CustomerDeliveriesTab {
 				.getMappedCustomerDeliveries().get(customer);
 
 		if (branches == null) {
+			return 0.0;
+		}
+
+		// Check if customer is cancelled
+		String customerStatus = AppContext.deliveryDetialsController.getCustomerDeliveryStatus(customer);
+		if ("Cancelled".equalsIgnoreCase(customerStatus)) {
 			return 0.0;
 		}
 
@@ -298,12 +355,12 @@ public class CustomerDeliveriesTab {
 	}
 
 	/**
-	 * Show confirmation dialog for cancelling customer delivery
+	 * Show dialog for setting customer delivery status
 	 */
-	private static void showCancelDeliveryConfirmation(Component parent, Customer customer) {
-		JDialog confirmDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Confirm Cancel Delivery");
-		confirmDialog.setLayout(new GridBagLayout());
-		confirmDialog.getContentPane().setBackground(Color.WHITE);
+	private static void showSetStatusDialog(Component parent, Customer customer) {
+		JDialog statusDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Set Customer Delivery Status");
+		statusDialog.setLayout(new GridBagLayout());
+		statusDialog.getContentPane().setBackground(Color.WHITE);
 
 		GridBagConstraints gbc = new GridBagConstraints();
 		gbc.gridx = 0;
@@ -311,42 +368,74 @@ public class CustomerDeliveriesTab {
 		gbc.gridwidth = 2;
 		gbc.insets = new Insets(20, 30, 10, 30);
 
-		JLabel messageLabel = new JLabel(
-				"<html><center>Are you sure you want to cancel delivery for<br><b>" + customer.getDisplayName()
-						+ "</b>?<br><br>This will cancel ALL branches for this customer.</center></html>");
-		messageLabel.setFont(new Font("Arial", Font.PLAIN, 16));
-		messageLabel.setForeground(TEXT_DARK);
-		messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
-		confirmDialog.add(messageLabel, gbc);
+		JLabel titleLabel = new JLabel("Set Delivery Status for: " + customer.getDisplayName());
+		titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
+		titleLabel.setForeground(TEXT_DARK);
+		titleLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		statusDialog.add(titleLabel, gbc);
 
 		gbc.gridy++;
-		gbc.insets = new Insets(5, 30, 10, 30);
-		JLabel warningLabel = new JLabel("This action cannot be undone unlist reviwiewing the page");
-		warningLabel.setFont(new Font("Arial", Font.ITALIC, 13));
-		warningLabel.setForeground(new Color(180, 50, 50));
-		warningLabel.setHorizontalAlignment(SwingConstants.CENTER);
-		confirmDialog.add(warningLabel, gbc);
+		gbc.insets = new Insets(10, 30, 5, 30);
+		JLabel instructionLabel = new JLabel("Choose the delivery status:");
+		instructionLabel.setFont(new Font("Arial", Font.PLAIN, 14));
+		instructionLabel.setForeground(TEXT_DARK);
+		statusDialog.add(instructionLabel, gbc);
 
+		// Get current status
+		String currentStatus = AppContext.deliveryDetialsController.getCustomerDeliveryStatus(customer);
+
+		// Radio buttons for status
+		gbc.gridy++;
+		gbc.gridwidth = 1;
+		gbc.insets = new Insets(15, 50, 5, 30);
+		gbc.anchor = GridBagConstraints.WEST;
+
+		JRadioButton deliveredRadio = new JRadioButton("Delivered");
+		deliveredRadio.setFont(new Font("Arial", Font.PLAIN, 14));
+		deliveredRadio.setBackground(Color.WHITE);
+		deliveredRadio.setForeground(STATUS_DELIVERED);
+		deliveredRadio.setSelected("Delivered".equalsIgnoreCase(currentStatus));
+		statusDialog.add(deliveredRadio, gbc);
+
+		gbc.gridx = 1;
+		gbc.insets = new Insets(15, 30, 5, 50);
+
+		JRadioButton cancelledRadio = new JRadioButton("Cancelled");
+		cancelledRadio.setFont(new Font("Arial", Font.PLAIN, 14));
+		cancelledRadio.setBackground(Color.WHITE);
+		cancelledRadio.setForeground(STATUS_CANCELLED);
+		cancelledRadio.setSelected("Cancelled".equalsIgnoreCase(currentStatus));
+		statusDialog.add(cancelledRadio, gbc);
+
+		// Button group
+		ButtonGroup statusGroup = new ButtonGroup();
+		statusGroup.add(deliveredRadio);
+		statusGroup.add(cancelledRadio);
+
+		// Action buttons
+		gbc.gridx = 0;
 		gbc.gridy++;
 		gbc.gridwidth = 1;
 		gbc.insets = new Insets(20, 30, 20, 10);
+		gbc.anchor = GridBagConstraints.CENTER;
 
 		JButton cancelBtn = createActionButton("Cancel", new Color(120, 120, 120));
 		cancelBtn.setPreferredSize(new Dimension(120, 40));
-		cancelBtn.addActionListener(e -> confirmDialog.dispose());
-		confirmDialog.add(cancelBtn, gbc);
+		cancelBtn.addActionListener(e -> statusDialog.dispose());
+		statusDialog.add(cancelBtn, gbc);
 
 		gbc.gridx = 1;
 		gbc.insets = new Insets(20, 10, 20, 30);
-		JButton confirmBtn = createActionButton("Confirm", new Color(180, 50, 50));
-		confirmBtn.setPreferredSize(new Dimension(120, 40));
-		confirmBtn.addActionListener(e -> {
-			confirmDialog.dispose();
-			confirmBtn.setEnabled(false);
+		JButton saveBtn = createActionButton("Save", ACCENT_GOLD);
+		saveBtn.setPreferredSize(new Dimension(120, 40));
+		saveBtn.addActionListener(e -> {
+			String selectedStatus = deliveredRadio.isSelected() ? "Delivered" : "Cancelled";
 
-			// Call controller to cancel customer delivery
-			AppContext.deliveryDetialsController.cancelCustomerDelivery(customer, () -> {
+			// Call controller to set customer status
+			AppContext.deliveryDetialsController.setCustomerDeliveryStatus(customer, selectedStatus, () -> {
 				SwingUtilities.invokeLater(() -> {
+					statusDialog.dispose();
+
 					// Update customer table
 					updateCustomerTable();
 
@@ -355,22 +444,21 @@ public class CustomerDeliveriesTab {
 
 					// Show success notification
 					ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(parent),
-							"Customer delivery cancelled successfully!");
+							"Customer status updated to: " + selectedStatus);
 				});
 			}, (error) -> {
 				SwingUtilities.invokeLater(() -> {
 					ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
-							"Failed to cancel delivery: " + error);
-					confirmBtn.setEnabled(true);
+							"Failed to update status: " + error);
 				});
 			});
 		});
-		confirmDialog.add(confirmBtn, gbc);
+		statusDialog.add(saveBtn, gbc);
 
-		confirmDialog.pack();
-		confirmDialog.setMinimumSize(new Dimension(450, 240));
-		confirmDialog.setLocationRelativeTo(null);
-		confirmDialog.setVisible(true);
+		statusDialog.pack();
+		statusDialog.setMinimumSize(new Dimension(450, 220));
+		statusDialog.setLocationRelativeTo(null);
+		statusDialog.setVisible(true);
 	}
 
 	private static void showActionMenu(Component parent, Customer customer) {
@@ -427,8 +515,18 @@ public class CustomerDeliveriesTab {
 			actionDialog.add(setPaymentBtn, gbc);
 		}
 
+		// Add "Set Status" button (always available)
 		gbc.gridy++;
-		gbc.insets = new Insets(deliveryStatus.equalsIgnoreCase("Delivered") ? 15 : 5, 20, 5, 20);
+		gbc.insets = new Insets(5, 20, 5, 20);
+		JButton setStatusBtn = createActionButton("📋 Set Status", SIDEBAR_ACTIVE);
+		setStatusBtn.addActionListener(e -> {
+			actionDialog.dispose();
+			showSetStatusDialog(parent, customer);
+		});
+		actionDialog.add(setStatusBtn, gbc);
+
+		gbc.gridy++;
+		gbc.insets = new Insets(5, 20, 5, 20);
 		JButton viewDetailsBtn = createActionButton("👁️ View Details", SIDEBAR_ACTIVE);
 		viewDetailsBtn.addActionListener(e -> {
 			actionDialog.dispose();
@@ -478,18 +576,6 @@ public class CustomerDeliveriesTab {
 		});
 		actionDialog.add(viewDetailsBtn, gbc);
 
-		// Add Cancel Delivery button (only if not delivered)
-		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
-			gbc.gridy++;
-			gbc.insets = new Insets(5, 20, 5, 20);
-			JButton cancelDeliveryBtn = createActionButton("❌ Cancel Delivery", new Color(180, 50, 50));
-			cancelDeliveryBtn.addActionListener(e -> {
-				actionDialog.dispose();
-				showCancelDeliveryConfirmation(parent, customer);
-			});
-			actionDialog.add(cancelDeliveryBtn, gbc);
-		}
-
 		gbc.gridy++;
 		gbc.insets = new Insets(10, 20, 15, 20);
 		JButton cancelBtn = createActionButton("Cancel", new Color(120, 120, 120));
@@ -497,7 +583,7 @@ public class CustomerDeliveriesTab {
 		actionDialog.add(cancelBtn, gbc);
 
 		actionDialog.pack();
-		actionDialog.setMinimumSize(new Dimension(380, deliveryStatus.equalsIgnoreCase("Delivered") ? 180 : 280));
+		actionDialog.setMinimumSize(new Dimension(380, deliveryStatus.equalsIgnoreCase("Delivered") ? 240 : 300));
 		actionDialog.setLocationRelativeTo(null);
 		actionDialog.setVisible(true);
 	}
@@ -531,12 +617,29 @@ public class CustomerDeliveriesTab {
 
 	public static boolean validateAllPaymentsSet() {
 		for (Customer customer : customerDeliveries.keySet()) {
+			// Skip cancelled customers
+			String customerStatus = AppContext.deliveryDetialsController.getCustomerDeliveryStatus(customer);
+			if ("Cancelled".equalsIgnoreCase(customerStatus)) {
+				continue;
+			}
+
 			String paymentType = AppContext.deliveryDetialsController.getState().getPaymentType(customer);
 			if (paymentType.equals("Not Set")) {
 				return false;
 			}
 		}
 		return true;
+	}
+
+	public static boolean isThereCustomerDeliveries() {
+		// Check if there's at least one customer with "Delivered" status
+		for (Customer customer : customerDeliveries.keySet()) {
+			String customerStatus = AppContext.deliveryDetialsController.getCustomerDeliveryStatus(customer);
+			if ("Delivered".equalsIgnoreCase(customerStatus)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	public static void refreshFinancials() {

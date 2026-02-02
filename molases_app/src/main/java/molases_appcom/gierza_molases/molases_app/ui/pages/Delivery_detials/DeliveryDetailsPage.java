@@ -389,7 +389,14 @@ public class DeliveryDetailsPage {
 	}
 
 	private static void markAsDelivered() {
-		// First validate that all payments are set
+		// Check if all customer deliveries are deleted
+		if (!CustomerDeliveriesTab.isThereCustomerDeliveries()) {
+			JOptionPane.showMessageDialog(null, "There are no customer deliveries to process this transaction.",
+					"Invalid Delivery", JOptionPane.WARNING_MESSAGE);
+			return;
+		}
+
+		// Validate that all payments are set
 		boolean allPaymentsSet = CustomerDeliveriesTab.validateAllPaymentsSet();
 
 		if (!allPaymentsSet) {
@@ -399,16 +406,35 @@ public class DeliveryDetailsPage {
 			return;
 		}
 
-		// Calculate financial changes
+		// Calculate financial changes (for confirmation dialog)
 		DeliveryChangesCalculator.FinancialChanges changes = DeliveryChangesCalculator
 				.calculate(AppContext.deliveryDetialsController.getState());
 
 		// Show confirmation dialog with changes summary
 		DeliveryDetialsConfirmation.show(SwingUtilities.getWindowAncestor(layeredPane), changes, () -> {
+			// User confirmed - now actually save the changes
+			showLoading(); // Show loading indicator
 
-			// For now, just show success message
-			ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(layeredPane),
-					"Delivery marked as delivered successfully! (Backend save pending implementation)");
+			AppContext.deliveryDetialsController.markDeliveryAsDelivered(() -> {
+				// Success callback
+				SwingUtilities.invokeLater(() -> {
+					hideLoading();
+					ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(layeredPane),
+							"Delivery marked as delivered successfully!");
+
+					// Navigate back to delivery list
+					if (currentOnBack != null) {
+						currentOnBack.run();
+					}
+				});
+			}, (errorMsg) -> {
+				// Error callback
+				SwingUtilities.invokeLater(() -> {
+					hideLoading();
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(layeredPane),
+							"Failed to mark delivery as delivered: " + errorMsg);
+				});
+			});
 		});
 	}
 

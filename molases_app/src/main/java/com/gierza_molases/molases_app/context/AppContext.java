@@ -12,6 +12,7 @@ import com.gierza_molases.molases_app.dao.BranchDao;
 import com.gierza_molases.molases_app.dao.BranchDeliveryDao;
 import com.gierza_molases.molases_app.dao.CustomerDao;
 import com.gierza_molases.molases_app.dao.CustomerDeliveryDao;
+import com.gierza_molases.molases_app.dao.CustomerPaymentDao;
 import com.gierza_molases.molases_app.dao.DeliveryDao;
 import com.gierza_molases.molases_app.dao.ProductAssociationDao;
 import com.gierza_molases.molases_app.dao.ProductDao;
@@ -62,6 +63,7 @@ public class AppContext {
 		CustomerDeliveryDao customerDeliveryDao = new CustomerDeliveryDao(conn);
 		BranchDeliveryDao branchDeliveryDao = new BranchDeliveryDao(conn);
 		ProductDeliveryDao productDeliveryDao = new ProductDeliveryDao(conn);
+		CustomerPaymentDao customerPaymentsDao = new CustomerPaymentDao(conn);
 
 		// service instance
 		customerService = new CustomerService(customerDao, branchDao);
@@ -69,7 +71,7 @@ public class AppContext {
 		productService = new ProductService(productDao, productAssociationDao);
 		productAssociationService = new ProductAssociationService(productAssociationDao);
 		deliveryService = new DeliveryService(deliveryDao, customerDeliveryDao, branchDeliveryDao, productDeliveryDao,
-				customerDao, branchDao, productDao);
+				customerDao, branchDao, productDao, customerPaymentsDao);
 		customerDeliveryService = new CustomerDeliveryService(customerDeliveryDao, branchDeliveryDao);
 		branchDeliveryService = new BranchDeliveryService(branchDeliveryDao);
 

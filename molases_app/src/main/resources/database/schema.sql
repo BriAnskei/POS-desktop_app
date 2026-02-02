@@ -144,7 +144,7 @@ CREATE TABLE IF NOT EXISTS product_association (
         REFERENCES product(id)
         ON UPDATE CASCADE
         ON DELETE CASCADE
-);
+);  
 
 CREATE INDEX IF NOT EXISTS idx_product_assoc_product ON product_association(product_id);
 
@@ -193,6 +193,8 @@ CREATE TABLE IF NOT EXISTS customer_delivery (
     
     customer_id INTEGER NOT NULL,           -- FK
     delivery_id INTEGER NOT NULL,           -- FK
+    
+     status TEXT, 							-- cancelled /delivered
     
     UNIQUE (customer_id, delivery_id), -- most be unique 
 
@@ -248,7 +250,6 @@ CREATE INDEX  IF NOT EXISTS  idx_branch_delivery_branch
 
 
 
-
 CREATE TABLE IF NOT EXISTS product_delivery (
     id INTEGER PRIMARY KEY AUTOINCREMENT,   
 
@@ -295,8 +296,14 @@ CREATE TABLE IF NOT EXISTS customer_payments (
   	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
 
-    FOREIGN KEY (customer_id) REFERENCES customer(id),
+    FOREIGN KEY (customer_id) REFERENCES customer(id)    
+    	ON UPDATE CASCADE
+        ON DELETE CASCADE,
+        
+        
     FOREIGN KEY (customer_delivery_id) REFERENCES customer_delivery(id)
+         ON UPDATE CASCADE
+        ON DELETE CASCADE
 );
 
 

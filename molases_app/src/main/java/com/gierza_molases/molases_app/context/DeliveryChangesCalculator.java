@@ -27,6 +27,7 @@ public class DeliveryChangesCalculator {
 		// Detailed breakdowns (for future expansion/tooltips)
 		public double removedProductsTotal;
 		public double cancelledBranchesTotal;
+		public double cancelledCustomersTotal;
 		public double removedExpensesTotal;
 		public double addedProductsTotal;
 		public double increasedQuantitiesTotal;
@@ -41,6 +42,7 @@ public class DeliveryChangesCalculator {
 			this.netChange = 0.0;
 			this.removedProductsTotal = 0.0;
 			this.cancelledBranchesTotal = 0.0;
+			this.cancelledCustomersTotal = 0.0;
 			this.removedExpensesTotal = 0.0;
 			this.addedProductsTotal = 0.0;
 			this.increasedQuantitiesTotal = 0.0;
@@ -88,23 +90,25 @@ public class DeliveryChangesCalculator {
 	/**
 	 * Calculate money returned from: 1. Removed products 2. Cancelled branches
 	 * (only products still existing) 3. Decreased quantities 4. Cancelled customer
-	 * deliveries
+	 * deliveries (by status)
 	 */
 	private static void calculateMoneyReturned(DeliveryDetailsState state, FinancialChanges changes) {
 
-		// Removed products
+		// 1. Removed products
 		calculateRemovedProducts(state, changes);
+
 		// 2. Cancelled branches (only count products still existing at cancellation)
-		calculteCancelledBranches(state, changes);
+		calculateCancelledBranches(state, changes);
 
 		// 3. Decreased quantities
 		calculateDecreasedQuantities(state, changes);
 
-		// 4. Cancelled customer deliveries
+		// 4. Cancelled customer deliveries (by status)
 		calculateCancelledCustomerDeliveries(state, changes);
+
 		// Calculate total money returned
 		changes.moneyReturned = changes.removedProductsTotal + changes.cancelledBranchesTotal
-				+ changes.removedExpensesTotal;
+				+ changes.cancelledCustomersTotal + changes.removedExpensesTotal;
 	}
 
 	private static void calculateRemovedProducts(DeliveryDetailsState state, FinancialChanges changes) {
@@ -120,23 +124,30 @@ public class DeliveryChangesCalculator {
 				}
 			}
 		}
-
 	}
 
-	private static void calculteCancelledBranches(DeliveryDetailsState state, FinancialChanges changes) {
+	private static void calculateCancelledBranches(DeliveryDetailsState state, FinancialChanges changes) {
 		Map<Branch, String> branchStatuses = state.getBranchDeliveryStatuses();
 		Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries = state.getMappedCustomerDeliveries();
+		Map<Customer, String> customerStatuses = state.getCustomerDeliveryStatuses();
 
 		if (branchStatuses != null && customerDeliveries != null) {
 			for (Map.Entry<Branch, String> statusEntry : branchStatuses.entrySet()) {
 				Branch branch = statusEntry.getKey();
-				String status = statusEntry.getValue();
+				String branchStatus = statusEntry.getValue();
 
-				if ("Cancelled".equalsIgnoreCase(status)) {
+				if ("Cancelled".equalsIgnoreCase(branchStatus)) {
 					// Find this branch in customer deliveries and sum its current products
 					for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> customerEntry : customerDeliveries
 							.entrySet()) {
+						Customer customer = customerEntry.getKey();
 						Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
+
+						// Skip if the entire customer is cancelled (will be counted separately)
+						String customerStatus = customerStatuses != null ? customerStatuses.get(customer) : "Delivered";
+						if ("Cancelled".equalsIgnoreCase(customerStatus)) {
+							continue;
+						}
 
 						if (branches != null && branches.containsKey(branch)) {
 							List<ProductWithQuantity> products = branches.get(branch);
@@ -180,34 +191,48 @@ public class DeliveryChangesCalculator {
 		}
 	}
 
+	/**
+	 * Calculate cancelled customer deliveries by checking customer status Only
+	 * counts customers that have "Cancelled" status
+	 */
 	private static void calculateCancelledCustomerDeliveries(DeliveryDetailsState state, FinancialChanges changes) {
-		Map<Customer, Map<Branch, List<ProductWithQuantity>>> cancelledCustomers = state
-				.getCancelledCustomerDeliveries();
-		if (cancelledCustomers != null) {
+		Map<Customer, Map<Branch, List<ProductWithQuantity>>> customerDeliveries = state.getMappedCustomerDeliveries();
+		Map<Customer, String> customerStatuses = state.getCustomerDeliveryStatuses();
+		Map<Customer, Map<Branch, List<ProductWithQuantity>>> additionalCustomers = state
+				.getAdditionalCustomerDelivery();
 
-			for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> customerEntry : cancelledCustomers
-					.entrySet()) {
-				Customer customer = customerEntry.getKey();
-				Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
+		if (customerDeliveries == null || customerStatuses == null) {
+			return;
+		}
 
-				boolean wasNewlyAdded = state.wasCancelledCustomerNewlyAdded(customer);
+		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> customerEntry : customerDeliveries
+				.entrySet()) {
+			Customer customer = customerEntry.getKey();
+			Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
 
-				// Only count as "money returned" if it was an ORIGINAL customer
-				// If it was newly added, it should NOT show in money returned
-				if (!wasNewlyAdded && branches != null) {
-					for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
-						List<ProductWithQuantity> products = branchEntry.getValue();
-						if (products != null) {
-							for (ProductWithQuantity product : products) {
-								double productTotal = product.getTotalSellingPrice();
-								changes.cancelledBranchesTotal += productTotal;
-							}
+			// Check if this customer has "Cancelled" status
+			String customerStatus = customerStatuses.get(customer);
+			if (!"Cancelled".equalsIgnoreCase(customerStatus)) {
+				continue; // Skip non-cancelled customers
+			}
+
+			// Check if this customer was newly added
+			boolean wasNewlyAdded = additionalCustomers != null && additionalCustomers.containsKey(customer);
+
+			// Only count as "money returned" if it was an ORIGINAL customer
+			// If it was newly added, it should NOT show in money returned
+			if (!wasNewlyAdded && branches != null) {
+				for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
+					List<ProductWithQuantity> products = branchEntry.getValue();
+					if (products != null) {
+						for (ProductWithQuantity product : products) {
+							double productTotal = product.getTotalSellingPrice();
+							changes.cancelledCustomersTotal += productTotal;
 						}
 					}
 				}
 			}
 		}
-
 	}
 
 	/**
@@ -275,10 +300,20 @@ public class DeliveryChangesCalculator {
 		// 4. New customers (entirely new customer deliveries)
 		Map<Customer, Map<Branch, List<ProductWithQuantity>>> additionalCustomers = state
 				.getAdditionalCustomerDelivery();
+		Map<Customer, String> customerStatuses = state.getCustomerDeliveryStatuses();
+
 		if (additionalCustomers != null) {
 			for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> customerEntry : additionalCustomers
 					.entrySet()) {
+				Customer customer = customerEntry.getKey();
 				Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
+
+				// Skip if this newly added customer is cancelled
+				String customerStatus = customerStatuses != null ? customerStatuses.get(customer) : "Delivered";
+				if ("Cancelled".equalsIgnoreCase(customerStatus)) {
+					continue;
+				}
+
 				if (branches != null) {
 					for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
 						List<ProductWithQuantity> products = branchEntry.getValue();

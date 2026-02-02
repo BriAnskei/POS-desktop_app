@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.gierza_molases.molases_app.dto.delivery.CustomerBranchDelivery;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.Delivery;
@@ -16,6 +17,9 @@ public class DeliveryDetailsState {
 	// Delivery information
 	private Delivery delivery;
 
+	// raw data
+	private List<CustomerBranchDelivery> rawCustomerBranchDeliveries;
+
 	// Mapped customer deliveries data (Customer -> Branch -> Products)
 	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> mappedCustomerDeliveries;
 
@@ -26,6 +30,10 @@ public class DeliveryDetailsState {
 	// This will be populated when user sets payment type before marking as
 	// delivered
 	private Map<Customer, String> temporaryPaymentTypes;
+
+	// Customer delivery statuses (Delivered/Cancelled) - tracked locally until
+	// saved to DB
+	private Map<Customer, String> customerDeliveryStatuses;
 
 	// Branch delivery statuses (Delivered/Cancelled) - tracked locally until saved
 	// to DB
@@ -47,10 +55,6 @@ public class DeliveryDetailsState {
 
 	// NEW: Track original expenses at load time (for calculating new expenses)
 	private Map<String, Double> originalExpenses;
-
-	// NEW: Track cancelled customer deliveries (Customer -> all their branches with
-	// products)
-	private Map<Customer, Map<Branch, List<ProductWithQuantity>>> cancelledCustomerDeliveries;
 
 	// Inner class to track quantity changes
 	public static class QuantityChange {
@@ -83,13 +87,13 @@ public class DeliveryDetailsState {
 		this.mappedCustomerDeliveries = new HashMap<>();
 		this.additionalCustomerDelivery = new HashMap<>();
 		this.temporaryPaymentTypes = new HashMap<>();
+		this.customerDeliveryStatuses = new HashMap<>();
 		this.branchDeliveryStatuses = new HashMap<>();
 		this.removedProducts = new HashMap<>();
 		this.addedProducts = new HashMap<>();
 		this.editedProductQuantities = new HashMap<>();
 		this.addedBranches = new HashMap<>();
 		this.originalExpenses = new HashMap<>();
-		this.cancelledCustomerDeliveries = new HashMap<>();
 	}
 
 	/*
@@ -118,6 +122,21 @@ public class DeliveryDetailsState {
 
 	public Map<Customer, Map<Branch, List<ProductWithQuantity>>> getAdditionalCustomerDelivery() {
 		return this.additionalCustomerDelivery;
+	}
+
+	/**
+	 * Get customer delivery statuses map
+	 */
+	public Map<Customer, String> getCustomerDeliveryStatuses() {
+		return customerDeliveryStatuses;
+	}
+
+	/**
+	 * Get delivery status for a specific customer Returns "Delivered" if no status
+	 * has been set
+	 */
+	public String getCustomerDeliveryStatus(Customer customer) {
+		return customerDeliveryStatuses.getOrDefault(customer, "Delivered");
 	}
 
 	/**
@@ -170,11 +189,8 @@ public class DeliveryDetailsState {
 		return originalExpenses;
 	}
 
-	/**
-	 * Get cancelled customer deliveries
-	 */
-	public Map<Customer, Map<Branch, List<ProductWithQuantity>>> getCancelledCustomerDeliveries() {
-		return cancelledCustomerDeliveries;
+	public List<CustomerBranchDelivery> getRawCustomerBranchDeliveries() {
+		return rawCustomerBranchDeliveries;
 	}
 
 	/*
@@ -183,6 +199,10 @@ public class DeliveryDetailsState {
 
 	public void setDelivery(Delivery delivery) {
 		this.delivery = delivery;
+	}
+
+	public void setRawCustomerBranchDeliveries(List<CustomerBranchDelivery> rawData) {
+		this.rawCustomerBranchDeliveries = rawData != null ? new ArrayList<>(rawData) : new ArrayList<>();
 	}
 
 	public void setMappedCustomerDeliveries(
@@ -195,12 +215,25 @@ public class DeliveryDetailsState {
 			this.originalExpenses = new HashMap<>(delivery.getExpenses());
 		}
 
+		// Initialize customer statuses for all customers as "Delivered"
 		// Initialize branch statuses for all branches as "Delivered"
 		if (mappedCustomerDeliveries != null) {
-			for (Map<Branch, List<ProductWithQuantity>> branches : mappedCustomerDeliveries.values()) {
-				for (Branch branch : branches.keySet()) {
-					if (branch != null) {
-						branchDeliveryStatuses.putIfAbsent(branch, "Delivered");
+			for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : mappedCustomerDeliveries
+					.entrySet()) {
+				Customer customer = entry.getKey();
+				Map<Branch, List<ProductWithQuantity>> branches = entry.getValue();
+
+				// Initialize customer status
+				if (customer != null) {
+					customerDeliveryStatuses.putIfAbsent(customer, "Delivered");
+				}
+
+				// Initialize branch statuses
+				if (branches != null) {
+					for (Branch branch : branches.keySet()) {
+						if (branch != null) {
+							branchDeliveryStatuses.putIfAbsent(branch, "Delivered");
+						}
 					}
 				}
 			}
@@ -213,6 +246,15 @@ public class DeliveryDetailsState {
 	public void setPaymentType(Customer customer, String paymentType) {
 		if (customer != null && paymentType != null) {
 			this.temporaryPaymentTypes.put(customer, paymentType);
+		}
+	}
+
+	/**
+	 * Set delivery status for a specific customer
+	 */
+	public void setCustomerDeliveryStatus(Customer customer, String status) {
+		if (customer != null && status != null) {
+			this.customerDeliveryStatuses.put(customer, status);
 		}
 	}
 
@@ -235,7 +277,9 @@ public class DeliveryDetailsState {
 	public void resetState() {
 		this.delivery = null;
 		this.mappedCustomerDeliveries = new HashMap<>();
+		this.rawCustomerBranchDeliveries = new ArrayList<>();
 		this.temporaryPaymentTypes = new HashMap<>();
+		this.customerDeliveryStatuses = new HashMap<>();
 		this.branchDeliveryStatuses = new HashMap<>();
 		this.additionalCustomerDelivery = new HashMap<>();
 		this.removedProducts = new HashMap<>();
@@ -243,7 +287,6 @@ public class DeliveryDetailsState {
 		this.editedProductQuantities = new HashMap<>();
 		this.addedBranches = new HashMap<>();
 		this.originalExpenses = new HashMap<>();
-		this.cancelledCustomerDeliveries = new HashMap<>();
 	}
 
 	/**
@@ -263,7 +306,8 @@ public class DeliveryDetailsState {
 
 	/**
 	 * Recalculate all financial metrics based on current customer deliveries
-	 * Excludes branches with "Cancelled" status from calculations
+	 * Excludes customers with "Cancelled" status and branches with "Cancelled"
+	 * status from calculations
 	 */
 	public void recalculateAllFinancials() {
 		if (delivery == null || mappedCustomerDeliveries == null) {
@@ -273,9 +317,17 @@ public class DeliveryDetailsState {
 		double totalGross = 0.0;
 		double totalCapital = 0.0;
 
-		// Calculate totals from all customer deliveries, excluding cancelled branches
+		// Calculate totals from all customer deliveries, excluding cancelled customers
+		// and cancelled branches
 		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : mappedCustomerDeliveries.entrySet()) {
+			Customer customer = entry.getKey();
 			Map<Branch, List<ProductWithQuantity>> branches = entry.getValue();
+
+			// Skip cancelled customers
+			String customerStatus = getCustomerDeliveryStatus(customer);
+			if ("Cancelled".equalsIgnoreCase(customerStatus)) {
+				continue;
+			}
 
 			for (Map.Entry<Branch, List<ProductWithQuantity>> branchEntry : branches.entrySet()) {
 				Branch branch = branchEntry.getKey();
@@ -321,6 +373,9 @@ public class DeliveryDetailsState {
 			// Initialize payment type as "Not Set" if not already set
 			this.temporaryPaymentTypes.putIfAbsent(customer, "Not Set");
 
+			// Initialize customer status as "Delivered"
+			this.customerDeliveryStatuses.putIfAbsent(customer, "Delivered");
+
 			// Initialize branch statuses as "Delivered" for new branches
 			for (Branch branch : branchProducts.keySet()) {
 				if (branch != null) {
@@ -348,12 +403,13 @@ public class DeliveryDetailsState {
 
 			this.mappedCustomerDeliveries.remove(customer);
 			this.temporaryPaymentTypes.remove(customer);
+			this.customerDeliveryStatuses.remove(customer);
 		}
 	}
 
 	/**
-	 * Cancel a customer's entire delivery (all branches) Tracks the cancellation
-	 * and removes from active deliveries
+	 * Cancel a customer's entire delivery (all branches) Sets the customer status
+	 * to "Cancelled" instead of removing them
 	 */
 	public void cancelCustomerDelivery(Customer customer) {
 		if (customer == null) {
@@ -367,29 +423,15 @@ public class DeliveryDetailsState {
 			return; // Customer doesn't exist or has no branches
 		}
 
-		// Check if this was a newly added customer (in additionalCustomerDelivery)
-		boolean wasNewlyAdded = this.additionalCustomerDelivery.containsKey(customer);
+		// Set customer status to "Cancelled" instead of removing
+		this.customerDeliveryStatuses.put(customer, "Cancelled");
 
-		// Store a copy of their branches/products before removing
-		this.cancelledCustomerDeliveries.put(customer, new HashMap<>(customerBranches));
-
-		// Remove from additionalCustomerDelivery if it was newly added
-		if (wasNewlyAdded) {
-			this.additionalCustomerDelivery.remove(customer);
-		}
-
-		// Remove branch statuses for this customer's branches
+		// Set all branch statuses to "Cancelled" as well
 		for (Branch branch : customerBranches.keySet()) {
-			this.branchDeliveryStatuses.remove(branch);
+			this.branchDeliveryStatuses.put(branch, "Cancelled");
 		}
 
-		// Remove from mapped customer deliveries
-		this.mappedCustomerDeliveries.remove(customer);
-
-		// Remove payment type
-		this.temporaryPaymentTypes.remove(customer);
-
-		// Recalculate financials
+		// Recalculate financials (cancelled customers will be excluded automatically)
 		recalculateAllFinancials();
 	}
 
@@ -664,7 +706,6 @@ public class DeliveryDetailsState {
 				+ (mappedCustomerDeliveries != null ? mappedCustomerDeliveries.size() : 0) + ", isLoaded=" + isLoaded()
 				+ ", removedProducts=" + removedProducts.size() + ", addedProducts=" + addedProducts.size()
 				+ ", editedProducts=" + editedProductQuantities.size() + ", addedBranches=" + addedBranches.size()
-				+ ", originalExpenses=" + originalExpenses.size() + ", cancelledCustomers="
-				+ cancelledCustomerDeliveries.size() + '}';
+				+ ", originalExpenses=" + originalExpenses.size() + '}';
 	}
 }

@@ -8,8 +8,10 @@ import java.util.function.Consumer;
 import javax.swing.SwingWorker;
 
 import com.gierza_molases.molases_app.context.DeliveryDetailsState;
+import com.gierza_molases.molases_app.dto.delivery.DeliveryChanges;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.Customer;
+import com.gierza_molases.molases_app.model.Delivery;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.model.response.DeliveryViewResponse;
 import com.gierza_molases.molases_app.service.BranchDeliveryService;
@@ -74,6 +76,7 @@ public class DeliveryDetailsController {
 							// Store data in state
 							state.setDelivery(response.getDeliveryDetials());
 							state.setMappedCustomerDeliveries(response.getMappedCustomerDeliveries());
+							state.setRawCustomerBranchDeliveries(response.getCustomerDeliveries()); // ADD THIS LINE
 
 							// Initialize payment types as "Not Set" for all customers
 							if (response.getMappedCustomerDeliveries() != null) {
@@ -81,10 +84,6 @@ public class DeliveryDetailsController {
 									state.setPaymentType(customer, "Not Set");
 								}
 							}
-
-							// TODO: Load branch delivery statuses from database when implemented
-							// For now, all branches are initialized as "Delivered" in
-							// setMappedCustomerDeliveries()
 
 							if (onSuccess != null) {
 								onSuccess.run();
@@ -99,6 +98,48 @@ public class DeliveryDetailsController {
 						if (onError != null) {
 							onError.accept("Error processing delivery data: " + e.getMessage());
 						}
+					}
+				}
+			}
+		}.execute();
+	}
+
+	/**
+	 * Mark delivery as delivered and save all changes
+	 */
+	public void markDeliveryAsDelivered(Runnable onSuccess, Consumer<String> onError) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					// Build DeliveryChanges DTO from state
+					DeliveryChangesBuilder builder = new DeliveryChangesBuilder(state);
+					DeliveryChanges deliveryChanges = builder.build();
+
+					// Get updated delivery object
+					Delivery delivery = state.getDelivery();
+
+					// Call service to save all changes in transaction
+					deliveryService.markAsDelivered(delivery, deliveryChanges);
+
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to mark delivery as delivered: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
 					}
 				}
 			}
@@ -150,8 +191,8 @@ public class DeliveryDetailsController {
 	}
 
 	/**
-	 * Cancel a customer's entire delivery (all branches) This tracks the
-	 * cancellation and removes them from active deliveries
+	 * Cancel a customer's entire delivery (all branches) This sets the customer
+	 * status to "Cancelled"
 	 */
 	public void cancelCustomerDelivery(Customer customer, Runnable onSuccess, Consumer<String> onError) {
 		new SwingWorker<Void, Void>() {
@@ -172,7 +213,7 @@ public class DeliveryDetailsController {
 						return null;
 					}
 
-					// Cancel via state (this will track and remove)
+					// Cancel via state (this will set status to "Cancelled")
 					state.cancelCustomerDelivery(customer);
 
 				} catch (Exception e) {
@@ -196,6 +237,81 @@ public class DeliveryDetailsController {
 			}
 		}.execute();
 	}
+
+	/**
+	 * Set delivery status for a customer (Delivered/Cancelled) This triggers
+	 * financial recalculation and is stored locally until saved to DB
+	 */
+	public void setCustomerDeliveryStatus(Customer customer, String status, Runnable onSuccess,
+			Consumer<String> onError) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					// Validate input
+					if (customer == null) {
+						error = new IllegalArgumentException("Customer cannot be null");
+						return null;
+					}
+
+					// Check if customer exists in delivery
+					if (!state.getMappedCustomerDeliveries().containsKey(customer)) {
+						error = new IllegalStateException("Customer does not exist in this delivery");
+						return null;
+					}
+
+					// Validate status
+					if (status == null || (!status.equals("Delivered") && !status.equals("Cancelled"))) {
+						error = new IllegalArgumentException("Status must be either 'Delivered' or 'Cancelled'");
+						return null;
+					}
+
+					// Set customer status
+					state.setCustomerDeliveryStatus(customer, status);
+
+					// Set all branch statuses to match customer status
+					Map<Branch, List<ProductWithQuantity>> customerBranches = state.getMappedCustomerDeliveries()
+							.get(customer);
+					if (customerBranches != null) {
+						for (Branch branch : customerBranches.keySet()) {
+							state.setBranchDeliveryStatus(branch, status);
+						}
+					}
+
+					// Recalculate financials
+					state.recalculateAllFinancials();
+
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to update customer status: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
+	}
+
+	/**
+	 * Get delivery status for a specific customer
+	 */
+	public String getCustomerDeliveryStatus(Customer customer) {
+		return state.getCustomerDeliveryStatus(customer);
+	}
+
 	/*
 	 * ====================== Product Management Operations (NEW)
 	 * ======================
@@ -408,7 +524,7 @@ public class DeliveryDetailsController {
 			@Override
 			protected Void doInBackground() {
 				try {
-					// TODO: Call service method to update delivery expenses
+
 					state.addExpense(name, amount);
 				} catch (Exception e) {
 					error = e;
@@ -436,8 +552,7 @@ public class DeliveryDetailsController {
 	 * Remove an expense from the delivery
 	 */
 	public void removeExpense(String name, Runnable onSuccess, Consumer<String> onError) {
-		// TODO: Implement database update for expenses
-		// For now, just update state
+
 		new SwingWorker<Void, Void>() {
 			private Exception error;
 
@@ -642,6 +757,10 @@ public class DeliveryDetailsController {
 					// deliveryService.saveBranchStatuses(deliveryId,
 					// state.getBranchDeliveryStatuses());
 
+					// TODO: Save customer statuses to DB
+					// deliveryService.saveCustomerStatuses(deliveryId,
+					// state.getCustomerDeliveryStatuses());
+
 					// TODO: Save removed products to DB
 					// deliveryService.saveRemovedProducts(deliveryId, state.getRemovedProducts());
 
@@ -664,7 +783,7 @@ public class DeliveryDetailsController {
 				if (error != null) {
 					error.printStackTrace();
 					if (onError != null) {
-						onError.accept("Failed to save branch statuses: " + error.getMessage());
+						onError.accept("Failed to save statuses: " + error.getMessage());
 					}
 				} else {
 					if (onSuccess != null) {

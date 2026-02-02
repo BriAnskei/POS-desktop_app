@@ -1,6 +1,7 @@
 package com.gierza_molases.molases_app.service;
 
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -11,15 +12,22 @@ import com.gierza_molases.molases_app.dao.BranchDao;
 import com.gierza_molases.molases_app.dao.BranchDeliveryDao;
 import com.gierza_molases.molases_app.dao.CustomerDao;
 import com.gierza_molases.molases_app.dao.CustomerDeliveryDao;
+import com.gierza_molases.molases_app.dao.CustomerPaymentDao;
 import com.gierza_molases.molases_app.dao.DeliveryDao;
 import com.gierza_molases.molases_app.dao.ProductDao;
 import com.gierza_molases.molases_app.dao.ProductDeliveryDao;
+import com.gierza_molases.molases_app.dto.delivery.BranchDeliveryChanges;
 import com.gierza_molases.molases_app.dto.delivery.CustomerBranchDelivery;
+import com.gierza_molases.molases_app.dto.delivery.CustomerDeliveryChanges;
+import com.gierza_molases.molases_app.dto.delivery.DeliveryChanges;
+import com.gierza_molases.molases_app.dto.delivery.DeliveryStatusChanges;
 import com.gierza_molases.molases_app.dto.delivery.NewDelivery;
+import com.gierza_molases.molases_app.dto.delivery.ProductDeliveryChanges;
 import com.gierza_molases.molases_app.model.Branch;
 import com.gierza_molases.molases_app.model.BranchDelivery;
 import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.CustomerDelivery;
+import com.gierza_molases.molases_app.model.CustomerPayments;
 import com.gierza_molases.molases_app.model.Delivery;
 import com.gierza_molases.molases_app.model.Product;
 import com.gierza_molases.molases_app.model.ProductDelivery;
@@ -33,6 +41,7 @@ public class DeliveryService {
 	private final CustomerDeliveryDao customerDeliveryDao;
 	private final BranchDeliveryDao branchDeliveryDao;
 	private final ProductDeliveryDao productDeliveryDao;
+	private final CustomerPaymentDao customerPaymentdao;;
 
 	// transaction fetcher (Mapper) Dao
 	private final CustomerDao customerDao;
@@ -41,11 +50,12 @@ public class DeliveryService {
 
 	public DeliveryService(DeliveryDao deliveryDao, CustomerDeliveryDao customerDeliverDao,
 			BranchDeliveryDao branchDeliveryDao, ProductDeliveryDao productDeliveryDao, CustomerDao customerDao,
-			BranchDao branchDao, ProductDao productDao) {
+			BranchDao branchDao, ProductDao productDao, CustomerPaymentDao customerPaymentdao) {
 		this.deliveryDao = deliveryDao;
 		this.customerDeliveryDao = customerDeliverDao;
 		this.branchDeliveryDao = branchDeliveryDao;
 		this.productDeliveryDao = productDeliveryDao;
+		this.customerPaymentdao = customerPaymentdao;
 
 		this.customerDao = customerDao;
 		this.branchDao = branchDao;
@@ -56,7 +66,6 @@ public class DeliveryService {
 		TransactionHelper.executeInTransaction(conn -> {
 			int deliveryId = deliveryDao.insert(conn, newDelivery.getDelivery());
 
-			System.out.println("Inserting new Dleivery");
 			insertCustomerDeliveries(deliveryId, newDelivery.getCustomerBranchDeliveries(), conn);
 
 		});
@@ -65,15 +74,13 @@ public class DeliveryService {
 	private void insertCustomerDeliveries(int deliveryId, List<CustomerBranchDelivery> customerBranchDeliveries,
 			Connection conn) throws Exception {
 
-		System.out.println("Inserting new insertCustomerDeliveries");
 		for (CustomerBranchDelivery cbd : customerBranchDeliveries) {
 
 			CustomerDelivery cd = cbd.getCustomerDelivery();
 			cd.setDeliveryId(deliveryId);
 
-			System.out.println("Inserting customerDelivery");
 			int customerDeliveryId = customerDeliveryDao.insert(conn, cd);
-			System.out.println("customerDelivery done");
+
 			insertAllBranchAndProducts(customerDeliveryId, cbd.getBranches(), conn);
 		}
 	}
@@ -85,12 +92,10 @@ public class DeliveryService {
 			BranchDelivery bd = entry.getKey();
 			List<ProductDelivery> pd = entry.getValue();
 
-			System.out.println("Inserting branchDeliveryDao");
 			int branchDeliveryId = branchDeliveryDao.insert(conn, customerDeliveryId, bd);
-			System.out.println("branchDeliveryDao done");
-			System.out.println("Inserting productDeliveryDao");
+
 			productDeliveryDao.insertAll(branchDeliveryId, pd, conn);
-			System.out.println("productDeliveryDao done");
+
 		}
 	}
 
@@ -110,9 +115,11 @@ public class DeliveryService {
 
 	private void assembleDeliveryViewResponse(DeliveryViewResponse response, int deliveryId, Connection conn)
 			throws Exception {
+
 		Delivery delivery = deliveryDao.findById(conn, deliveryId);
 
 		List<CustomerBranchDelivery> customerDeliveries = fetchCustomerDeliveries(deliveryId, conn);
+
 		Map<Customer, Map<Branch, List<ProductWithQuantity>>> mappedCustomerDeliveries = fetchMappedCustomerDeliveries(
 				customerDeliveries, conn);
 
@@ -136,6 +143,7 @@ public class DeliveryService {
 
 			Map<BranchDelivery, List<ProductDelivery>> branchesAndProductsOrders = fetchBranchesAndProductsOrders(
 					deliveryId, conn);
+
 			cbd.setBranches(branchesAndProductsOrders);
 
 			customerBranchDeliveries.add(cbd);
@@ -224,7 +232,112 @@ public class DeliveryService {
 		return productWithQuantityList;
 	}
 
-	public void markasDelivered(int deliveryId) {
+	public void markAsDelivered(Delivery delivery, DeliveryChanges deliveryChanges) {
+		TransactionHelper.executeInTransaction(conn -> {
+
+			// Mark delivered and apply changes
+			proccessMarkAsDeliveredAndApplyChanges(delivery, conn);
+
+			// Save customer delivery changes, and status
+			CustomerDeliveryChanges customerDeliveryChanges = deliveryChanges.getCustomerDeliveryChanges();
+			if (customerDeliveryChanges != null) {
+				proccessCustomerDeliveriesChanges(delivery.getId(), customerDeliveryChanges, conn);
+			}
+
+			// Save branches updates
+			BranchDeliveryChanges branchDeliveryChanges = deliveryChanges.getBranchDeliveryChanges();
+			if (branchDeliveryChanges != null) {
+				proccessBranchDeliveryChanges(delivery.getId(), branchDeliveryChanges, conn);
+			}
+
+			// Delivery statuses changes
+			DeliveryStatusChanges deliveryStatusChanges = deliveryChanges.getDeliveryStatusChanges();
+			proccessDeliveryStatusesChanges(deliveryStatusChanges, conn);
+
+			// Product Delivery changes
+			System.out.println("prodiccessing products changhes");
+			ProductDeliveryChanges productDeliveryChanges = deliveryChanges.getProductDeliveryChanges();
+			if (productDeliveryChanges != null) {
+				System.out.println("proccising rightnow products changhes");
+				proccessProductDeliveryChanges(delivery.getId(), productDeliveryChanges, conn);
+			}
+
+			System.out.println("done, or ski------------------------->>>>>>>>>>>>>>>>>>");
+
+			// insert customer payments
+			List<CustomerPayments> customerPayments = deliveryChanges.getCustomerPaymentTypes();
+			customerPaymentdao.insertAll(customerPayments, conn);
+		});
+	}
+
+	private void proccessMarkAsDeliveredAndApplyChanges(Delivery delivery, Connection conn) throws SQLException {
+		deliveryDao.markDeliveryAsDelivered(delivery, conn);
+		// apply changes (expenses, profit, etc)
+		deliveryDao.update(delivery, conn);
+	}
+
+	private void proccessCustomerDeliveriesChanges(int deliveryId, CustomerDeliveryChanges customerDeliveryChanges,
+			Connection conn) throws Exception {
+		List<CustomerBranchDelivery> addedDeliveries = customerDeliveryChanges.getAddedDelivery();
+		Map<Integer, String> customerDeliveryStatuses = customerDeliveryChanges.getCancelledCustomerDeliveries();
+
+		// check for new deliveries added
+		if (addedDeliveries.size() > 0) {
+			insertCustomerDeliveries(deliveryId, addedDeliveries, conn);
+		}
+
+		// process statuses
+		customerDeliveryDao.setStatusesBatch(customerDeliveryStatuses, conn);
+
+	}
+
+	private void proccessBranchDeliveryChanges(int deliveryId, BranchDeliveryChanges branchDeliveryChanges,
+			Connection conn) throws Exception {
+
+		Map<BranchDelivery, List<ProductDelivery>> newBranchesDelivery = branchDeliveryChanges.getNewBranchesDelivery();
+		List<Integer> removedBranchDeliveryIds = branchDeliveryChanges.getRemovedBranchDelivery();
+
+		// check for new branch delivery
+		if (newBranchesDelivery.size() > 0) {
+			insertAllBranchAndProducts(deliveryId, newBranchesDelivery, conn);
+		}
+
+		// check for the removed branch delivery
+		if (removedBranchDeliveryIds.size() > 0) {
+			branchDeliveryDao.dropBatch(removedBranchDeliveryIds, conn);
+		}
+
+	}
+
+	private void proccessDeliveryStatusesChanges(DeliveryStatusChanges deliveryStatusChanges, Connection conn)
+			throws SQLException {
+		Map<Integer, String> customerDeliveryStatuses = deliveryStatusChanges.getCustomerDeliveryStatuses();
+		customerDeliveryDao.setStatusesBatch(customerDeliveryStatuses, conn);
+
+		Map<Integer, String> branchDeliveryStatuses = deliveryStatusChanges.getBranchDeliveryStatuses();
+		branchDeliveryDao.setBranchDeliverStatusBatch(branchDeliveryStatuses, conn);
+
+	}
+
+	private void proccessProductDeliveryChanges(int deliveryId, ProductDeliveryChanges productDeliveryChanges,
+			Connection conn) throws Exception {
+		// new products deliveries
+		List<ProductDelivery> addedProductDeliveries = productDeliveryChanges.getAddedProductDelivery();
+		if (addedProductDeliveries != null && addedProductDeliveries.size() > 0) {
+			productDeliveryDao.insertAll(deliveryId, addedProductDeliveries, conn);
+		}
+
+		// updated quantities
+		Map<Integer, Integer> updatedProductDeliveryQuantity = productDeliveryChanges
+				.getUpdatedProductDeliveryQuantity();
+		if (updatedProductDeliveryQuantity != null && updatedProductDeliveryQuantity.size() > 0) {
+			productDeliveryDao.updateQuantitiesBatch(updatedProductDeliveryQuantity, conn);
+		}
+
+		List<Integer> removedProductsIds = productDeliveryChanges.getRemovedProductDeliveryIds();
+		if (removedProductsIds != null && removedProductsIds.size() > 0) {
+			productDeliveryDao.dropBatch(removedProductsIds, conn);
+		}
 
 	}
 

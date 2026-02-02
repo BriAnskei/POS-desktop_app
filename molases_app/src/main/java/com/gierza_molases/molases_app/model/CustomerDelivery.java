@@ -5,6 +5,8 @@ public class CustomerDelivery {
 	private int customerId;
 	private int deliveryId;
 
+	private String status;
+
 	// INPUT
 	public CustomerDelivery(int customerId, int deliveryId) {
 		this.customerId = customerId;
@@ -12,14 +14,19 @@ public class CustomerDelivery {
 	}
 
 	// FETCH
-	public CustomerDelivery(Integer id, int customerId, int deliveryId) {
+	public CustomerDelivery(Integer id, int customerId, int deliveryId, String status) {
 		this.id = id;
 		this.customerId = customerId;
 		this.deliveryId = deliveryId;
+		this.status = status;
 	}
 
 	public void setDeliveryId(int deliveryId) {
 		this.deliveryId = deliveryId;
+	}
+
+	public void setStatus(String status) {
+		this.status = status;
 	}
 
 	public Integer getId() {
@@ -32,5 +39,9 @@ public class CustomerDelivery {
 
 	public int getDeliveryId() {
 		return deliveryId;
+	}
+
+	public String getStatus() {
+		return status;
 	}
 }

@@ -21,6 +21,8 @@ public class Database {
 			conn = DriverManager.getConnection(DB_URL);
 
 			try (Statement stmt = conn.createStatement()) {
+				  stmt.execute("PRAGMA foreign_keys = ON;");
+				
 				stmt.execute("PRAGMA journal_mode = WAL;");
 				stmt.execute("PRAGMA synchronous = NORMAL;");
 				stmt.execute("PRAGMA busy_timeout = 5000;");

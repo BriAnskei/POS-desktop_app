@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 import com.gierza_molases.molases_app.model.CustomerDelivery;
 
@@ -14,6 +15,7 @@ public class CustomerDeliveryDao {
 
 	private Connection conn;
 
+	// CREATE
 	private final String INSERT_SQL = """
 			  INSERT INTO customer_delivery (customer_id, delivery_id)
 			     VALUES (?, ?)
@@ -26,6 +28,18 @@ public class CustomerDeliveryDao {
 
 	private final String SELECT_BY_ID_SQL = """
 			 	SELECT * FROM customer_delivery WHERE id = ?
+			""";
+
+	// UPDATE
+	private static final String SET_STATUS_SQL = """
+			    UPDATE customer_delivery
+			    SET status = ?
+			    WHERE id = ?
+			""";
+
+	// DELETE
+	private final String DELETE_SQL = """
+			 	DELETE FROM customer_delivery WHERE id = ?
 			""";
 
 	public CustomerDeliveryDao(Connection conn) {
@@ -92,8 +106,40 @@ public class CustomerDeliveryDao {
 		}
 	}
 
+	public void setStatusesBatch(Map<Integer, String> customerDeliveryStatuses, Connection conn) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(SET_STATUS_SQL)) {
+			for (Map.Entry<Integer, String> entry : customerDeliveryStatuses.entrySet()) {
+				int id = entry.getKey();
+				String status = entry.getValue();
+
+				ps.setString(1, status);
+				ps.setInt(2, id);
+
+				ps.addBatch();
+			}
+			ps.executeBatch();
+		}
+	}
+
+	public void dropBatch(List<Integer> customerDeliveryIds, Connection conn) throws SQLException {
+
+		try (PreparedStatement ps = conn.prepareStatement(DELETE_SQL)) {
+
+			for (int customerDeliverId : customerDeliveryIds) {
+				ps.setInt(1, customerDeliverId);
+
+				ps.addBatch();
+			}
+
+			ps.executeBatch();
+
+		}
+	}
+
+	// Mapper function
 	private CustomerDelivery mapToCustomerDelivery(ResultSet rs) throws SQLException {
-		return new CustomerDelivery(rs.getInt("id"), rs.getInt("customer_id"), rs.getInt("delivery_id"));
+		return new CustomerDelivery(rs.getInt("id"), rs.getInt("customer_id"), rs.getInt("delivery_id"),
+				rs.getString("status"));
 	}
 
 }
