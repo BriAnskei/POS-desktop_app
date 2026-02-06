@@ -29,7 +29,6 @@ public class Delivery {
 
 	private LocalDateTime createdAt;
 
-	// Derived / aggregated
 	private int totalCustomers;
 	private int totalBranches;
 
@@ -114,10 +113,6 @@ public class Delivery {
 
 		if (grossProfit != null && grossProfit < 0) {
 			throw new IllegalArgumentException("Gross profit cannot be negative");
-		}
-
-		if (netProfit != null && netProfit < 0) {
-			throw new IllegalArgumentException("Net profit cannot be negative");
 		}
 
 		if (expenses != null) {

@@ -42,6 +42,7 @@ public class DeliveryDetailsPage {
 	private static JLayeredPane layeredPane;
 	private static JPanel mainPanel;
 	private static JPanel contentPanel;
+	private static JPanel actionButtonsPanel;
 	private static JPanel loadingOverlay;
 	private static LoadingSpinner spinner;
 	private static Runnable currentOnBack;
@@ -71,8 +72,12 @@ public class DeliveryDetailsPage {
 		contentPanel.setBackground(CONTENT_BG);
 		mainPanel.add(contentPanel, BorderLayout.CENTER);
 
-		// Action buttons at bottom (sticky)
-		mainPanel.add(createActionButtonsPanel(), BorderLayout.SOUTH);
+		// Action buttons at bottom (sticky) - initially empty, will be populated after
+		// data loads
+		actionButtonsPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+		actionButtonsPanel.setBackground(CONTENT_BG);
+		actionButtonsPanel.setBorder(new EmptyBorder(15, 0, 0, 0));
+		mainPanel.add(actionButtonsPanel, BorderLayout.SOUTH);
 
 		// Wrap mainPanel in layeredPane
 		JPanel wrapper = new JPanel(new BorderLayout());
@@ -244,6 +249,44 @@ public class DeliveryDetailsPage {
 		contentPanel.repaint();
 	}
 
+	private static void refreshActionButtons() {
+		if (actionButtonsPanel == null) {
+			return;
+		}
+
+		// Clear existing buttons
+		actionButtonsPanel.removeAll();
+
+		// Add print button
+		JButton printBtn = UIComponentFactory.createStyledButton("🖨️ Print", SIDEBAR_ACTIVE);
+		printBtn.setPreferredSize(new Dimension(120, 40));
+		printBtn.addActionListener(e -> printDelivery());
+		actionButtonsPanel.add(printBtn);
+
+		// Add action buttons based on delivery status
+		Delivery delivery = AppContext.deliveryDetialsController.getState().getDelivery();
+		String deliveryStatus = delivery != null ? delivery.getStatus() : "scheduled";
+
+		// Only show action buttons if delivery status is 'scheduled' (not 'delivered')
+		// Note: Deliveries only have 'scheduled' and 'delivered' status, no 'cancelled'
+		// status
+		if ("scheduled".equalsIgnoreCase(deliveryStatus)) {
+			JButton cancelBtn = UIComponentFactory.createStyledButton("❌ Mark as Cancelled", new Color(180, 50, 50));
+			cancelBtn.setPreferredSize(new Dimension(180, 40));
+			cancelBtn.addActionListener(e -> markAsCancelled());
+			actionButtonsPanel.add(cancelBtn);
+
+			JButton deliveredBtn = UIComponentFactory.createStyledButton("✓ Mark as Delivered", ACCENT_GOLD);
+			deliveredBtn.setPreferredSize(new Dimension(180, 40));
+			deliveredBtn.addActionListener(e -> markAsDelivered());
+			actionButtonsPanel.add(deliveredBtn);
+		}
+
+		// Refresh the panel
+		actionButtonsPanel.revalidate();
+		actionButtonsPanel.repaint();
+	}
+
 	private static void initializeLoadingOverlay() {
 		loadingOverlay = new JPanel(new GridBagLayout());
 		loadingOverlay.setBackground(new Color(250, 247, 242, 220)); // Light overlay matching CONTENT_BG
@@ -299,6 +342,9 @@ public class DeliveryDetailsPage {
 				// Load initial tab content
 				loadTabContent();
 
+				// Refresh action buttons based on loaded delivery status
+				refreshActionButtons();
+
 				hideLoading();
 			});
 		}, (errorMsg) -> {
@@ -309,34 +355,6 @@ public class DeliveryDetailsPage {
 				onBack.run();
 			});
 		});
-	}
-
-	private static JPanel createActionButtonsPanel() {
-		JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
-		buttonPanel.setBackground(CONTENT_BG);
-		buttonPanel.setBorder(new EmptyBorder(15, 0, 0, 0));
-
-		JButton printBtn = UIComponentFactory.createStyledButton("🖨️ Print", SIDEBAR_ACTIVE);
-		printBtn.setPreferredSize(new Dimension(120, 40));
-		printBtn.addActionListener(e -> printDelivery());
-		buttonPanel.add(printBtn);
-
-		Delivery delivery = AppContext.deliveryDetialsController.getState().getDelivery();
-		String deliveryStatus = delivery != null ? delivery.getStatus() : "scheduled";
-
-		if (!deliveryStatus.equalsIgnoreCase("Delivered") && !deliveryStatus.equalsIgnoreCase("Cancelled")) {
-			JButton cancelBtn = UIComponentFactory.createStyledButton("❌ Mark as Cancelled", new Color(180, 50, 50));
-			cancelBtn.setPreferredSize(new Dimension(180, 40));
-			cancelBtn.addActionListener(e -> markAsCancelled());
-			buttonPanel.add(cancelBtn);
-
-			JButton deliveredBtn = UIComponentFactory.createStyledButton("✓ Mark as Delivered", ACCENT_GOLD);
-			deliveredBtn.setPreferredSize(new Dimension(180, 40));
-			deliveredBtn.addActionListener(e -> markAsDelivered());
-			buttonPanel.add(deliveredBtn);
-		}
-
-		return buttonPanel;
 	}
 
 	private static void printDelivery() {

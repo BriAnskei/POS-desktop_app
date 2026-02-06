@@ -9,17 +9,15 @@ import com.gierza_molases.molases_app.model.ProductDelivery;
 public class BranchDeliveryChanges {
 
 	private Map<BranchDelivery, List<ProductDelivery>> newBranchesDelivery;
-	private List<Integer> removedBranchDeliveryIds;
 
 	/** No-args constructor */
 	public BranchDeliveryChanges() {
 	}
 
 	/** Full constructor */
-	public BranchDeliveryChanges(Map<BranchDelivery, List<ProductDelivery>> newBranchesDelivery,
-			List<Integer> removedBranchDeliveryIds) {
+	public BranchDeliveryChanges(Map<BranchDelivery, List<ProductDelivery>> newBranchesDelivery) {
 		this.newBranchesDelivery = newBranchesDelivery;
-		this.removedBranchDeliveryIds = removedBranchDeliveryIds;
+
 	}
 
 	// ===== Getters & Setters =====
@@ -32,11 +30,4 @@ public class BranchDeliveryChanges {
 		this.newBranchesDelivery = newBranchesDelivery;
 	}
 
-	public List<Integer> getRemovedBranchDelivery() {
-		return removedBranchDeliveryIds;
-	}
-
-	public void setRemovedBranchDelivery(List<Integer> removedBranchDeliveryIds) {
-		this.removedBranchDeliveryIds = removedBranchDeliveryIds;
-	}
 }

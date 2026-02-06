@@ -1,41 +1,43 @@
 package com.gierza_molases.molases_app.model;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 
 public class CustomerPayments {
 	private Integer id;
 	private int customerId;
 	private int customerDeliveryId;
-
 	private String paymentType;
-
+	private String status;
 	private double total;
 	private double totalPayment;
-	private double balance;
-
-	private String note;
-
+	private Date promiseToPay; // loan payment
 	private LocalDateTime createdAt;
 
-	public CustomerPayments(int customerId, int customerDeliveryId, String paymentType, double total,
-			double totalPayment, double balance, String note, LocalDateTime createdAt) {
+	// Constructor without ID (for creating new payments)
+	public CustomerPayments(int customerId, int customerDeliveryId, String paymentType, String status, double total,
+			double totalPayment, Date promiseToPay, LocalDateTime createdAt) {
 		this.customerId = customerId;
 		this.customerDeliveryId = customerDeliveryId;
 		this.paymentType = paymentType;
+		this.status = status;
 		this.total = total;
 		this.totalPayment = totalPayment;
-		this.balance = balance;
+		this.promiseToPay = promiseToPay;
 		this.createdAt = createdAt;
 	}
 
-	public CustomerPayments(Integer id, int customerId, int customerDeliveryId, String paymentType, double totalPayment,
-			double balance, String note, LocalDateTime createdAt) {
-		this.customerDeliveryId = customerDeliveryId;
+	// Constructor with ID (for loading from database)
+	public CustomerPayments(Integer id, int customerId, int customerDeliveryId, String paymentType, String status,
+			double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt) {
+		this.id = id;
 		this.customerId = customerId;
 		this.customerDeliveryId = customerDeliveryId;
 		this.paymentType = paymentType;
+		this.status = status;
+		this.total = total;
 		this.totalPayment = totalPayment;
-		this.balance = balance;
+		this.promiseToPay = promiseToPay;
 		this.createdAt = createdAt;
 	}
 
@@ -55,6 +57,10 @@ public class CustomerPayments {
 		return paymentType;
 	}
 
+	public String getStatus() {
+		return status;
+	}
+
 	public double getTotal() {
 		return total;
 	}
@@ -63,16 +69,20 @@ public class CustomerPayments {
 		return totalPayment;
 	}
 
-	public double getBalance() {
-		return balance;
-	}
-
-	public String getNote() {
-		return note;
+	public Date getPromiseToPay() {
+		return promiseToPay;
 	}
 
 	public LocalDateTime getCreatedAt() {
 		return createdAt;
+	}
+
+	@Override
+	public String toString() {
+		return "CustomerPayments{" + "id=" + id + ", customerId=" + customerId + ", customerDeliveryId="
+				+ customerDeliveryId + ", paymentType='" + paymentType + '\'' + ", status='" + status + '\''
+				+ ", total=" + total + ", totalPayment=" + totalPayment + ", promiseToPay=" + promiseToPay
+				+ ", createdAt=" + createdAt + '}';
 	}
 
 }

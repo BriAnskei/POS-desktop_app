@@ -83,8 +83,7 @@ public class AppContext {
 		deliveryController = new DeliveryController(new DeliveryState(), deliveryService);
 		newDeliveryController = new NewDeliveryController(new NewDeliveryState(), customersController,
 				branchesController, productsController, deliveryService);
-		deliveryDetialsController = new DeliveryDetailsController(new DeliveryDetailsState(), deliveryService,
-				customerDeliveryService, branchDeliveryService);
+		deliveryDetialsController = new DeliveryDetailsController(new DeliveryDetailsState(), deliveryService);
 
 	}
 

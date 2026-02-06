@@ -198,6 +198,9 @@ public class CustomerBranchDetailsDialog extends JDialog {
 				continue;
 			}
 
+			System.out.println("Branch: " + branch.toString() + " Status: "
+					+ AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch));
+
 			branchesContainer.add(createBranchPanel(branch, products));
 			branchesContainer.add(Box.createVerticalStrut(12));
 		}
@@ -232,55 +235,98 @@ public class CustomerBranchDetailsDialog extends JDialog {
 			addProductBtn.setPreferredSize(new Dimension(140, 35));
 			addProductBtn.addActionListener(e -> handleAddProduct(branch));
 			rightPanel.add(addProductBtn);
-		}
 
-		// Status selector
-		JLabel statusLabel = new JLabel("Status:");
-		statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
-		statusLabel.setForeground(TEXT_DARK);
-		rightPanel.add(statusLabel);
+			// Status selector (only show if delivery is not "Delivered")
+			JLabel statusLabel = new JLabel("Status:");
+			statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
+			statusLabel.setForeground(TEXT_DARK);
+			rightPanel.add(statusLabel);
 
-		String[] statuses = { "Delivered", "Cancelled" };
-		JComboBox<String> statusCombo = new JComboBox<>(statuses);
+			String[] statuses = { "Delivered", "Cancelled" };
+			JComboBox<String> statusCombo = new JComboBox<>(statuses);
 
-		// Load current status from state
-		String currentStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
-		statusCombo.setSelectedItem(currentStatus);
+			// Load current status from state
+			String currentStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
+			statusCombo.setSelectedItem(currentStatus);
 
-		statusCombo.setPreferredSize(new Dimension(140, 35));
-		statusCombo.setFont(new Font("Arial", Font.PLAIN, 14));
-		statusCombo.addActionListener(e -> {
-			String selectedStatus = (String) statusCombo.getSelectedItem();
+			statusCombo.setPreferredSize(new Dimension(140, 35));
+			statusCombo.setFont(new Font("Arial", Font.PLAIN, 14));
+			statusCombo.addActionListener(e -> {
+				String selectedStatus = (String) statusCombo.getSelectedItem();
 
-			// Update branch status via controller (this will recalculate financials)
-			AppContext.deliveryDetialsController.setBranchDeliveryStatus(branch, selectedStatus, () -> {
-				// Success: Update UI
-				SwingUtilities.invokeLater(() -> {
-					// Update the customer deliveries tab
-					CustomerDeliveriesTab.refreshFinancials();
+				// NEW: Check if trying to cancel the last "Delivered" branch
+				if ("Cancelled".equalsIgnoreCase(selectedStatus)) {
+					int deliveredBranchCount = countDeliveredBranches(customer);
 
-					// Update the overview tab financial summary
-					DeliveryOverviewTab.updateFinancialSummary();
+					if (deliveredBranchCount == 1) {
+						// This is the last delivered branch - prevent cancellation
+						ToastNotification.showError(SwingUtilities.getWindowAncestor(statusCombo),
+								"Cannot cancel the only branch. To cancel this delivery, If you wish to cancelled all the branch of this customer delivery, "
+										+ "you can directly cancell the customer delivery on the customer deluvery tab.");
 
-					// Trigger parent callback
-					if (onUpdate != null) {
-						onUpdate.run();
+						// Revert to current status
+						statusCombo.setSelectedItem(currentStatus);
+						return;
 					}
+				}
 
-					ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(statusCombo),
-							"Branch status updated to: " + selectedStatus);
-				});
-			}, (error) -> {
-				// Error: Show error message and revert selection
-				SwingUtilities.invokeLater(() -> {
-					ToastNotification.showError(SwingUtilities.getWindowAncestor(statusCombo),
-							"Failed to update status: " + error);
-					// Revert to previous status
-					statusCombo.setSelectedItem(currentStatus);
+				// Update branch status via controller (this will recalculate financials)
+				AppContext.deliveryDetialsController.setBranchDeliveryStatus(branch, selectedStatus, () -> {
+					// Success: Update UI
+					SwingUtilities.invokeLater(() -> {
+						// Update the customer deliveries tab
+						CustomerDeliveriesTab.refreshFinancials();
+
+						// Update the overview tab financial summary
+						DeliveryOverviewTab.updateFinancialSummary();
+
+						// Trigger parent callback
+						if (onUpdate != null) {
+							onUpdate.run();
+						}
+
+						ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(statusCombo),
+								"Branch status updated to: " + selectedStatus);
+					});
+				}, (error) -> {
+					// Error: Show error message and revert selection
+					SwingUtilities.invokeLater(() -> {
+						ToastNotification.showError(SwingUtilities.getWindowAncestor(statusCombo),
+								"Failed to update status: " + error);
+						// Revert to previous status
+						statusCombo.setSelectedItem(currentStatus);
+					});
 				});
 			});
-		});
-		rightPanel.add(statusCombo);
+			rightPanel.add(statusCombo);
+		} else {
+			// When delivery is "Delivered", show read-only status
+			JLabel statusLabel = new JLabel("Status:");
+			statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
+			statusLabel.setForeground(TEXT_DARK);
+			rightPanel.add(statusLabel);
+
+			// Get current branch status
+			String branchStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
+
+			// Create status value label with appropriate color
+			JLabel statusValueLabel = new JLabel(branchStatus);
+			statusValueLabel.setFont(new Font("Arial", Font.BOLD, 14));
+
+			// Set color based on status
+			if ("Delivered".equalsIgnoreCase(branchStatus)) {
+				statusValueLabel.setForeground(PROFIT_GREEN);
+			} else if ("Cancelled".equalsIgnoreCase(branchStatus)) {
+				statusValueLabel.setForeground(new Color(180, 50, 50));
+			} else {
+				statusValueLabel.setForeground(TEXT_DARK);
+			}
+
+			// Add padding to match the dropdown size visually
+			statusValueLabel.setBorder(new EmptyBorder(8, 10, 8, 10));
+
+			rightPanel.add(statusValueLabel);
+		}
 
 		headerPanel.add(rightPanel, BorderLayout.EAST);
 		panel.add(headerPanel, BorderLayout.NORTH);
@@ -324,6 +370,31 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
 		return panel;
+	}
+
+	/**
+	 * Count how many branches have "Delivered" status for the given customer
+	 * 
+	 * @param customer - The customer to check
+	 * @return Number of branches with "Delivered" status
+	 */
+	private int countDeliveredBranches(Customer customer) {
+		Map<Branch, List<ProductWithQuantity>> customerBranches = AppContext.deliveryDetialsController.getState()
+				.getMappedCustomerDeliveries().get(customer);
+
+		if (customerBranches == null) {
+			return 0;
+		}
+
+		int deliveredCount = 0;
+		for (Branch branch : customerBranches.keySet()) {
+			String branchStatus = AppContext.deliveryDetialsController.getBranchDeliveryStatus(branch);
+			if ("Delivered".equalsIgnoreCase(branchStatus)) {
+				deliveredCount++;
+			}
+		}
+
+		return deliveredCount;
 	}
 
 	private JPanel createProductRow(ProductWithQuantity productWithQty, Branch branch) {

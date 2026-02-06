@@ -187,6 +187,14 @@ public class Customer {
 	}
 
 	@Override
+	public String toString() {
+		return "Customer{" + "id=" + id + ", type='" + type + '\'' + ", firstName='" + firstName + '\'' + ", midName='"
+				+ midName + '\'' + ", lastName='" + lastName + '\'' + ", companyName='" + companyName + '\''
+				+ ", contactNumber='" + contactNumber + '\'' + ", address='" + address + '\'' + ", createdAt="
+				+ createdAt + '}';
+	}
+
+	@Override
 	public boolean equals(Object o) {
 		if (this == o)
 			return true;

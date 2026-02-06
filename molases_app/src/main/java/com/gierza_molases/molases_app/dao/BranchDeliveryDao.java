@@ -79,7 +79,7 @@ public class BranchDeliveryDao {
 	}
 
 	public List<BranchDelivery> findAllByCustomerDelivery(Connection conn, int customerDeliveryId) {
-		List<BranchDelivery> branchDelivery = new ArrayList<>();
+		List<BranchDelivery> branchDeliveries = new ArrayList<>();
 
 		try (PreparedStatement ps = conn.prepareStatement(SELECT_BY_CUSTOMER_DELIVERY_SQL)) {
 
@@ -87,11 +87,13 @@ public class BranchDeliveryDao {
 
 			try (ResultSet rs = ps.executeQuery()) {
 				while (rs.next()) {
-					branchDelivery.add(mapToCustomerDelivery(rs));
+
+					BranchDelivery branchDelivery = mapToCustomerDelivery(rs);
+					branchDeliveries.add(branchDelivery);
 				}
 			}
 
-			return branchDelivery;
+			return branchDeliveries;
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to fetch with this customer delivery id " + customerDeliveryId, e);
 		}

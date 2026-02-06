@@ -40,4 +40,10 @@ public class BranchDelivery {
 		return status;
 	}
 
+	@Override
+	public String toString() {
+		return "BranchDelivery{" + "id=" + id + ", customerDeliveryId=" + customerDeliveryId + ", branchId=" + branchId
+				+ ", status='" + status + '\'' + '}';
+	}
+
 }

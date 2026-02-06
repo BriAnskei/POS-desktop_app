@@ -286,13 +286,13 @@ CREATE TABLE IF NOT EXISTS customer_payments (
     customer_delivery_id INTEGER,
 
     payment_type TEXT NOT NULL,
+    
+    status TEXT,   -- done, pending
 
     total REAL NOT NULL,
-    total_payment REAL NOT NULL,
-    balance REAL NOT NULL,
-
-    note TEXT,
-
+    total_payment REAL NOT NULL,  -- over all payment
+    
+    promise_to_pay DATE,  -- only be filled on load payment type
   	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
 

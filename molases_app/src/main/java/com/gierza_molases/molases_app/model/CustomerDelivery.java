@@ -44,4 +44,11 @@ public class CustomerDelivery {
 	public String getStatus() {
 		return status;
 	}
+
+	@Override
+	public String toString() {
+		return "CustomerDelivery{" + "id=" + id + ", customerId=" + customerId + ", deliveryId=" + deliveryId
+				+ ", status='" + status + '\'' + '}';
+	}
+
 }

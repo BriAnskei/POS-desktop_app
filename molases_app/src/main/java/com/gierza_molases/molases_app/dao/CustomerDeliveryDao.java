@@ -17,8 +17,8 @@ public class CustomerDeliveryDao {
 
 	// CREATE
 	private final String INSERT_SQL = """
-			  INSERT INTO customer_delivery (customer_id, delivery_id)
-			     VALUES (?, ?)
+			  INSERT INTO customer_delivery (customer_id, delivery_id, status)
+			     VALUES (?, ?, 'schduled')
 			""";
 
 	// READ

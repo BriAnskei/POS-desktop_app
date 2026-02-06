@@ -215,29 +215,6 @@ public class DeliveryDetailsState {
 			this.originalExpenses = new HashMap<>(delivery.getExpenses());
 		}
 
-		// Initialize customer statuses for all customers as "Delivered"
-		// Initialize branch statuses for all branches as "Delivered"
-		if (mappedCustomerDeliveries != null) {
-			for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : mappedCustomerDeliveries
-					.entrySet()) {
-				Customer customer = entry.getKey();
-				Map<Branch, List<ProductWithQuantity>> branches = entry.getValue();
-
-				// Initialize customer status
-				if (customer != null) {
-					customerDeliveryStatuses.putIfAbsent(customer, "Delivered");
-				}
-
-				// Initialize branch statuses
-				if (branches != null) {
-					for (Branch branch : branches.keySet()) {
-						if (branch != null) {
-							branchDeliveryStatuses.putIfAbsent(branch, "Delivered");
-						}
-					}
-				}
-			}
-		}
 	}
 
 	/**
@@ -256,6 +233,13 @@ public class DeliveryDetailsState {
 		if (customer != null && status != null) {
 			this.customerDeliveryStatuses.put(customer, status);
 		}
+
+		if ("Cancelled".equals(status)) {
+			setPaymentType(customer, "N/A");
+		} else if ("Delivered".equals(status) && "N/A".equals(getPaymentType(customer))) {
+			setPaymentType(customer, "Not Set");
+		}
+
 	}
 
 	/**
@@ -576,13 +560,14 @@ public class DeliveryDetailsState {
 		// Get customer's branches
 		Map<Branch, List<ProductWithQuantity>> customerBranches = mappedCustomerDeliveries.get(customer);
 		if (customerBranches == null) {
-			return;
+			throw new IllegalStateException("Customer does not exist in the collection");
+
 		}
 
 		// Get branch's products
 		List<ProductWithQuantity> branchProducts = customerBranches.get(branch);
 		if (branchProducts == null) {
-			return;
+			throw new IllegalStateException("branch does not exist in the collection");
 		}
 
 		// Find the product and update its quantity
@@ -633,6 +618,7 @@ public class DeliveryDetailsState {
 	 * Add or update an expense in the delivery Also recalculates net profit
 	 */
 	public void addExpense(String name, Double amount) {
+
 		if (delivery != null && name != null && amount != null && amount > 0) {
 			Map<String, Double> expenses = new HashMap<>(delivery.getExpenses());
 			expenses.put(name, amount);

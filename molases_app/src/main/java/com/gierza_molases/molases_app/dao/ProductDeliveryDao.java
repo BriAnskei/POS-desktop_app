@@ -49,6 +49,7 @@ public class ProductDeliveryDao {
 		try (PreparedStatement ps = conn.prepareStatement(INSERT_SQL)) {
 
 			for (ProductDelivery pd : list) {
+
 				ps.setInt(1, branchDeliveryId);
 				ps.setInt(2, pd.getProductId());
 				ps.setInt(3, pd.getQuantity());

@@ -499,6 +499,8 @@ public class CustomerDeliveriesTab {
 
 				SetPaymentTypeDialog.show(SwingUtilities.getWindowAncestor(parent), customer, currentPaymentType,
 						totalSales, (paymentType, partialAmount, loanDate) -> {
+
+							System.out.println("Payment: " + paymentType + partialAmount + loanDate);
 							String displayText = paymentType;
 							if (paymentType.equals("Partial") && partialAmount != null) {
 								displayText = String.format("Partial (₱%.2f)", partialAmount);
@@ -515,15 +517,17 @@ public class CustomerDeliveriesTab {
 			actionDialog.add(setPaymentBtn, gbc);
 		}
 
-		// Add "Set Status" button (always available)
-		gbc.gridy++;
-		gbc.insets = new Insets(5, 20, 5, 20);
-		JButton setStatusBtn = createActionButton("📋 Set Status", SIDEBAR_ACTIVE);
-		setStatusBtn.addActionListener(e -> {
-			actionDialog.dispose();
-			showSetStatusDialog(parent, customer);
-		});
-		actionDialog.add(setStatusBtn, gbc);
+		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
+
+			gbc.gridy++;
+			gbc.insets = new Insets(5, 20, 5, 20);
+			JButton setStatusBtn = createActionButton("📋 Set Status", SIDEBAR_ACTIVE);
+			setStatusBtn.addActionListener(e -> {
+				actionDialog.dispose();
+				showSetStatusDialog(parent, customer);
+			});
+			actionDialog.add(setStatusBtn, gbc);
+		}
 
 		gbc.gridy++;
 		gbc.insets = new Insets(5, 20, 5, 20);

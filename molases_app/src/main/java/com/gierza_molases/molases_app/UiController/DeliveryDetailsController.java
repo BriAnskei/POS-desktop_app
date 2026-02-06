@@ -3,19 +3,22 @@ package com.gierza_molases.molases_app.UiController;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import javax.swing.SwingWorker;
 
 import com.gierza_molases.molases_app.context.DeliveryDetailsState;
+import com.gierza_molases.molases_app.dto.delivery.CustomerBranchDelivery;
 import com.gierza_molases.molases_app.dto.delivery.DeliveryChanges;
 import com.gierza_molases.molases_app.model.Branch;
+import com.gierza_molases.molases_app.model.BranchDelivery;
 import com.gierza_molases.molases_app.model.Customer;
+import com.gierza_molases.molases_app.model.CustomerDelivery;
+import com.gierza_molases.molases_app.model.CustomerPayments;
 import com.gierza_molases.molases_app.model.Delivery;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
 import com.gierza_molases.molases_app.model.response.DeliveryViewResponse;
-import com.gierza_molases.molases_app.service.BranchDeliveryService;
-import com.gierza_molases.molases_app.service.CustomerDeliveryService;
 import com.gierza_molases.molases_app.service.DeliveryService;
 
 public class DeliveryDetailsController {
@@ -24,15 +27,11 @@ public class DeliveryDetailsController {
 
 	// service
 	private final DeliveryService deliveryService;
-	private final CustomerDeliveryService customerDeliveryService;
-	private final BranchDeliveryService branchDeliveryService;
 
-	public DeliveryDetailsController(DeliveryDetailsState state, DeliveryService deliveryService,
-			CustomerDeliveryService customerDeliveryService, BranchDeliveryService branchDeliveryService) {
+	public DeliveryDetailsController(DeliveryDetailsState state, DeliveryService deliveryService) {
 		this.state = state;
 		this.deliveryService = deliveryService;
-		this.customerDeliveryService = customerDeliveryService;
-		this.branchDeliveryService = branchDeliveryService;
+
 	}
 
 	public DeliveryDetailsState getState() {
@@ -78,11 +77,14 @@ public class DeliveryDetailsController {
 							state.setMappedCustomerDeliveries(response.getMappedCustomerDeliveries());
 							state.setRawCustomerBranchDeliveries(response.getCustomerDeliveries()); // ADD THIS LINE
 
-							// Initialize payment types as "Not Set" for all customers
-							if (response.getMappedCustomerDeliveries() != null) {
-								for (Customer customer : response.getMappedCustomerDeliveries().keySet()) {
-									state.setPaymentType(customer, "Not Set");
-								}
+							// Initialize payment types as "Not Set" for all customers for delivery status
+							// of scheduled
+							if (response.getDeliveryDetials().getStatus().equals("scheduled")
+									&& response.getMappedCustomerDeliveries() != null) {
+								setDefaultCustomerDeliveryDetials(response);
+							} else if (response.getDeliveryDetials().getStatus().equals("delivered")) {
+								setCustomerDeliveryActionType(response);
+
 							}
 
 							if (onSuccess != null) {
@@ -105,6 +107,127 @@ public class DeliveryDetailsController {
 	}
 
 	/**
+	 * Process the customer delivery status, branch delivery status, for schduled
+	 * delivery default(delivered)
+	 */
+	private void setDefaultCustomerDeliveryDetials(DeliveryViewResponse response) {
+		setDefaultCustomerPayments(response);
+		setCustomerDeliveryStatuses(response, false);
+		setCustomerBranchDeliveryStatuses(response, false);
+	}
+
+	private void setDefaultCustomerPayments(DeliveryViewResponse response) {
+		for (Customer customer : response.getMappedCustomerDeliveries().keySet()) {
+			state.setPaymentType(customer, "Not Set");
+		}
+	}
+
+	/**
+	 * Process the customer delivery status, branch delivery status, and payment
+	 * types data from Dao response, this function will be called when the delivery
+	 * is 'Delivered'
+	 */
+	private void setCustomerDeliveryActionType(DeliveryViewResponse response) {
+		setCustomerDeliveryPaymentType(response);
+		setCustomerDeliveryStatuses(response, true);
+		setCustomerBranchDeliveryStatuses(response, true);
+	}
+
+	private void setCustomerDeliveryPaymentType(DeliveryViewResponse response) {
+		List<CustomerPayments> customerPayments = response.getAllCustomerPaymentTypes();
+		Set<Customer> mappedCustomerDelivery = response.getMappedCustomerDeliveries().keySet();
+
+		for (CustomerPayments cp : customerPayments) {
+			// get the mapped customer object from dao response dto
+			for (Customer customer : mappedCustomerDelivery) {
+				// customer has no payment record at all. this is for cancceled customer
+				// delivery
+				if (!isCustomerHavePayment(customer, customerPayments)) {
+					state.setPaymentType(customer, "N/A");
+				}
+				// match payment to customer
+				if (cp.getCustomerId() == customer.getId()) {
+					String paymentType = capitalizeFirst(cp.getPaymentType());
+					state.setPaymentType(customer, paymentType);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Check if the customer from the mapped response dto contains payment customer
+	 * delivery that don't have payment from response is a 'Cancelled' delivery from
+	 * the action
+	 */
+	private boolean isCustomerHavePayment(Customer customer, List<CustomerPayments> customerPayments) {
+		for (CustomerPayments cp : customerPayments) {
+			if (customer.getId() == cp.getCustomerId()) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	private void setCustomerDeliveryStatuses(DeliveryViewResponse response, boolean deliveryOnDelivered) {
+		List<CustomerBranchDelivery> customerBranchDeliveries = response.getCustomerDeliveries();
+		Set<Customer> mappedCustomerDelivery = response.getMappedCustomerDeliveries().keySet();
+
+		for (CustomerBranchDelivery cbd : customerBranchDeliveries) {
+			CustomerDelivery cd = cbd.getCustomerDelivery();
+
+			for (Customer customer : mappedCustomerDelivery) {
+
+				if (cd.getCustomerId() == customer.getId()) {
+					String status = deliveryOnDelivered ? capitalizeFirst(cd.getStatus()) : "Delivered"; // default
+																											// status
+					state.setCustomerDeliveryStatus(customer, status);
+				}
+			}
+		}
+	}
+
+	private void setCustomerBranchDeliveryStatuses(DeliveryViewResponse response, boolean deliveryOnDelivered) {
+		List<CustomerBranchDelivery> customerBranchDeliveries = response.getCustomerDeliveries();
+
+		Map<Customer, Map<Branch, List<ProductWithQuantity>>> mappedCustomerDelivery = response
+				.getMappedCustomerDeliveries();
+
+		for (CustomerBranchDelivery cbd : customerBranchDeliveries) {
+
+			CustomerDelivery customerDelivery = cbd.getCustomerDelivery();
+			Set<BranchDelivery> branchDeliveries = cbd.getBranches().keySet();
+
+			// Find the mapped Customer and from raw customerDeliver
+			for (Customer customer : mappedCustomerDelivery.keySet()) {
+
+				if (customerDelivery.getCustomerId() == customer.getId()) {
+
+					Set<Branch> mappedCustomerDeliveryBranch = mappedCustomerDelivery.get(customer).keySet();
+
+					// Now find the mapped branch of raw branch Delivery
+					for (BranchDelivery bd : branchDeliveries) {
+						for (Branch branch : mappedCustomerDeliveryBranch) {
+							if (bd.getBranchId() == branch.getId()) {
+								String status = deliveryOnDelivered ? capitalizeFirst(bd.getStatus()) : "Delivered"; // default
+																														// status
+
+								state.setBranchDeliveryStatus(branch, status);
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	public static String capitalizeFirst(String str) {
+		if (str == null || str.isEmpty()) {
+			return str;
+		}
+		return str.substring(0, 1).toUpperCase() + str.substring(1);
+	}
+
+	/**
 	 * Mark delivery as delivered and save all changes
 	 */
 	public void markDeliveryAsDelivered(Runnable onSuccess, Consumer<String> onError) {
@@ -114,6 +237,9 @@ public class DeliveryDetailsController {
 			@Override
 			protected Void doInBackground() {
 				try {
+
+					// check for customer deliver payments
+
 					// Build DeliveryChanges DTO from state
 					DeliveryChangesBuilder builder = new DeliveryChangesBuilder(state);
 					DeliveryChanges deliveryChanges = builder.build();

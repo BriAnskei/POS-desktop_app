@@ -1,7 +1,9 @@
 package com.gierza_molases.molases_app.UiController;
 
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -108,7 +110,6 @@ public class DeliveryChangesBuilder {
 	 */
 	private CustomerDeliveryChanges buildCustomerDeliveryChanges() {
 		List<CustomerBranchDelivery> addedDeliveries = new ArrayList<>();
-		Map<Integer, String> customerStatuses = new HashMap<>();
 
 		// Process newly added customers from additionalCustomerDelivery
 		Map<Customer, Map<Branch, List<ProductWithQuantity>>> additionalCustomers = state
@@ -151,16 +152,10 @@ public class DeliveryChangesBuilder {
 				CustomerBranchDelivery cbd = new CustomerBranchDelivery(cd, branchDeliveryMap);
 				addedDeliveries.add(cbd);
 
-				// Add customer status if cancelled
-				String customerStatus = state.getCustomerDeliveryStatus(customer);
-				if ("Cancelled".equalsIgnoreCase(customerStatus)) {
-					// For new customers, we'll handle status after insertion
-					// This might need adjustment based on your service implementation
-				}
 			}
 		}
 
-		return new CustomerDeliveryChanges(addedDeliveries, customerStatuses);
+		return new CustomerDeliveryChanges(addedDeliveries);
 	}
 
 	/**
@@ -168,7 +163,6 @@ public class DeliveryChangesBuilder {
 	 */
 	private BranchDeliveryChanges buildBranchDeliveryChanges() {
 		Map<BranchDelivery, List<ProductDelivery>> newBranches = new HashMap<>();
-		List<Integer> removedBranchIds = new ArrayList<>();
 
 		// Process newly added branches to existing customers
 		Map<Customer, Map<Branch, List<ProductWithQuantity>>> addedBranches = state.getAddedBranches();
@@ -204,27 +198,28 @@ public class DeliveryChangesBuilder {
 			}
 		}
 
-		// Note: Branch removal is handled differently - branches are cancelled via
-		// status, not deleted
-		// If you need actual branch deletion, you'd need to track removed branch IDs
-		// separately
-
-		return new BranchDeliveryChanges(newBranches, removedBranchIds);
+		return new BranchDeliveryChanges(newBranches);
 	}
 
 	/**
 	 * Build DeliveryStatusChanges
 	 */
 	private DeliveryStatusChanges buildDeliveryStatusChanges() {
+
 		Map<Integer, String> customerStatuses = new HashMap<>();
 		Map<Integer, String> branchStatuses = new HashMap<>();
 
 		// Process customer delivery statuses
 		Map<Customer, String> customerDeliveryStatuses = state.getCustomerDeliveryStatuses();
+
+		for (Map.Entry<Customer, String> entry : customerDeliveryStatuses.entrySet()) {
+			System.out.println("Customer: " + entry.getValue().toString() + " status" + entry.getValue());
+		}
+
 		if (customerDeliveryStatuses != null) {
 			for (Map.Entry<Customer, String> entry : customerDeliveryStatuses.entrySet()) {
 				Customer customer = entry.getKey();
-				String status = entry.getValue();
+				String status = state.getCustomerDeliveryStatus(customer);
 
 				CustomerDelivery cd = customerIdToCustomerDelivery.get(customer.getId());
 				if (cd != null && cd.getId() != null) {
@@ -296,6 +291,7 @@ public class DeliveryChangesBuilder {
 				BranchDelivery bd = findBranchDelivery(branch.getId());
 				if (bd == null || bd.getId() == null) {
 					continue;
+
 				}
 
 				Map<Integer, ProductDelivery> branchProducts = branchDeliveryIdToProductDeliveries.get(bd.getId());
@@ -359,9 +355,15 @@ public class DeliveryChangesBuilder {
 			Customer customer = entry.getKey();
 			String paymentTypeDisplay = entry.getValue();
 
+			// Skip the cancelled delivery status
+			String customerDeliveryStatus = state.getCustomerDeliveryStatus(customer);
+			if (customerDeliveryStatus.equals("Cancelled")) {
+				continue;
+			}
+
 			// Skip "Not Set" payments
 			if ("Not Set".equals(paymentTypeDisplay)) {
-				continue;
+				throw new IllegalStateException("Payment type is not set for customer: " + customer.getDisplayName());
 			}
 
 			// Get CustomerDelivery ID
@@ -375,35 +377,52 @@ public class DeliveryChangesBuilder {
 
 			// Parse payment type and extract additional info
 			String paymentType;
+			String status;
 			double totalPayment = 0.0;
-			double balance = 0.0;
-			String note = null;
+			Date promiseToPay = null;
 
 			if (paymentTypeDisplay.startsWith("Partial (₱")) {
 				paymentType = "Partial";
+				status = "Unpaid"; // Partial payments start as unpaid
+
 				// Extract amount from "Partial (₱1,234.56)"
 				String amountStr = paymentTypeDisplay.substring(paymentTypeDisplay.indexOf("₱") + 1,
 						paymentTypeDisplay.indexOf(")"));
 				amountStr = amountStr.replace(",", "");
 				totalPayment = Double.parseDouble(amountStr);
-				balance = totalSales - totalPayment;
+
+				// promiseToPay remains null for partial payments
+
 			} else if (paymentTypeDisplay.startsWith("Loan (Due: ")) {
 				paymentType = "Loan";
+				status = "Unpaid"; // Loans start as unpaid
 				totalPayment = 0.0;
-				balance = totalSales;
+
 				// Extract due date from "Loan (Due: 01/15/2024)"
-				String dueDate = paymentTypeDisplay.substring(paymentTypeDisplay.indexOf("Due: ") + 5,
+				String dueDateStr = paymentTypeDisplay.substring(paymentTypeDisplay.indexOf("Due: ") + 5,
 						paymentTypeDisplay.indexOf(")"));
-				note = "Due: " + dueDate;
+
+				// Parse the date string to Date object
+				try {
+					SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
+					promiseToPay = sdf.parse(dueDateStr);
+				} catch (Exception e) {
+					// If parsing fails, log error and skip this payment
+					System.err.println("Failed to parse loan date: " + dueDateStr);
+					e.printStackTrace();
+					continue;
+				}
+
 			} else {
 				// "Paid Cash" or "Paid Cheque"
 				paymentType = paymentTypeDisplay;
+				status = "Paid"; // Fully paid
 				totalPayment = totalSales;
-				balance = 0.0;
+				// promiseToPay remains null for fully paid transactions
 			}
 
-			CustomerPayments payment = new CustomerPayments(customer.getId(), cd.getId(), paymentType, totalSales,
-					totalPayment, balance, note, LocalDateTime.now());
+			CustomerPayments payment = new CustomerPayments(customer.getId(), cd.getId(), paymentType, status,
+					totalSales, totalPayment, promiseToPay, LocalDateTime.now());
 
 			payments.add(payment);
 		}

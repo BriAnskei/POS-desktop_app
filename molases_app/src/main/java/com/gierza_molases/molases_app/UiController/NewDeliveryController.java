@@ -250,6 +250,8 @@ public class NewDeliveryController {
 			Customer customer = customerEntry.getKey();
 			Map<Branch, List<ProductWithQuantity>> branches = customerEntry.getValue();
 
+			System.out.println("customer: " + customer.toString());
+
 			// Create CustomerDelivery object (deliveryId will be set by service after
 			// Delivery is saved)
 			CustomerDelivery customerDelivery = new CustomerDelivery(customer.getId(), 0 // deliveryId - will be set by
@@ -272,6 +274,8 @@ public class NewDeliveryController {
 				// Create list of ProductDelivery for this branch
 				List<ProductDelivery> productDeliveries = new ArrayList<>();
 				for (ProductWithQuantity productWithQty : products) {
+
+					System.out.println("customer: " + productWithQty.toString());
 					ProductDelivery productDelivery = new ProductDelivery(0, // branchDeliveryId - will be set by
 																				// service
 							productWithQty.getProduct().getId(), productWithQty.getQuantity());
