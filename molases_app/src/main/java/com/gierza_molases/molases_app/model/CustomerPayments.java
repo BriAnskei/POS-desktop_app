@@ -41,6 +41,10 @@ public class CustomerPayments {
 		this.createdAt = createdAt;
 	}
 
+	public void setCustomerDeliveryId(int customerDeliverId) {
+		this.customerDeliveryId = customerDeliverId;
+	}
+
 	public Integer getId() {
 		return id;
 	}

@@ -365,7 +365,12 @@ public class DeliveryDetailsState {
 				if (branch != null) {
 					this.branchDeliveryStatuses.putIfAbsent(branch, "Delivered");
 				}
+
 			}
+
+			// update customer and branch count
+			delivery.setTotalCustomers(delivery.getTotalCustomers() + 1); // increament count
+			delivery.setTotalBranches(delivery.getTotalBranches() + branchProducts.size());
 
 			// Recalculate all financial metrics
 			recalculateAllFinancials();
@@ -451,13 +456,13 @@ public class DeliveryDetailsState {
 		// Get customer's branches
 		Map<Branch, List<ProductWithQuantity>> customerBranches = mappedCustomerDeliveries.get(customer);
 		if (customerBranches == null) {
-			return; // Customer doesn't exist
+			throw new IllegalStateException("Customer does not exist in the collection");
 		}
 
 		// Get branch's products
 		List<ProductWithQuantity> branchProducts = customerBranches.get(branch);
 		if (branchProducts == null) {
-			return; // Branch doesn't exist
+			throw new IllegalStateException("Branch does not exist in the collection");
 		}
 
 		// Check if product already exists in this branch

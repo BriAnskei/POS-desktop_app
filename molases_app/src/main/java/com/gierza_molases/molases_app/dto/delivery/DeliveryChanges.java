@@ -25,8 +25,8 @@ public class DeliveryChanges {
 		this.customerDeliveryChanges = customerDeliveryChanges;
 		this.branchDeliveryChanges = branchDeliveryChanges;
 		this.deliveryStatusChanges = deliveryStatusChanges;
-
 		this.customerPaymentTypes = customerPaymentTypes;
+		this.productDeliveryChanges = productDeliveryChanges;
 	}
 
 	// ===== Getters & Setters =====

@@ -66,23 +66,29 @@ public class DeliveryService {
 		TransactionHelper.executeInTransaction(conn -> {
 			int deliveryId = deliveryDao.insert(conn, newDelivery.getDelivery());
 
-			insertCustomerDeliveries(deliveryId, newDelivery.getCustomerBranchDeliveries(), conn);
+			insertCustomerDeliveries(deliveryId, newDelivery.getCustomerBranchDeliveries(), conn, true);
 
 		});
 	}
 
-	private void insertCustomerDeliveries(int deliveryId, List<CustomerBranchDelivery> customerBranchDeliveries,
-			Connection conn) throws Exception {
+	// return a map of customerId -> customerDeliveryId
+	private Map<Integer, Integer> insertCustomerDeliveries(int deliveryId,
+			List<CustomerBranchDelivery> customerBranchDeliveries, Connection conn, boolean isNewDelivery)
+			throws Exception {
+		Map<Integer, Integer> customerIdToCustomerDeliveryId = new HashMap<>();
 
 		for (CustomerBranchDelivery cbd : customerBranchDeliveries) {
 
 			CustomerDelivery cd = cbd.getCustomerDelivery();
 			cd.setDeliveryId(deliveryId);
 
-			int customerDeliveryId = customerDeliveryDao.insert(conn, cd);
+			int customerDeliveryId = customerDeliveryDao.insert(conn, cd, isNewDelivery);
 
+			customerIdToCustomerDeliveryId.put(cd.getCustomerId(), customerDeliveryId);
 			insertAllBranchAndProducts(customerDeliveryId, cbd.getBranches(), conn);
 		}
+
+		return customerIdToCustomerDeliveryId;
 	}
 
 	private void insertAllBranchAndProducts(int customerDeliveryId, Map<BranchDelivery, List<ProductDelivery>> branches,
@@ -266,22 +272,21 @@ public class DeliveryService {
 
 			// Mark delivered and apply changes
 			proccessMarkAsDeliveredAndApplyChanges(delivery, conn);
-
-			// Delivery changes
+			// Delivery changes and payment types
 			processCustomerDeliveryChanges(delivery.getId(), deliveryChanges, conn);
-
-			// insert customer payments
-			List<CustomerPayments> customerPayments = deliveryChanges.getCustomerPaymentTypes();
-			customerPaymentdao.insertAll(customerPayments, conn);
 		});
 	}
 
 	private void processCustomerDeliveryChanges(int deliveryId, DeliveryChanges deliveryChanges, Connection conn)
 			throws Exception {
+		Map<Integer, Integer> customerIdToCustomerDeliveryId = new HashMap<>(); // customerId -> customerDelivery (added
+																				// customerDelivery)
+
 		// Save customer delivery changes, and status
 		CustomerDeliveryChanges customerDeliveryChanges = deliveryChanges.getCustomerDeliveryChanges();
 		if (customerDeliveryChanges != null) {
-			proccessCustomerDeliveriesChanges(deliveryId, customerDeliveryChanges, conn);
+			customerIdToCustomerDeliveryId = proccessCustomerDeliveriesChanges(deliveryId, customerDeliveryChanges,
+					conn);
 		}
 
 		// Save branches updates
@@ -299,6 +304,11 @@ public class DeliveryService {
 		if (productDeliveryChanges != null) {
 			proccessProductDeliveryChanges(deliveryId, productDeliveryChanges, conn);
 		}
+
+		// proccess payments
+		List<CustomerPayments> customerPayments = deliveryChanges.getCustomerPaymentTypes();
+		processCustomerDeliveryPayments(customerIdToCustomerDeliveryId, customerPayments, conn);
+
 	}
 
 	private void proccessMarkAsDeliveredAndApplyChanges(Delivery delivery, Connection conn) throws SQLException {
@@ -307,15 +317,18 @@ public class DeliveryService {
 		deliveryDao.update(delivery, conn);
 	}
 
-	private void proccessCustomerDeliveriesChanges(int deliveryId, CustomerDeliveryChanges customerDeliveryChanges,
-			Connection conn) throws Exception {
+	// return a map of customerId -> customerDeliveryId
+	private Map<Integer, Integer> proccessCustomerDeliveriesChanges(int deliveryId,
+			CustomerDeliveryChanges customerDeliveryChanges, Connection conn) throws Exception {
 		List<CustomerBranchDelivery> addedDeliveries = customerDeliveryChanges.getAddedDelivery();
+		Map<Integer, Integer> customerIdToCustomerDeliveryId = new HashMap<>();
 
 		// check for new deliveries added
 		if (addedDeliveries.size() > 0) {
-			insertCustomerDeliveries(deliveryId, addedDeliveries, conn);
-		}
+			customerIdToCustomerDeliveryId = insertCustomerDeliveries(deliveryId, addedDeliveries, conn, false);
 
+		}
+		return customerIdToCustomerDeliveryId;
 	}
 
 	private void proccessBranchDeliveryChanges(int deliveryId, BranchDeliveryChanges branchDeliveryChanges,
@@ -345,7 +358,7 @@ public class DeliveryService {
 		// new products deliveries
 		List<ProductDelivery> addedProductDeliveries = productDeliveryChanges.getAddedProductDelivery();
 		if (addedProductDeliveries != null && addedProductDeliveries.size() > 0) {
-			productDeliveryDao.insertAll(deliveryId, addedProductDeliveries, conn);
+			productDeliveryDao.insertAll(addedProductDeliveries, conn);
 		}
 
 		// updated quantities
@@ -359,6 +372,21 @@ public class DeliveryService {
 		if (removedProductsIds != null && removedProductsIds.size() > 0) {
 			productDeliveryDao.dropBatch(removedProductsIds, conn);
 		}
+	}
+
+	private void processCustomerDeliveryPayments(Map<Integer, Integer> customerIdToCustomerDeliveryId,
+			List<CustomerPayments> customerPayments, Connection conn) throws SQLException {
+
+		for (CustomerPayments cp : customerPayments) {
+			boolean isCustomerNewlyAdded = customerIdToCustomerDeliveryId.containsKey(cp.getCustomerId());
+
+			if (isCustomerNewlyAdded) {
+				cp.setCustomerDeliveryId(customerIdToCustomerDeliveryId.get(cp.getCustomerId()));
+			}
+
+		}
+
+		customerPaymentdao.insertAll(customerPayments, conn);
 
 	}
 

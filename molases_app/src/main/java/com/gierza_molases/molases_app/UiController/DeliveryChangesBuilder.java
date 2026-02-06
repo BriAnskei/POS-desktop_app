@@ -289,13 +289,22 @@ public class DeliveryChangesBuilder {
 				Map<Product, DeliveryDetailsState.QuantityChange> productChanges = entry.getValue();
 
 				BranchDelivery bd = findBranchDelivery(branch.getId());
-				if (bd == null || bd.getId() == null) {
+				if (bd == null) {
+					System.err.println("WARNING: Could not find BranchDelivery for branch ID: " + branch.getId());
 					continue;
+				}
 
+				// Check if bd.getId() is null (happens for newly added branches) we skip
+				// this since this doesn't have a productDelivery in DB yet
+				if (bd.getId() == null) {
+					System.err.println("WARNING: BranchDelivery has null ID for branch: " + branch.getId()
+							+ ". This might be a newly added branch that hasn't been saved yet.");
+					continue;
 				}
 
 				Map<Integer, ProductDelivery> branchProducts = branchDeliveryIdToProductDeliveries.get(bd.getId());
 				if (branchProducts == null) {
+					// This is fine - it means this is a newly added branch
 					continue;
 				}
 
@@ -304,9 +313,14 @@ public class DeliveryChangesBuilder {
 					DeliveryDetailsState.QuantityChange quantityChange = productEntry.getValue();
 
 					ProductDelivery pd = branchProducts.get(product.getId());
-					if (pd != null && pd.getId() != null) {
-						updatedQuantities.put(pd.getId(), quantityChange.getNewQuantity());
+					if (pd == null || pd.getId() == null) {
+						// This is fine - the product was recently added, so it's already tracked
+						// in addedProducts or addedBranches with the correct quantity
+						continue;
 					}
+
+					// Only existing products from DB reach here
+					updatedQuantities.put(pd.getId(), quantityChange.getNewQuantity());
 				}
 			}
 		}
@@ -368,9 +382,6 @@ public class DeliveryChangesBuilder {
 
 			// Get CustomerDelivery ID
 			CustomerDelivery cd = customerIdToCustomerDelivery.get(customer.getId());
-			if (cd == null || cd.getId() == null) {
-				continue;
-			}
 
 			// Calculate customer's total sales (excluding cancelled branches)
 			double totalSales = calculateCustomerTotalSales(customer);
@@ -421,7 +432,10 @@ public class DeliveryChangesBuilder {
 				// promiseToPay remains null for fully paid transactions
 			}
 
-			CustomerPayments payment = new CustomerPayments(customer.getId(), cd.getId(), paymentType, status,
+			int customerDeliveryId = cd == null ? 0 : cd.getId(); // initialized '0' for the newly added customer this
+																	// will be updated in the service layer
+
+			CustomerPayments payment = new CustomerPayments(customer.getId(), customerDeliveryId, paymentType, status,
 					totalSales, totalPayment, promiseToPay, LocalDateTime.now());
 
 			payments.add(payment);

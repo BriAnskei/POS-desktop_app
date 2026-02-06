@@ -198,6 +198,11 @@ public class Delivery {
 		validate();
 	}
 
+	public void setTotalBranches(int totalBranches) {
+		this.totalBranches = totalBranches;
+		validate();
+	}
+
 	// Add these setter methods to your Delivery.java class
 
 	public void setTotalGross(Double totalGross) {

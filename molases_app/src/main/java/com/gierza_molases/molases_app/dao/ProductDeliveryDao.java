@@ -60,6 +60,22 @@ public class ProductDeliveryDao {
 		}
 	}
 
+	public void insertAll(List<ProductDelivery> list, Connection conn) throws Exception {
+
+		try (PreparedStatement ps = conn.prepareStatement(INSERT_SQL)) {
+
+			for (ProductDelivery pd : list) {
+
+				ps.setInt(1, pd.getBranchDeliveryId());
+				ps.setInt(2, pd.getProductId());
+				ps.setInt(3, pd.getQuantity());
+				ps.addBatch();
+			}
+
+			ps.executeBatch();
+		}
+	}
+
 	public List<ProductDelivery> fetchProductDeliverisByBranchDeliveryId(int branchDeliveryId, Connection conn)
 			throws Exception {
 		List<ProductDelivery> productDelivery = new ArrayList<>();
