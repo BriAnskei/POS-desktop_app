@@ -404,14 +404,14 @@ public class AddCustomerBranchDialog extends JDialog {
 			alreadyAddedAddresses.add(branch.getAddress());
 		}
 
-		// Show the SelectBranchDialog
+		// Show the SelectBranchDialog with MULTIPLE selection mode
 		SelectBranchDialog.show(this, alreadyAddedAddresses, selectedBranches -> {
 			// Add all selected branches with empty product lists
 			for (Branch branch : selectedBranches) {
 				branchProductsMap.put(branch, new ArrayList<>());
 			}
 			updateBranchTable();
-		}, this.selectedCustomer.getId(), this.newDeliveryController);
+		}, this.selectedCustomer.getId(), this.newDeliveryController, true); // true = multiple selection
 	}
 
 	/**

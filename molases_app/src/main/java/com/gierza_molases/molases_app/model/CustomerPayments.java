@@ -14,6 +14,11 @@ public class CustomerPayments {
 	private Date promiseToPay; // loan payment
 	private LocalDateTime createdAt;
 
+	// ===== Fetch-only / JOIN fields =====
+	private String customerName;
+	private String deliveryName;
+	private Date deliveryDate;
+
 	// Constructor without ID (for creating new payments)
 	public CustomerPayments(int customerId, int customerDeliveryId, String paymentType, String status, double total,
 			double totalPayment, Date promiseToPay, LocalDateTime createdAt) {
@@ -27,7 +32,6 @@ public class CustomerPayments {
 		this.createdAt = createdAt;
 	}
 
-	// Constructor with ID (for loading from database)
 	public CustomerPayments(Integer id, int customerId, int customerDeliveryId, String paymentType, String status,
 			double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt) {
 		this.id = id;
@@ -39,6 +43,26 @@ public class CustomerPayments {
 		this.totalPayment = totalPayment;
 		this.promiseToPay = promiseToPay;
 		this.createdAt = createdAt;
+	}
+
+	// Constructor for Payment Management list
+	public CustomerPayments(Integer id, int customerId, int customerDeliveryId, String paymentType, String status,
+			double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt, String customerName,
+			String deliveryName, Date deliveryDate) {
+		this.id = id;
+		this.customerId = customerId;
+		this.customerDeliveryId = customerDeliveryId;
+		this.paymentType = paymentType;
+		this.status = status;
+		this.total = total;
+		this.totalPayment = totalPayment;
+		this.promiseToPay = promiseToPay;
+		this.createdAt = createdAt;
+
+		// JOIN fields
+		this.customerName = customerName;
+		this.deliveryName = deliveryName;
+		this.deliveryDate = deliveryDate;
 	}
 
 	public void setCustomerDeliveryId(int customerDeliverId) {
@@ -79,6 +103,18 @@ public class CustomerPayments {
 
 	public LocalDateTime getCreatedAt() {
 		return createdAt;
+	}
+
+	public String getCustomerName() {
+		return customerName;
+	}
+
+	public String getDeliveryName() {
+		return deliveryName;
+	}
+
+	public Date getDeliveryDate() {
+		return deliveryDate;
 	}
 
 	@Override

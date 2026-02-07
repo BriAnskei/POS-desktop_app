@@ -380,9 +380,6 @@ public class DeliveryChangesBuilder {
 				throw new IllegalStateException("Payment type is not set for customer: " + customer.getDisplayName());
 			}
 
-			// Get CustomerDelivery ID
-			CustomerDelivery cd = customerIdToCustomerDelivery.get(customer.getId());
-
 			// Calculate customer's total sales (excluding cancelled branches)
 			double totalSales = calculateCustomerTotalSales(customer);
 
@@ -394,7 +391,7 @@ public class DeliveryChangesBuilder {
 
 			if (paymentTypeDisplay.startsWith("Partial (₱")) {
 				paymentType = "Partial";
-				status = "Unpaid"; // Partial payments start as unpaid
+				status = "pending"; // Partial payments start as unpaid
 
 				// Extract amount from "Partial (₱1,234.56)"
 				String amountStr = paymentTypeDisplay.substring(paymentTypeDisplay.indexOf("₱") + 1,
@@ -406,7 +403,7 @@ public class DeliveryChangesBuilder {
 
 			} else if (paymentTypeDisplay.startsWith("Loan (Due: ")) {
 				paymentType = "Loan";
-				status = "Unpaid"; // Loans start as unpaid
+				status = "pending"; // Loans start as unpaid
 				totalPayment = 0.0;
 
 				// Extract due date from "Loan (Due: 01/15/2024)"
@@ -427,10 +424,13 @@ public class DeliveryChangesBuilder {
 			} else {
 				// "Paid Cash" or "Paid Cheque"
 				paymentType = paymentTypeDisplay;
-				status = "Paid"; // Fully paid
+				status = "complete"; // Fully paid
 				totalPayment = totalSales;
 				// promiseToPay remains null for fully paid transactions
 			}
+
+			// Get CustomerDelivery ID
+			CustomerDelivery cd = customerIdToCustomerDelivery.get(customer.getId());
 
 			int customerDeliveryId = cd == null ? 0 : cd.getId(); // initialized '0' for the newly added customer this
 																	// will be updated in the service layer

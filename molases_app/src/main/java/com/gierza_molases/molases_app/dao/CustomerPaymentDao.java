@@ -61,13 +61,7 @@ public class CustomerPaymentDao {
 				ps.setInt(2, payment.getCustomerDeliveryId());
 				ps.setString(3, payment.getPaymentType());
 
-				String status;
-				if ("Paid Cash".equals(payment.getPaymentType()) || "Paid Cheque".equals(payment.getPaymentType())) {
-					status = "paid";
-				} else {
-					status = "pending"; // loan or partial
-				}
-				ps.setString(4, status);
+				ps.setString(4, payment.getStatus());
 
 				ps.setDouble(5, payment.getTotal());
 				ps.setDouble(6, payment.getTotalPayment());

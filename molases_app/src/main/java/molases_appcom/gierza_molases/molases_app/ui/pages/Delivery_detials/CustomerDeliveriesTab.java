@@ -357,6 +357,9 @@ public class CustomerDeliveriesTab {
 	/**
 	 * Show dialog for setting customer delivery status
 	 */
+	/**
+	 * Show dialog for setting customer delivery status
+	 */
 	private static void showSetStatusDialog(Component parent, Customer customer) {
 		JDialog statusDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Set Customer Delivery Status");
 		statusDialog.setLayout(new GridBagLayout());
@@ -431,10 +434,18 @@ public class CustomerDeliveriesTab {
 		saveBtn.addActionListener(e -> {
 			String selectedStatus = deliveredRadio.isSelected() ? "Delivered" : "Cancelled";
 
+			// NEW: Check if this is a newly added customer being cancelled
+			boolean isNewlyAdded = AppContext.deliveryDetialsController.getState()
+					.wasCancelledCustomerNewlyAdded(customer);
+			boolean willBeRemoved = "Cancelled".equals(selectedStatus) && isNewlyAdded;
+
 			// Call controller to set customer status
 			AppContext.deliveryDetialsController.setCustomerDeliveryStatus(customer, selectedStatus, () -> {
 				SwingUtilities.invokeLater(() -> {
 					statusDialog.dispose();
+
+					// NEW: Refresh the customerDeliveries map from state
+					customerDeliveries = AppContext.deliveryDetialsController.getState().getMappedCustomerDeliveries();
 
 					// Update customer table
 					updateCustomerTable();
@@ -442,9 +453,15 @@ public class CustomerDeliveriesTab {
 					// Update financial summary in overview tab
 					DeliveryOverviewTab.updateFinancialSummary();
 
-					// Show success notification
-					ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(parent),
-							"Customer status updated to: " + selectedStatus);
+					// Show success notification with appropriate message
+					String message;
+					if (willBeRemoved) {
+						message = "Customer removed from delivery";
+					} else {
+						message = "Customer status updated to: " + selectedStatus;
+					}
+
+					ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(parent), message);
 				});
 			}, (error) -> {
 				SwingUtilities.invokeLater(() -> {
@@ -483,36 +500,40 @@ public class CustomerDeliveriesTab {
 
 			JButton setPaymentBtn = createActionButton("💳 Set Payment", ACCENT_GOLD);
 			setPaymentBtn.addActionListener(e -> {
-				actionDialog.dispose();
+				// WRAP IN invokeLater
+				SwingUtilities.invokeLater(() -> {
+					actionDialog.dispose();
 
-				// Calculate customer's total sales
-				double totalSales = calculateCustomerTotalSales(customer);
+					// Calculate customer's total sales
+					double totalSales = calculateCustomerTotalSales(customer);
 
-				// Check if total sales is 0
-				if (totalSales <= 0) {
-					ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
-							String.format("Cannot set payment type. Customer has no sales (₱0.00)"));
-					return;
-				}
+					// Check if total sales is 0
+					if (totalSales <= 0) {
+						ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
+								String.format("Cannot set payment type. Customer has no sales (₱0.00)"));
+						return;
+					}
 
-				String currentPaymentType = AppContext.deliveryDetialsController.getState().getPaymentType(customer);
+					String currentPaymentType = AppContext.deliveryDetialsController.getState()
+							.getPaymentType(customer);
 
-				SetPaymentTypeDialog.show(SwingUtilities.getWindowAncestor(parent), customer, currentPaymentType,
-						totalSales, (paymentType, partialAmount, loanDate) -> {
+					SetPaymentTypeDialog.show(SwingUtilities.getWindowAncestor(parent), customer, currentPaymentType,
+							totalSales, (paymentType, partialAmount, loanDate) -> {
 
-							System.out.println("Payment: " + paymentType + partialAmount + loanDate);
-							String displayText = paymentType;
-							if (paymentType.equals("Partial") && partialAmount != null) {
-								displayText = String.format("Partial (₱%.2f)", partialAmount);
-							} else if (paymentType.equals("Loan") && loanDate != null) {
-								SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
-								displayText = "Loan (Due: " + sdf.format(loanDate) + ")";
-							}
+								System.out.println("Payment: " + paymentType + partialAmount + loanDate);
+								String displayText = paymentType;
+								if (paymentType.equals("Partial") && partialAmount != null) {
+									displayText = String.format("Partial (₱%.2f)", partialAmount);
+								} else if (paymentType.equals("Loan") && loanDate != null) {
+									SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
+									displayText = "Loan (Due: " + sdf.format(loanDate) + ")";
+								}
 
-							AppContext.deliveryDetialsController.setTemporaryPaymentType(customer, displayText);
+								AppContext.deliveryDetialsController.setTemporaryPaymentType(customer, displayText);
 
-							updateCustomerTable();
-						});
+								updateCustomerTable();
+							});
+				});
 			});
 			actionDialog.add(setPaymentBtn, gbc);
 		}
@@ -523,8 +544,11 @@ public class CustomerDeliveriesTab {
 			gbc.insets = new Insets(5, 20, 5, 20);
 			JButton setStatusBtn = createActionButton("📋 Set Status", SIDEBAR_ACTIVE);
 			setStatusBtn.addActionListener(e -> {
-				actionDialog.dispose();
-				showSetStatusDialog(parent, customer);
+				// WRAP IN invokeLater
+				SwingUtilities.invokeLater(() -> {
+					actionDialog.dispose();
+					showSetStatusDialog(parent, customer);
+				});
 			});
 			actionDialog.add(setStatusBtn, gbc);
 		}
@@ -533,50 +557,50 @@ public class CustomerDeliveriesTab {
 		gbc.insets = new Insets(5, 20, 5, 20);
 		JButton viewDetailsBtn = createActionButton("👁️ View Details", SIDEBAR_ACTIVE);
 		viewDetailsBtn.addActionListener(e -> {
-			actionDialog.dispose();
+			// WRAP IN invokeLater
+			SwingUtilities.invokeLater(() -> {
+				actionDialog.dispose();
 
-			Map<Branch, List<ProductWithQuantity>> branchDeliveries = AppContext.deliveryDetialsController.getState()
-					.getMappedCustomerDeliveries().get(customer);
+				Map<Branch, List<ProductWithQuantity>> branchDeliveries = AppContext.deliveryDetialsController
+						.getState().getMappedCustomerDeliveries().get(customer);
 
-			if (branchDeliveries == null) {
-
-				ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
-						"No branch deliveries found for this customer");
-				return;
-			}
-
-			int nullBranchCount = 0;
-			int validBranchCount = 0;
-
-			for (Map.Entry<Branch, List<ProductWithQuantity>> entry : branchDeliveries.entrySet()) {
-				Branch branch = entry.getKey();
-				List<ProductWithQuantity> products = entry.getValue();
-
-				if (branch == null) {
-					nullBranchCount++;
-
-				} else {
-					validBranchCount++;
-
+				if (branchDeliveries == null) {
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
+							"No branch deliveries found for this customer");
+					return;
 				}
-			}
 
-			if (branchDeliveries.isEmpty()) {
-				ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
-						"No branch deliveries found for this customer");
-				return;
-			}
+				int nullBranchCount = 0;
+				int validBranchCount = 0;
 
-			if (nullBranchCount > 0) {
-				ToastNotification.showWarning(SwingUtilities.getWindowAncestor(parent),
-						"Warning: Found " + nullBranchCount + " null branches. These will be skipped.");
-			}
+				for (Map.Entry<Branch, List<ProductWithQuantity>> entry : branchDeliveries.entrySet()) {
+					Branch branch = entry.getKey();
+					List<ProductWithQuantity> products = entry.getValue();
 
-			CustomerBranchDetailsDialog.show(SwingUtilities.getWindowAncestor(parent), customer, branchDeliveries,
-					() -> {
-						updateCustomerTable();
-						DeliveryOverviewTab.updateFinancialSummary();
-					});
+					if (branch == null) {
+						nullBranchCount++;
+					} else {
+						validBranchCount++;
+					}
+				}
+
+				if (branchDeliveries.isEmpty()) {
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(parent),
+							"No branch deliveries found for this customer");
+					return;
+				}
+
+				if (nullBranchCount > 0) {
+					ToastNotification.showWarning(SwingUtilities.getWindowAncestor(parent),
+							"Warning: Found " + nullBranchCount + " null branches. These will be skipped.");
+				}
+
+				CustomerBranchDetailsDialog.show(SwingUtilities.getWindowAncestor(parent), customer, branchDeliveries,
+						() -> {
+							updateCustomerTable();
+							DeliveryOverviewTab.updateFinancialSummary();
+						});
+			});
 		});
 		actionDialog.add(viewDetailsBtn, gbc);
 

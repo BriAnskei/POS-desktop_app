@@ -272,6 +272,41 @@ public class DeliveryDetailsController {
 		}.execute();
 	}
 
+	/**
+	 * Mark delivery as cancelled and save all changes this will completely drop the
+	 * delivery on DB
+	 */
+	public void markDeliveryAsCancelled(Runnable onSuccess, Consumer<String> onError) {
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					int deliveryId = state.getDelivery().getId();
+					deliveryService.deleteDelivery(deliveryId);
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to mark delivery as cancelled: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
+	}
+
 	/*
 	 * ====================== Customer Delivery Operations ======================
 	 */
@@ -368,6 +403,10 @@ public class DeliveryDetailsController {
 	 * Set delivery status for a customer (Delivered/Cancelled) This triggers
 	 * financial recalculation and is stored locally until saved to DB
 	 */
+	/**
+	 * Set delivery status for a customer (Delivered/Cancelled) This triggers
+	 * financial recalculation and is stored locally until saved to DB
+	 */
 	public void setCustomerDeliveryStatus(Customer customer, String status, Runnable onSuccess,
 			Consumer<String> onError) {
 		new SwingWorker<Void, Void>() {
@@ -376,6 +415,9 @@ public class DeliveryDetailsController {
 			@Override
 			protected Void doInBackground() {
 				try {
+
+					Delivery delivery = state.getDelivery();
+
 					// Validate input
 					if (customer == null) {
 						error = new IllegalArgumentException("Customer cannot be null");
@@ -394,6 +436,29 @@ public class DeliveryDetailsController {
 						return null;
 					}
 
+					// NEW: Check if this is a newly added customer being cancelled
+					if ("Cancelled".equals(status) && state.wasCancelledCustomerNewlyAdded(customer)) {
+						// Remove customer completely from the delivery
+						Map<Branch, List<ProductWithQuantity>> customerBranches = state.getMappedCustomerDeliveries()
+								.get(customer);
+
+						// Decrement counters
+						if (delivery != null && customerBranches != null) {
+							delivery.setTotalCustomers(delivery.getTotalCustomers() - 1);
+							delivery.setTotalBranches(delivery.getTotalBranches() - customerBranches.size());
+						}
+
+						// Remove from all tracking maps
+						state.removeCustomerDelivery(customer);
+						state.getAdditionalCustomerDelivery().remove(customer);
+
+						// Recalculate financials
+						state.recalculateAllFinancials();
+
+						return null;
+					}
+
+					// Normal flow for existing customers
 					// Set customer status
 					state.setCustomerDeliveryStatus(customer, status);
 
@@ -841,6 +906,13 @@ public class DeliveryDetailsController {
 	 */
 	public String getBranchDeliveryStatus(Branch branch) {
 		return state.getBranchDeliveryStatus(branch);
+	}
+
+	/**
+	 * Check if branch is newly added
+	 */
+	public boolean isBranchNewlyAdded(Branch branch) {
+		return state.isNewlyAddedBranch(branch);
 	}
 
 	/*

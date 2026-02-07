@@ -230,6 +230,7 @@ public class DeliveryDetailsState {
 	 * Set delivery status for a specific customer
 	 */
 	public void setCustomerDeliveryStatus(Customer customer, String status) {
+
 		if (customer != null && status != null) {
 			this.customerDeliveryStatuses.put(customer, status);
 		}
@@ -246,8 +247,41 @@ public class DeliveryDetailsState {
 	 * Set delivery status for a specific branch
 	 */
 	public void setBranchDeliveryStatus(Branch branch, String status) {
-		if (branch != null && status != null) {
+		if (branch == null || status == null) {
+			return;
+		}
+
+		// Check if this is a newly added branch
+		boolean isNewlyAddedBranch = isNewlyAddedBranch(branch);
+
+		if (isNewlyAddedBranch && "Cancelled".equals(status)) {
+			// Remove from newly added branches tracking
+			removeBranchFromNewlyAdded(branch);
+
+			// Remove from mapped customer deliveries
+			for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : mappedCustomerDeliveries
+					.entrySet()) {
+				if (entry.getValue().containsKey(branch)) {
+					entry.getValue().remove(branch);
+
+					// Decrement branch count
+					if (delivery != null) {
+						delivery.setTotalBranches(delivery.getTotalBranches() - 1);
+					}
+
+					// Recalculate financials after removal
+					recalculateAllFinancials();
+					return; // Exit after removing
+				}
+			}
+
+			delivery.setTotalBranches(delivery.getTotalBranches() - 1);
+		} else {
+			// Normal status update for existing branches
 			this.branchDeliveryStatuses.put(branch, status);
+
+			// Recalculate financials to account for cancelled status
+			recalculateAllFinancials();
 		}
 	}
 
@@ -382,14 +416,32 @@ public class DeliveryDetailsState {
 	 */
 	public void removeCustomerDelivery(Customer customer) {
 		if (customer != null) {
-			// Remove branch statuses for this customer's branches
+			// Get branch count before removal
 			Map<Branch, List<ProductWithQuantity>> branches = this.mappedCustomerDeliveries.get(customer);
+
+			// Remove branch statuses for this customer's branches
 			if (branches != null) {
 				for (Branch branch : branches.keySet()) {
 					this.branchDeliveryStatuses.remove(branch);
+
+					// Also clean up from addedBranches if present
+					if (addedBranches.containsKey(customer)) {
+						addedBranches.get(customer).remove(branch);
+					}
+
+					// Clean up from other tracking maps
+					removedProducts.remove(branch);
+					addedProducts.remove(branch);
+					editedProductQuantities.remove(branch);
+				}
+
+				// Clean up empty customer entry from addedBranches
+				if (addedBranches.containsKey(customer) && addedBranches.get(customer).isEmpty()) {
+					addedBranches.remove(customer);
 				}
 			}
 
+			// Remove from all maps
 			this.mappedCustomerDeliveries.remove(customer);
 			this.temporaryPaymentTypes.remove(customer);
 			this.customerDeliveryStatuses.remove(customer);
@@ -424,6 +476,28 @@ public class DeliveryDetailsState {
 		recalculateAllFinancials();
 	}
 
+	public boolean isNewlyAddedBranch(Branch branch) {
+		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : addedBranches.entrySet()) {
+			Map<Branch, List<ProductWithQuantity>> addedCustomerBranch = entry.getValue();
+			if (addedCustomerBranch.containsKey(branch)) {
+				return true; // Just check, don't remove here
+			}
+		}
+		return false;
+	}
+
+	public void removeBranchFromNewlyAdded(Branch branch) {
+		// Use iterator to safely remove while iterating
+		for (Map.Entry<Customer, Map<Branch, List<ProductWithQuantity>>> entry : addedBranches.entrySet()) {
+			Map<Branch, List<ProductWithQuantity>> addedCustomerBranch = entry.getValue();
+			if (addedCustomerBranch.containsKey(branch)) {
+				addedCustomerBranch.remove(branch);
+
+				return; // Exit after removing
+			}
+		}
+	}
+
 	/*
 	 * ====================== Product/Branch Management Methods (NEW)
 	 * ======================
@@ -442,6 +516,9 @@ public class DeliveryDetailsState {
 
 		// Add the branch with its products
 		addedBranches.get(customer).put(branch, new ArrayList<>(products));
+
+		delivery.setTotalBranches(delivery.getTotalBranches() + 1);
+
 	}
 
 	/**

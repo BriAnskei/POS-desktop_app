@@ -14,6 +14,7 @@ import java.awt.event.MouseEvent;
 
 import javax.swing.BorderFactory;
 import javax.swing.JButton;
+import javax.swing.JDialog;
 import javax.swing.JLabel;
 import javax.swing.JLayeredPane;
 import javax.swing.JOptionPane;
@@ -357,53 +358,129 @@ public class DeliveryDetailsPage {
 		});
 	}
 
-	private static void printDelivery() {
-		java.awt.print.PrinterJob printerJob = java.awt.print.PrinterJob.getPrinterJob();
-		java.awt.print.PageFormat pageFormat = printerJob.defaultPage();
-		pageFormat.setOrientation(java.awt.print.PageFormat.PORTRAIT);
 
-		printerJob.setPrintable(new java.awt.print.Printable() {
-			@Override
-			public int print(java.awt.Graphics graphics, java.awt.print.PageFormat pageFormat, int pageIndex) {
-				if (pageIndex > 0) {
-					return java.awt.print.Printable.NO_SUCH_PAGE;
-				}
+private static void printDelivery() {
+	java.awt.print.PrinterJob printerJob = java.awt.print.PrinterJob.getPrinterJob();
+	java.awt.print.PageFormat pageFormat = printerJob.defaultPage();
+	pageFormat.setOrientation(java.awt.print.PageFormat.PORTRAIT);
 
-				java.awt.Graphics2D g2d = (java.awt.Graphics2D) graphics;
-				g2d.translate(pageFormat.getImageableX(), pageFormat.getImageableY());
+	// Use the new DeliveryPrintable class for professional report printing
+	com.gierza_molases.molases_app.ui.print.DeliveryPrintable printable = 
+		new com.gierza_molases.molases_app.ui.print.DeliveryPrintable();
+	printerJob.setPrintable(printable, pageFormat);
 
-				double scaleX = pageFormat.getImageableWidth() / contentPanel.getWidth();
-				double scaleY = pageFormat.getImageableHeight() / contentPanel.getHeight();
-				double scale = Math.min(scaleX, scaleY);
-
-				g2d.scale(scale, scale);
-				contentPanel.printAll(graphics);
-
-				return java.awt.print.Printable.PAGE_EXISTS;
-			}
-		});
-
-		if (printerJob.printDialog()) {
-			try {
-				printerJob.print();
-				JOptionPane.showMessageDialog(null, "Printing completed successfully!", "Print",
-						JOptionPane.INFORMATION_MESSAGE);
-			} catch (java.awt.print.PrinterException e) {
-				JOptionPane.showMessageDialog(null, "Failed to print: " + e.getMessage(), "Print Error",
-						JOptionPane.ERROR_MESSAGE);
-			}
+	if (printerJob.printDialog()) {
+		try {
+			printerJob.print();
+			JOptionPane.showMessageDialog(null, "Printing completed successfully!", "Print",
+					JOptionPane.INFORMATION_MESSAGE);
+		} catch (java.awt.print.PrinterException e) {
+			JOptionPane.showMessageDialog(null, "Failed to print: " + e.getMessage(), "Print Error",
+					JOptionPane.ERROR_MESSAGE);
 		}
 	}
-
+}
 	private static void markAsCancelled() {
-		int result = JOptionPane.showConfirmDialog(null,
-				"Are you sure you want to mark this delivery as CANCELLED?\nThis action cannot be undone.",
-				"Confirm Cancellation", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+		showCancellationConfirmation();
+	}
 
-		if (result == JOptionPane.YES_OPTION) {
-			JOptionPane.showMessageDialog(null, "Mark as Cancelled feature will be implemented later", "Info",
-					JOptionPane.INFORMATION_MESSAGE);
+	private static void showCancellationConfirmation() {
+		Delivery delivery = AppContext.deliveryDetialsController.getState().getDelivery();
+		if (delivery == null) {
+			return;
 		}
+
+		JDialog confirmDialog = new JDialog(SwingUtilities.getWindowAncestor(layeredPane), "Confirm Cancellation");
+		confirmDialog.setLayout(new GridBagLayout());
+		confirmDialog.getContentPane().setBackground(Color.WHITE);
+		confirmDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+		GridBagConstraints gbc = new GridBagConstraints();
+		gbc.gridx = 0;
+		gbc.gridy = 0;
+		gbc.gridwidth = 2;
+		gbc.insets = new Insets(20, 30, 10, 30);
+
+		JLabel messageLabel = new JLabel("<html><center>Are you sure you want to cancel<br><b>Delivery #"
+				+ delivery.getId() + "</b>?</center></html>");
+		messageLabel.setFont(new Font("Arial", Font.PLAIN, 16));
+		messageLabel.setForeground(TEXT_DARK);
+		messageLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		confirmDialog.add(messageLabel, gbc);
+
+		gbc.gridy++;
+		gbc.insets = new Insets(5, 30, 5, 30);
+		JLabel warningLabel = new JLabel("This delivery will be permanently deleted.");
+		warningLabel.setFont(new Font("Arial", Font.BOLD, 13));
+		warningLabel.setForeground(new Color(180, 50, 50));
+		warningLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		confirmDialog.add(warningLabel, gbc);
+
+		gbc.gridy++;
+		gbc.insets = new Insets(0, 30, 10, 30);
+		JLabel actionLabel = new JLabel("This action cannot be undone.");
+		actionLabel.setFont(new Font("Arial", Font.ITALIC, 13));
+		actionLabel.setForeground(new Color(180, 50, 50));
+		actionLabel.setHorizontalAlignment(SwingConstants.CENTER);
+		confirmDialog.add(actionLabel, gbc);
+
+		gbc.gridy++;
+		gbc.gridwidth = 1;
+		gbc.insets = new Insets(20, 30, 20, 10);
+
+		JButton cancelBtn = UIComponentFactory.createStyledButton("Cancel", new Color(120, 120, 120));
+		cancelBtn.setPreferredSize(new Dimension(120, 40));
+		cancelBtn.addActionListener(e -> confirmDialog.dispose());
+		confirmDialog.add(cancelBtn, gbc);
+
+		gbc.gridx = 1;
+		gbc.insets = new Insets(20, 10, 20, 30);
+		JButton confirmBtn = UIComponentFactory.createStyledButton("Delete Delivery", new Color(180, 50, 50));
+		confirmBtn.setPreferredSize(new Dimension(150, 40));
+		confirmBtn.addActionListener(e -> {
+			// Disable buttons and show processing state
+			cancelBtn.setEnabled(false);
+			confirmBtn.setEnabled(false);
+			confirmBtn.setText("Processing...");
+
+			// Prevent dialog from being closed during processing
+			confirmDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+			// Call controller to delete delivery
+			AppContext.deliveryDetialsController.markDeliveryAsCancelled(() -> {
+				// Success callback
+				SwingUtilities.invokeLater(() -> {
+					confirmDialog.dispose();
+					ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(layeredPane),
+							"Delivery cancelled and deleted successfully!");
+
+					// Navigate back to delivery list
+					if (currentOnBack != null) {
+						currentOnBack.run();
+					}
+				});
+			}, (errorMsg) -> {
+				// Error callback
+				SwingUtilities.invokeLater(() -> {
+					// Re-enable buttons
+					cancelBtn.setEnabled(true);
+					confirmBtn.setEnabled(true);
+					confirmBtn.setText("Delete Delivery");
+
+					// Allow dialog to be closed again
+					confirmDialog.setDefaultCloseOperation(JDialog.DISPOSE_ON_CLOSE);
+
+					ToastNotification.showError(SwingUtilities.getWindowAncestor(layeredPane),
+							"Failed to cancel delivery: " + errorMsg);
+				});
+			});
+		});
+		confirmDialog.add(confirmBtn, gbc);
+
+		confirmDialog.pack();
+		confirmDialog.setMinimumSize(new Dimension(450, 220));
+		confirmDialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(layeredPane));
+		confirmDialog.setVisible(true);
 	}
 
 	private static void markAsDelivered() {

@@ -12,18 +12,5 @@ public class CustomerDeliveryService {
 		this.branchDeliveryDao = branchDeliveryDao;
 
 	}
-//
-//	public void insert(int deliveryId, Map<CustomerDelivery, List<BranchDelivery>> customerDeliveries) {
-//		TransactionHelper.executeInTransaction(conn -> {
-//			for (Map.Entry<CustomerDelivery, List<BranchDelivery>> entry : customerDeliveries.entrySet()) {
-//				CustomerDelivery cd = entry.getKey();
-//				List<BranchDelivery> branchList = entry.getValue();
-//
-//				int customerDeliveryId = customerDeliveryDao.insert(conn, cd.getCustomerId(), deliveryId);
-//
-//				branchDeliveryDao.insertAll(conn, customerDeliveryId, branchList);
-//
-//			}
-//		});
-//	}
+
 }

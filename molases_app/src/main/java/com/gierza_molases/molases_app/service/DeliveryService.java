@@ -292,7 +292,7 @@ public class DeliveryService {
 		// Save branches updates
 		BranchDeliveryChanges branchDeliveryChanges = deliveryChanges.getBranchDeliveryChanges();
 		if (branchDeliveryChanges != null) {
-			proccessBranchDeliveryChanges(deliveryId, branchDeliveryChanges, conn);
+			proccessBranchDeliveryChanges(branchDeliveryChanges, conn);
 		}
 
 		// Delivery statuses changes
@@ -331,14 +331,21 @@ public class DeliveryService {
 		return customerIdToCustomerDeliveryId;
 	}
 
-	private void proccessBranchDeliveryChanges(int deliveryId, BranchDeliveryChanges branchDeliveryChanges,
-			Connection conn) throws Exception {
+	private void proccessBranchDeliveryChanges(BranchDeliveryChanges branchDeliveryChanges, Connection conn)
+			throws Exception {
 
 		Map<BranchDelivery, List<ProductDelivery>> newBranchesDelivery = branchDeliveryChanges.getNewBranchesDelivery();
 
 		// check for new branch delivery
 		if (newBranchesDelivery.size() > 0) {
-			insertAllBranchAndProducts(deliveryId, newBranchesDelivery, conn);
+			for (Map.Entry<BranchDelivery, List<ProductDelivery>> entry : newBranchesDelivery.entrySet()) {
+				BranchDelivery bd = entry.getKey();
+				List<ProductDelivery> productDeliveryList = entry.getValue();
+
+				int branchDeliveryId = branchDeliveryDao.insert(conn, bd.getCustomerDeliveryId(), bd);
+
+				productDeliveryDao.insertAll(branchDeliveryId, productDeliveryList, conn);
+			}
 		}
 
 	}

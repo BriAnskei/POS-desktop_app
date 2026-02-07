@@ -13,8 +13,8 @@ import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.NumberFormat;
-import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
@@ -42,7 +42,7 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
-import com.gierza_molases.molases_app.model.Payment;
+import com.gierza_molases.molases_app.model.CustomerPayments;
 import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.toedter.calendar.JDateChooser;
@@ -60,30 +60,39 @@ public class PaymentsPage {
 	private static final Color TABLE_ROW_ODD = new Color(248, 245, 240);
 	private static final Color TABLE_HOVER = new Color(245, 239, 231);
 
-	// Status Colors
+	// Payment Type Colors
 	private static final Color COLOR_PAID_CASH = new Color(46, 125, 50);
 	private static final Color COLOR_PAID_CHEQUE = new Color(25, 118, 210);
 	private static final Color COLOR_PARTIAL = new Color(245, 124, 0);
 	private static final Color COLOR_LOAN = new Color(123, 31, 162);
 
-	// Payment Status Types
-	private static final String STATUS_PAID_CASH = "Paid Cash";
-	private static final String STATUS_PAID_CHEQUE = "Paid Cheque";
-	private static final String STATUS_PARTIAL = "Partial";
-	private static final String STATUS_LOAN = "Loan";
+	// Status Colors
+	private static final Color COLOR_PENDING = new Color(255, 152, 0);
+	private static final Color COLOR_COMPLETE = new Color(76, 175, 80);
+
+	// Payment Types
+	private static final String TYPE_PAID_CASH = "Paid Cash";
+	private static final String TYPE_PAID_CHEQUE = "Paid Cheque";
+	private static final String TYPE_PARTIAL = "Partial";
+	private static final String TYPE_LOAN = "Loan";
+
+	// Payment Status
+	private static final String STATUS_PENDING = "Pending";
+	private static final String STATUS_COMPLETE = "Complete";
 
 	// Pagination settings
 	private static final int RECORDS_PER_PAGE = 10;
 
 	// Mock data
-	private static List<Payment> allPayments = new ArrayList<>();
-	private static List<Payment> filteredPayments = new ArrayList<>();
+	private static List<CustomerPayments> allPayments = new ArrayList<>();
+	private static List<CustomerPayments> filteredPayments = new ArrayList<>();
 	private static int currentPage = 0;
 
 	// UI component references
 	private static JTextField customerSearchField;
 	private static JDateChooser fromDateChooser;
 	private static JDateChooser toDateChooser;
+	private static JComboBox<String> paymentTypeFilterCombo;
 	private static JComboBox<String> statusFilterCombo;
 	private static JTable table;
 	private static JLabel pageInfoLabel;
@@ -162,32 +171,57 @@ public class PaymentsPage {
 				"Fast Track", "Economy Shipping", "Priority Mail", "Overnight Express", "Same Day Delivery",
 				"Next Day Service" };
 
-		String[] statuses = { STATUS_PAID_CASH, STATUS_PAID_CHEQUE, STATUS_PARTIAL, STATUS_LOAN };
+		String[] paymentTypes = { TYPE_PAID_CASH, TYPE_PAID_CHEQUE, TYPE_PARTIAL, TYPE_LOAN };
+		String[] statuses = { STATUS_PENDING, STATUS_COMPLETE };
 
 		Calendar cal = Calendar.getInstance();
-		SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy");
 
 		for (int i = 1; i <= 30; i++) {
-			// Random date within last 60 days
+			// Random date within last 60 days for delivery date
 			cal.setTime(new Date());
 			cal.add(Calendar.DAY_OF_MONTH, -(int) (Math.random() * 60));
-			String deliveryDate = dateFormat.format(cal.getTime());
+			Date deliveryDate = cal.getTime();
 
-			// Random date for createdAt
+			// Random LocalDateTime for createdAt (within last 90 days)
+			LocalDateTime createdAt = LocalDateTime.now().minusDays((long) (Math.random() * 90));
+
+			// Random date for promiseToPay (future date for loans)
 			cal.setTime(new Date());
-			cal.add(Calendar.DAY_OF_MONTH, -(int) (Math.random() * 90));
-			String createdAt = dateFormat.format(cal.getTime());
+			cal.add(Calendar.DAY_OF_MONTH, (int) (Math.random() * 30));
+			Date promiseToPay = cal.getTime();
 
 			// Random payment amount between 500 and 50000
-			double totalPayments = 500 + (Math.random() * 49500);
-			totalPayments = Math.round(totalPayments * 100.0) / 100.0;
+			double total = 500 + (Math.random() * 49500);
+			total = Math.round(total * 100.0) / 100.0;
+
+			// Random total payment (could be less than total for partial payments)
+			double totalPayment = total * (0.5 + Math.random() * 0.5);
+			totalPayment = Math.round(totalPayment * 100.0) / 100.0;
+
+			// Random payment type
+			String paymentType = paymentTypes[(int) (Math.random() * paymentTypes.length)];
 
 			// Random status
 			String status = statuses[(int) (Math.random() * statuses.length)];
 
-			Payment payment = new Payment(i, customerNames[i - 1],
-					deliveryNames[(int) (Math.random() * deliveryNames.length)], deliveryDate, totalPayments, createdAt,
-					status);
+			// Random customer ID and delivery ID
+			int customerId = i;
+			int customerDeliveryId = i; // Now int, not Integer
+
+			// Create CustomerPayments using the Payment Management list constructor
+			CustomerPayments payment = new CustomerPayments(i, // id (Integer)
+					customerId, // customerId (int)
+					customerDeliveryId, // customerDeliveryId (int)
+					paymentType, // paymentType
+					status, // status
+					total, // total
+					totalPayment, // totalPayment
+					promiseToPay, // promiseToPay (Date)
+					createdAt, // createdAt (LocalDateTime)
+					customerNames[i - 1], // customerName (joined)
+					deliveryNames[(int) (Math.random() * deliveryNames.length)], // deliveryName (joined)
+					deliveryDate // deliveryDate (joined)
+			);
 
 			allPayments.add(payment);
 		}
@@ -233,20 +267,56 @@ public class PaymentsPage {
 		topPanel.setBackground(CONTENT_BG);
 		topPanel.setBorder(new EmptyBorder(0, 0, 20, 0));
 
-		// Title row
-		JPanel titleRow = new JPanel(new BorderLayout());
+		// Row 1: Title and Payment Type/Status filters
+		JPanel titleRow = new JPanel();
+		titleRow.setLayout(new BoxLayout(titleRow, BoxLayout.X_AXIS));
 		titleRow.setBackground(CONTENT_BG);
 		titleRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
 
 		JLabel titleLabel = new JLabel("Payment Management");
 		titleLabel.setFont(new Font("Arial", Font.BOLD, 28));
 		titleLabel.setForeground(TEXT_DARK);
-		titleRow.add(titleLabel, BorderLayout.WEST);
+		titleRow.add(titleLabel);
+
+		titleRow.add(Box.createHorizontalGlue());
+
+		// Payment Type filter
+		String[] paymentTypeOptions = { "All", TYPE_PAID_CASH, TYPE_PAID_CHEQUE, TYPE_PARTIAL, TYPE_LOAN };
+		paymentTypeFilterCombo = new JComboBox<>(paymentTypeOptions);
+		paymentTypeFilterCombo.setFont(new Font("Arial", Font.PLAIN, 14));
+		paymentTypeFilterCombo.setPreferredSize(new Dimension(140, 38));
+		paymentTypeFilterCombo.setMaximumSize(new Dimension(140, 38));
+		paymentTypeFilterCombo.setBackground(Color.WHITE);
+
+		JLabel paymentTypeLabel = new JLabel("Payment Type:");
+		paymentTypeLabel.setFont(new Font("Arial", Font.PLAIN, 13));
+		paymentTypeLabel.setForeground(TEXT_DARK);
+
+		titleRow.add(paymentTypeLabel);
+		titleRow.add(Box.createHorizontalStrut(5));
+		titleRow.add(paymentTypeFilterCombo);
+		titleRow.add(Box.createHorizontalStrut(10));
+
+		// Status filter
+		String[] statusOptions = { "All", STATUS_PENDING, STATUS_COMPLETE };
+		statusFilterCombo = new JComboBox<>(statusOptions);
+		statusFilterCombo.setFont(new Font("Arial", Font.PLAIN, 14));
+		statusFilterCombo.setPreferredSize(new Dimension(140, 38));
+		statusFilterCombo.setMaximumSize(new Dimension(140, 38));
+		statusFilterCombo.setBackground(Color.WHITE);
+
+		JLabel statusLabel = new JLabel("Status:");
+		statusLabel.setFont(new Font("Arial", Font.PLAIN, 13));
+		statusLabel.setForeground(TEXT_DARK);
+
+		titleRow.add(statusLabel);
+		titleRow.add(Box.createHorizontalStrut(5));
+		titleRow.add(statusFilterCombo);
 
 		topPanel.add(titleRow);
 		topPanel.add(Box.createVerticalStrut(15));
 
-		// Filters row
+		// Row 2: Search, dates, and action buttons
 		JPanel filtersRow = new JPanel();
 		filtersRow.setLayout(new BoxLayout(filtersRow, BoxLayout.X_AXIS));
 		filtersRow.setBackground(CONTENT_BG);
@@ -255,8 +325,8 @@ public class PaymentsPage {
 		// Customer Name search
 		customerSearchField = new JTextField(15);
 		customerSearchField.setFont(new Font("Arial", Font.PLAIN, 14));
-		customerSearchField.setPreferredSize(new Dimension(200, 38));
-		customerSearchField.setMaximumSize(new Dimension(200, 38));
+		customerSearchField.setPreferredSize(new Dimension(180, 38));
+		customerSearchField.setMaximumSize(new Dimension(180, 38));
 		customerSearchField.setBorder(BorderFactory.createCompoundBorder(
 				BorderFactory.createLineBorder(new Color(200, 190, 180), 1), new EmptyBorder(5, 10, 5, 10)));
 		customerSearchField.setToolTipText("Search by customer or delivery name");
@@ -273,8 +343,8 @@ public class PaymentsPage {
 		// From Date filter
 		fromDateChooser = new JDateChooser();
 		fromDateChooser.setDateFormatString("MMM dd, yyyy");
-		fromDateChooser.setPreferredSize(new Dimension(150, 38));
-		fromDateChooser.setMaximumSize(new Dimension(150, 38));
+		fromDateChooser.setPreferredSize(new Dimension(140, 38));
+		fromDateChooser.setMaximumSize(new Dimension(140, 38));
 		fromDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
 
 		JLabel fromDateLabel = new JLabel("From Date:");
@@ -289,8 +359,8 @@ public class PaymentsPage {
 		// To Date filter
 		toDateChooser = new JDateChooser();
 		toDateChooser.setDateFormatString("MMM dd, yyyy");
-		toDateChooser.setPreferredSize(new Dimension(150, 38));
-		toDateChooser.setMaximumSize(new Dimension(150, 38));
+		toDateChooser.setPreferredSize(new Dimension(140, 38));
+		toDateChooser.setMaximumSize(new Dimension(140, 38));
 		toDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
 
 		JLabel toDateLabel = new JLabel("To Date:");
@@ -300,24 +370,8 @@ public class PaymentsPage {
 		filtersRow.add(toDateLabel);
 		filtersRow.add(Box.createHorizontalStrut(5));
 		filtersRow.add(toDateChooser);
-		filtersRow.add(Box.createHorizontalStrut(15));
 
-		// Status filter
-		String[] statusOptions = { "All", STATUS_PAID_CASH, STATUS_PAID_CHEQUE, STATUS_PARTIAL, STATUS_LOAN };
-		statusFilterCombo = new JComboBox<>(statusOptions);
-		statusFilterCombo.setFont(new Font("Arial", Font.PLAIN, 14));
-		statusFilterCombo.setPreferredSize(new Dimension(150, 38));
-		statusFilterCombo.setMaximumSize(new Dimension(150, 38));
-		statusFilterCombo.setBackground(Color.WHITE);
-
-		JLabel statusLabel = new JLabel("Status:");
-		statusLabel.setFont(new Font("Arial", Font.PLAIN, 13));
-		statusLabel.setForeground(TEXT_DARK);
-
-		filtersRow.add(statusLabel);
-		filtersRow.add(Box.createHorizontalStrut(5));
-		filtersRow.add(statusFilterCombo);
-		filtersRow.add(Box.createHorizontalStrut(15));
+		filtersRow.add(Box.createHorizontalGlue());
 
 		// Search button
 		JButton searchButton = createStyledButton("Search", SIDEBAR_ACTIVE);
@@ -329,8 +383,6 @@ public class PaymentsPage {
 		JButton clearButton = createStyledButton("Clear Filters", new Color(120, 120, 120));
 		clearButton.addActionListener(e -> clearFilters());
 		filtersRow.add(clearButton);
-
-		filtersRow.add(Box.createHorizontalGlue());
 
 		topPanel.add(filtersRow);
 
@@ -344,9 +396,8 @@ public class PaymentsPage {
 		String customerSearch = customerSearchField.getText().trim().toLowerCase();
 		Date fromDate = fromDateChooser.getDate();
 		Date toDate = toDateChooser.getDate();
+		String selectedPaymentType = (String) paymentTypeFilterCombo.getSelectedItem();
 		String selectedStatus = (String) statusFilterCombo.getSelectedItem();
-
-		SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy");
 
 		// Filter with AND logic
 		filteredPayments = allPayments.stream().filter(payment -> {
@@ -358,9 +409,9 @@ public class PaymentsPage {
 			// Date range match
 			boolean dateMatch = true;
 			if (fromDate != null || toDate != null) {
-				try {
-					Date paymentDate = dateFormat.parse(payment.getDeliveryDate());
+				Date paymentDate = payment.getDeliveryDate();
 
+				if (paymentDate != null) {
 					if (fromDate != null && toDate != null) {
 						// Both dates specified - check if payment date is within range
 						dateMatch = !paymentDate.before(fromDate) && !paymentDate.after(toDate);
@@ -371,15 +422,19 @@ public class PaymentsPage {
 						// Only to date - check if payment date is on or before to date
 						dateMatch = !paymentDate.after(toDate);
 					}
-				} catch (ParseException e) {
+				} else {
 					dateMatch = false;
 				}
 			}
 
+			// Payment Type match
+			boolean paymentTypeMatch = "All".equals(selectedPaymentType)
+					|| payment.getPaymentType().equals(selectedPaymentType);
+
 			// Status match
 			boolean statusMatch = "All".equals(selectedStatus) || payment.getStatus().equals(selectedStatus);
 
-			return customerMatch && dateMatch && statusMatch;
+			return customerMatch && dateMatch && paymentTypeMatch && statusMatch;
 		}).collect(Collectors.toList());
 
 		currentPage = 0;
@@ -393,6 +448,7 @@ public class PaymentsPage {
 		customerSearchField.setText("");
 		fromDateChooser.setDate(null);
 		toDateChooser.setDate(null);
+		paymentTypeFilterCombo.setSelectedIndex(0);
 		statusFilterCombo.setSelectedIndex(0);
 
 		filteredPayments = new ArrayList<>(allPayments);
@@ -407,7 +463,8 @@ public class PaymentsPage {
 		JPanel tablePanel = new JPanel(new BorderLayout());
 		tablePanel.setBackground(CONTENT_BG);
 
-		String[] columns = { "Customer Name", "Delivery Name", "Delivery Date", "Status", "Total Payments", "Actions" };
+		String[] columns = { "Customer Name", "Delivery Name", "Delivery Date", "Payment Type", "Status",
+				"Total Payments", "Actions" };
 
 		DefaultTableModel model = new DefaultTableModel(columns, 0) {
 			@Override
@@ -432,8 +489,9 @@ public class PaymentsPage {
 		table.getColumnModel().getColumn(1).setPreferredWidth(180);
 		table.getColumnModel().getColumn(2).setPreferredWidth(130);
 		table.getColumnModel().getColumn(3).setPreferredWidth(120);
-		table.getColumnModel().getColumn(4).setPreferredWidth(130);
-		table.getColumnModel().getColumn(5).setPreferredWidth(100);
+		table.getColumnModel().getColumn(4).setPreferredWidth(100);
+		table.getColumnModel().getColumn(5).setPreferredWidth(130);
+		table.getColumnModel().getColumn(6).setPreferredWidth(100);
 
 		// Custom header
 		JTableHeader header = table.getTableHeader();
@@ -452,7 +510,7 @@ public class PaymentsPage {
 			table.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
 		}
 
-		// Custom renderer for status column with colored text
+		// Custom renderer for payment type column (column 3) with colored text
 		table.getColumnModel().getColumn(3).setCellRenderer(new DefaultTableCellRenderer() {
 			@Override
 			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
@@ -462,18 +520,44 @@ public class PaymentsPage {
 				if (!isSelected) {
 					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
 
-					String status = value.toString();
-					if (status.equals(STATUS_PAID_CASH)) {
+					String paymentType = value.toString();
+					if (paymentType.equals(TYPE_PAID_CASH)) {
 						setForeground(COLOR_PAID_CASH);
 						setFont(new Font("Arial", Font.BOLD, 14));
-					} else if (status.equals(STATUS_PAID_CHEQUE)) {
+					} else if (paymentType.equals(TYPE_PAID_CHEQUE)) {
 						setForeground(COLOR_PAID_CHEQUE);
 						setFont(new Font("Arial", Font.BOLD, 14));
-					} else if (status.equals(STATUS_PARTIAL)) {
+					} else if (paymentType.equals(TYPE_PARTIAL)) {
 						setForeground(COLOR_PARTIAL);
 						setFont(new Font("Arial", Font.BOLD, 14));
-					} else if (status.equals(STATUS_LOAN)) {
+					} else if (paymentType.equals(TYPE_LOAN)) {
 						setForeground(COLOR_LOAN);
+						setFont(new Font("Arial", Font.BOLD, 14));
+					}
+				}
+
+				setHorizontalAlignment(SwingConstants.LEFT);
+				((JLabel) c).setBorder(new EmptyBorder(5, 10, 5, 10));
+				return c;
+			}
+		});
+
+		// Custom renderer for status column (column 4) with colored text
+		table.getColumnModel().getColumn(4).setCellRenderer(new DefaultTableCellRenderer() {
+			@Override
+			public Component getTableCellRendererComponent(JTable table, Object value, boolean isSelected,
+					boolean hasFocus, int row, int column) {
+				Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
+
+				if (!isSelected) {
+					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
+
+					String status = value.toString();
+					if (status.equals(STATUS_PENDING)) {
+						setForeground(COLOR_PENDING);
+						setFont(new Font("Arial", Font.BOLD, 14));
+					} else if (status.equals(STATUS_COMPLETE)) {
+						setForeground(COLOR_COMPLETE);
 						setFont(new Font("Arial", Font.BOLD, 14));
 					}
 				}
@@ -491,9 +575,13 @@ public class PaymentsPage {
 					boolean hasFocus, int row, int column) {
 				Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
 
-				// Don't override status column rendering
+				// Don't override payment type and status column rendering
 				if (column == 3) {
 					return table.getColumnModel().getColumn(3).getCellRenderer().getTableCellRendererComponent(table,
+							value, isSelected, hasFocus, row, column);
+				}
+				if (column == 4) {
+					return table.getColumnModel().getColumn(4).getCellRenderer().getTableCellRendererComponent(table,
 							value, isSelected, hasFocus, row, column);
 				}
 
@@ -502,9 +590,9 @@ public class PaymentsPage {
 					setForeground(TEXT_DARK);
 				}
 
-				if (column == 4) {
+				if (column == 5) {
 					setHorizontalAlignment(SwingConstants.RIGHT);
-				} else if (column == 5) {
+				} else if (column == 6) {
 					setHorizontalAlignment(SwingConstants.CENTER);
 				} else {
 					setHorizontalAlignment(SwingConstants.LEFT);
@@ -522,10 +610,10 @@ public class PaymentsPage {
 				int row = table.rowAtPoint(e.getPoint());
 				int col = table.columnAtPoint(e.getPoint());
 
-				if (col == 5 && row >= 0) {
+				if (col == 6 && row >= 0) {
 					int dataIndex = currentPage * RECORDS_PER_PAGE + row;
 					if (dataIndex < filteredPayments.size()) {
-						Payment payment = filteredPayments.get(dataIndex);
+						CustomerPayments payment = filteredPayments.get(dataIndex);
 						showActionMenu(e.getComponent(), e.getX(), e.getY(), payment, row);
 					}
 				}
@@ -536,7 +624,7 @@ public class PaymentsPage {
 			@Override
 			public void mouseMoved(MouseEvent e) {
 				int col = table.columnAtPoint(e.getPoint());
-				table.setCursor(new Cursor(col == 5 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
+				table.setCursor(new Cursor(col == 6 ? Cursor.HAND_CURSOR : Cursor.DEFAULT_CURSOR));
 			}
 		});
 
@@ -558,20 +646,23 @@ public class PaymentsPage {
 		int startIndex = currentPage * RECORDS_PER_PAGE;
 		int endIndex = Math.min(startIndex + RECORDS_PER_PAGE, filteredPayments.size());
 
+		SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy");
+
 		for (int i = startIndex; i < endIndex; i++) {
-			Payment p = filteredPayments.get(i);
+			CustomerPayments p = filteredPayments.get(i);
 
-			String formattedAmount = currencyFormatter.format(p.getTotalPayments()).replace("PHP", "₱");
+			String formattedAmount = currencyFormatter.format(p.getTotalPayment()).replace("PHP", "₱");
+			String formattedDate = p.getDeliveryDate() != null ? dateFormat.format(p.getDeliveryDate()) : "N/A";
 
-			model.addRow(new Object[] { p.getCustomerName(), p.getDeliveryName(), p.getDeliveryDate(), p.getStatus(),
-					formattedAmount, "⚙ Actions" });
+			model.addRow(new Object[] { p.getCustomerName(), p.getDeliveryName(), formattedDate, p.getPaymentType(),
+					p.getStatus(), formattedAmount, "⚙ Actions" });
 		}
 	}
 
 	/**
 	 * Show action menu
 	 */
-	private static void showActionMenu(Component parent, int x, int y, Payment payment, int row) {
+	private static void showActionMenu(Component parent, int x, int y, CustomerPayments payment, int row) {
 		JDialog actionDialog = new JDialog(SwingUtilities.getWindowAncestor(parent), "Actions");
 		actionDialog.setLayout(new GridBagLayout());
 		actionDialog.getContentPane().setBackground(Color.WHITE);
@@ -630,7 +721,7 @@ public class PaymentsPage {
 	/**
 	 * Show delete confirmation (UI only for now)
 	 */
-	private static void showDeleteConfirmation(Payment payment) {
+	private static void showDeleteConfirmation(CustomerPayments payment) {
 		JDialog confirmDialog = new JDialog(SwingUtilities.getWindowAncestor(table), "Confirm Delete");
 		confirmDialog.setLayout(new GridBagLayout());
 		confirmDialog.getContentPane().setBackground(Color.WHITE);

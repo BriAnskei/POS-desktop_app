@@ -317,7 +317,7 @@ public class AddBranchToCustomerDialog extends JDialog {
 				// Enable add product button
 				addProductBtn.setEnabled(true);
 			}
-		}, customer.getId(), newDeliveryController);
+		}, customer.getId(), newDeliveryController, false); // false = single selection only
 	}
 
 	/**

@@ -1,5 +1,4 @@
 package com.gierza_molases.molases_app.ui;
-
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;

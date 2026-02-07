@@ -254,7 +254,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 			statusCombo.addActionListener(e -> {
 				String selectedStatus = (String) statusCombo.getSelectedItem();
 
-				// NEW: Check if trying to cancel the last "Delivered" branch
+				// Check if trying to cancel the last "Delivered" branch
 				if ("Cancelled".equalsIgnoreCase(selectedStatus)) {
 					int deliveredBranchCount = countDeliveredBranches(customer);
 
@@ -270,15 +270,27 @@ public class CustomerBranchDetailsDialog extends JDialog {
 					}
 				}
 
+				boolean isNewlyAdded = AppContext.deliveryDetialsController.isBranchNewlyAdded(branch);
+				boolean shouldRefreshUI = isNewlyAdded && "Cancelled".equalsIgnoreCase(selectedStatus);
+
 				// Update branch status via controller (this will recalculate financials)
 				AppContext.deliveryDetialsController.setBranchDeliveryStatus(branch, selectedStatus, () -> {
 					// Success: Update UI
 					SwingUtilities.invokeLater(() -> {
+
 						// Update the customer deliveries tab
 						CustomerDeliveriesTab.refreshFinancials();
 
 						// Update the overview tab financial summary
 						DeliveryOverviewTab.updateFinancialSummary();
+
+						// Refresh UI if the cancelled branch was newly added
+						if (shouldRefreshUI) {
+							// Reload branch deliveries from state
+							branchDeliveries = AppContext.deliveryDetialsController.getState()
+									.getMappedCustomerDeliveries().get(customer);
+							buildBranchesContent();
+						}
 
 						// Trigger parent callback
 						if (onUpdate != null) {
@@ -541,16 +553,22 @@ public class CustomerBranchDetailsDialog extends JDialog {
 
 		JButton editBtn = createActionButton("✏️ Edit Quantity", ACCENT_GOLD);
 		editBtn.addActionListener(e -> {
-			actionDialog.dispose();
-			handleEditQuantity(product, branch);
+			// CHANGED: Defer disposal and dialog opening
+			SwingUtilities.invokeLater(() -> {
+				actionDialog.dispose();
+				handleEditQuantity(product, branch);
+			});
 		});
 		actionDialog.add(editBtn, gbc);
 
 		gbc.gridy++;
 		JButton removeBtn = createActionButton("🗑️ Remove Product", new Color(180, 50, 50));
 		removeBtn.addActionListener(e -> {
-			actionDialog.dispose();
-			showRemoveProductConfirmation(product, branch);
+			// CHANGED: Defer disposal and dialog opening
+			SwingUtilities.invokeLater(() -> {
+				actionDialog.dispose();
+				showRemoveProductConfirmation(product, branch);
+			});
 		});
 		actionDialog.add(removeBtn, gbc);
 
@@ -562,7 +580,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 
 		actionDialog.pack();
 		actionDialog.setMinimumSize(new Dimension(380, 220));
-		actionDialog.setLocationRelativeTo(null);
+		actionDialog.setLocationRelativeTo(this); // CHANGED: Use 'this' instead of null
 		actionDialog.setVisible(true);
 	}
 

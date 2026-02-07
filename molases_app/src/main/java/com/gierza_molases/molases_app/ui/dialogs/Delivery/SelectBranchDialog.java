@@ -71,16 +71,20 @@ public class SelectBranchDialog extends JDialog {
 	// controller
 	private final NewDeliveryController newDeliveryController;
 
+	// for multiple selection or one selection
+	private final boolean multipleSelectionMode;
+
 	/**
-	 * Constructor - now accepts the list of branches to display
+	 * Constructor
 	 */
 	public SelectBranchDialog(Window parent, List<String> alreadyAddedBranchAddresses,
 			Consumer<List<Branch>> onBranchesSelected, int selectedCustomerId,
-			NewDeliveryController newDeliveryController) {
-		super(parent, "Select Branches", ModalityType.APPLICATION_MODAL);
+			NewDeliveryController newDeliveryController, boolean multipleSelectionMode) {
+		super(parent, "Select Branch" + (multipleSelectionMode ? "es" : ""), ModalityType.APPLICATION_MODAL);
 		this.onBranchesSelectedCallback = onBranchesSelected;
 		this.newDeliveryController = newDeliveryController;
 		this.selectedCustomerId = selectedCustomerId;
+		this.multipleSelectionMode = multipleSelectionMode;
 		initializeUI();
 		loadBranches(alreadyAddedBranchAddresses);
 	}
@@ -142,14 +146,16 @@ public class SelectBranchDialog extends JDialog {
 		JPanel headerPanel = new JPanel(new BorderLayout(0, 10));
 		headerPanel.setBackground(Color.WHITE);
 
-		// Title
-		JLabel titleLabel = new JLabel("Select Branches");
+		// Title - updated to reflect selection mode
+		JLabel titleLabel = new JLabel("Select Branch" + (multipleSelectionMode ? "es" : ""));
 		titleLabel.setFont(new Font("Arial", Font.BOLD, 24));
 		titleLabel.setForeground(TEXT_DARK);
 		headerPanel.add(titleLabel, BorderLayout.NORTH);
 
-		// Instructions
-		JLabel instructionLabel = new JLabel("Select one or more branches to add:");
+		// Instructions - updated to reflect selection mode
+		String instructionText = multipleSelectionMode ? "Select one or more branches to add:"
+				: "Select a branch to add:";
+		JLabel instructionLabel = new JLabel(instructionText);
 		instructionLabel.setFont(new Font("Arial", Font.PLAIN, 14));
 		instructionLabel.setForeground(TEXT_DARK);
 		headerPanel.add(instructionLabel, BorderLayout.CENTER);
@@ -277,6 +283,15 @@ public class SelectBranchDialog extends JDialog {
 	 * Toggle branch selection
 	 */
 	private void toggleBranchSelection(int row) {
+		// In single selection mode, clear all other selections first
+		if (!multipleSelectionMode) {
+			// Uncheck all rows
+			for (int i = 0; i < branchTableModel.getRowCount(); i++) {
+				branchTableModel.setValueAt(false, i, 0);
+			}
+			selectedBranches.clear();
+		}
+
 		boolean currentValue = (Boolean) branchTableModel.getValueAt(row, 0);
 		boolean newValue = !currentValue;
 		branchTableModel.setValueAt(newValue, row, 0);
@@ -349,8 +364,10 @@ public class SelectBranchDialog extends JDialog {
 		cancelButton.addActionListener(e -> dispose());
 		buttonPanel.add(cancelButton);
 
-		addBranchButton = createStyledButton("Add Branch", ACCENT_GOLD);
-		addBranchButton.setPreferredSize(new Dimension(120, 42));
+		// Button text reflects selection mode
+		String buttonText = multipleSelectionMode ? "Add Branches" : "Add Branch";
+		addBranchButton = createStyledButton(buttonText, ACCENT_GOLD);
+		addBranchButton.setPreferredSize(new Dimension(140, 42));
 		addBranchButton.setEnabled(false);
 		addBranchButton.addActionListener(e -> handleAddBranches());
 		buttonPanel.add(addBranchButton);
@@ -370,7 +387,8 @@ public class SelectBranchDialog extends JDialog {
 	 */
 	private void handleAddBranches() {
 		if (selectedBranches.isEmpty()) {
-			ToastNotification.showError(this, "Please select at least one branch.");
+			String message = multipleSelectionMode ? "Please select at least one branch." : "Please select a branch.";
+			ToastNotification.showError(this, message);
 			return;
 		}
 
@@ -499,14 +517,27 @@ public class SelectBranchDialog extends JDialog {
 	}
 
 	/**
-	 * Show the dialog
+	 * Show the dialog with multiple selection mode (for backward compatibility)
 	 */
 	public static void show(Window parent, List<String> alreadyAddedBranchAddresses,
 			Consumer<List<Branch>> onBranchesSelected, int selectedCustomerId,
 			NewDeliveryController newDeliveryController) {
-		System.out.println("Fetching cutomer bracnehs: " + selectedCustomerId);
+		show(parent, alreadyAddedBranchAddresses, onBranchesSelected, selectedCustomerId, newDeliveryController, true); // Default
+																														// to
+																														// multiple
+																														// //
+																														// selection
+	}
+
+	/**
+	 * Show the dialog with specified selection mode
+	 */
+	public static void show(Window parent, List<String> alreadyAddedBranchAddresses,
+			Consumer<List<Branch>> onBranchesSelected, int selectedCustomerId,
+			NewDeliveryController newDeliveryController, boolean multipleSelectionMode) {
+		System.out.println("Fetching customer branches: " + selectedCustomerId);
 		SelectBranchDialog dialog = new SelectBranchDialog(parent, alreadyAddedBranchAddresses, onBranchesSelected,
-				selectedCustomerId, newDeliveryController);
+				selectedCustomerId, newDeliveryController, multipleSelectionMode);
 		dialog.setVisible(true);
 	}
 }
