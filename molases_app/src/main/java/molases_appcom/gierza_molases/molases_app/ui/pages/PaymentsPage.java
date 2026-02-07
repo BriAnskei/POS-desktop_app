@@ -14,13 +14,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -42,6 +37,9 @@ import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.JTableHeader;
 
+import com.gierza_molases.molases_app.UiController.CustomerPaymentController;
+import com.gierza_molases.molases_app.context.AppContext;
+import com.gierza_molases.molases_app.context.CustomerPaymentState;
 import com.gierza_molases.molases_app.model.CustomerPayments;
 import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
 import com.gierza_molases.molases_app.ui.components.ToastNotification;
@@ -80,13 +78,8 @@ public class PaymentsPage {
 	private static final String STATUS_PENDING = "Pending";
 	private static final String STATUS_COMPLETE = "Complete";
 
-	// Pagination settings
-	private static final int RECORDS_PER_PAGE = 10;
-
-	// Mock data
-	private static List<CustomerPayments> allPayments = new ArrayList<>();
-	private static List<CustomerPayments> filteredPayments = new ArrayList<>();
-	private static int currentPage = 0;
+	// Controller reference
+	private static final CustomerPaymentController controller = AppContext.customerPaymentController;
 
 	// UI component references
 	private static JTextField customerSearchField;
@@ -116,10 +109,8 @@ public class PaymentsPage {
 	 * Create the Payments Page panel
 	 */
 	public static JPanel createPanel() {
-		// Initialize mock data
-		initializeMockData();
-		filteredPayments = new ArrayList<>(allPayments);
-		currentPage = 0;
+		// Reset state when creating panel
+		controller.resetState();
 
 		JPanel mainPanel = new JPanel(new BorderLayout(0, 20));
 		mainPanel.setBackground(CONTENT_BG);
@@ -151,80 +142,17 @@ public class PaymentsPage {
 		JPanel bottomSection = createPaginationSection();
 		mainPanel.add(bottomSection, BorderLayout.SOUTH);
 
+		// Load initial data with loading indicator
+		showLoading();
+		controller.loadPayments(false, () -> {
+			hideLoading();
+			refreshTable();
+		}, () -> {
+			hideLoading();
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to load payments");
+		});
+
 		return mainPanel;
-	}
-
-	/**
-	 * Initialize mock payment data
-	 */
-	private static void initializeMockData() {
-		allPayments.clear();
-
-		String[] customerNames = { "Juan Dela Cruz", "Maria Santos", "Pedro Reyes", "Ana Garcia", "Jose Mendoza",
-				"Carmen Lopez", "Ricardo Flores", "Sofia Ramos", "Miguel Torres", "Isabella Cruz", "Carlos Valdez",
-				"Lucia Martinez", "Fernando Aguilar", "Gabriela Morales", "Antonio Diaz", "Valentina Ruiz",
-				"Diego Hernandez", "Camila Castro", "Javier Ortiz", "Natalia Gutierrez", "Roberto Jimenez",
-				"Elena Navarro", "Francisco Romero", "Paula Medina", "Andres Silva", "Victoria Perez", "Manuel Vargas",
-				"Daniela Rojas", "Luis Fernandez", "Adriana Molina" };
-
-		String[] deliveryNames = { "Express Delivery", "Standard Shipping", "Premium Service", "Quick Dispatch",
-				"Fast Track", "Economy Shipping", "Priority Mail", "Overnight Express", "Same Day Delivery",
-				"Next Day Service" };
-
-		String[] paymentTypes = { TYPE_PAID_CASH, TYPE_PAID_CHEQUE, TYPE_PARTIAL, TYPE_LOAN };
-		String[] statuses = { STATUS_PENDING, STATUS_COMPLETE };
-
-		Calendar cal = Calendar.getInstance();
-
-		for (int i = 1; i <= 30; i++) {
-			// Random date within last 60 days for delivery date
-			cal.setTime(new Date());
-			cal.add(Calendar.DAY_OF_MONTH, -(int) (Math.random() * 60));
-			Date deliveryDate = cal.getTime();
-
-			// Random LocalDateTime for createdAt (within last 90 days)
-			LocalDateTime createdAt = LocalDateTime.now().minusDays((long) (Math.random() * 90));
-
-			// Random date for promiseToPay (future date for loans)
-			cal.setTime(new Date());
-			cal.add(Calendar.DAY_OF_MONTH, (int) (Math.random() * 30));
-			Date promiseToPay = cal.getTime();
-
-			// Random payment amount between 500 and 50000
-			double total = 500 + (Math.random() * 49500);
-			total = Math.round(total * 100.0) / 100.0;
-
-			// Random total payment (could be less than total for partial payments)
-			double totalPayment = total * (0.5 + Math.random() * 0.5);
-			totalPayment = Math.round(totalPayment * 100.0) / 100.0;
-
-			// Random payment type
-			String paymentType = paymentTypes[(int) (Math.random() * paymentTypes.length)];
-
-			// Random status
-			String status = statuses[(int) (Math.random() * statuses.length)];
-
-			// Random customer ID and delivery ID
-			int customerId = i;
-			int customerDeliveryId = i; // Now int, not Integer
-
-			// Create CustomerPayments using the Payment Management list constructor
-			CustomerPayments payment = new CustomerPayments(i, // id (Integer)
-					customerId, // customerId (int)
-					customerDeliveryId, // customerDeliveryId (int)
-					paymentType, // paymentType
-					status, // status
-					total, // total
-					totalPayment, // totalPayment
-					promiseToPay, // promiseToPay (Date)
-					createdAt, // createdAt (LocalDateTime)
-					customerNames[i - 1], // customerName (joined)
-					deliveryNames[(int) (Math.random() * deliveryNames.length)], // deliveryName (joined)
-					deliveryDate // deliveryDate (joined)
-			);
-
-			allPayments.add(payment);
-		}
 	}
 
 	/**
@@ -259,6 +187,58 @@ public class PaymentsPage {
 	}
 
 	/**
+	 * Show loading indicator
+	 */
+	private static void showLoading() {
+		if (loadingOverlay != null && table != null) {
+			if (spinner != null)
+				spinner.start();
+			loadingOverlay.setVisible(true);
+			table.setEnabled(false);
+
+			if (customerSearchField != null)
+				customerSearchField.setEnabled(false);
+			if (paymentTypeFilterCombo != null)
+				paymentTypeFilterCombo.setEnabled(false);
+			if (statusFilterCombo != null)
+				statusFilterCombo.setEnabled(false);
+			if (fromDateChooser != null)
+				fromDateChooser.setEnabled(false);
+			if (toDateChooser != null)
+				toDateChooser.setEnabled(false);
+			if (prevBtn != null)
+				prevBtn.setEnabled(false);
+			if (nextBtn != null)
+				nextBtn.setEnabled(false);
+		}
+	}
+
+	/**
+	 * Hide loading indicator
+	 */
+	private static void hideLoading() {
+		if (loadingOverlay != null && table != null) {
+			if (spinner != null)
+				spinner.stop();
+			loadingOverlay.setVisible(false);
+			table.setEnabled(true);
+
+			if (customerSearchField != null)
+				customerSearchField.setEnabled(true);
+			if (paymentTypeFilterCombo != null)
+				paymentTypeFilterCombo.setEnabled(true);
+			if (statusFilterCombo != null)
+				statusFilterCombo.setEnabled(true);
+			if (fromDateChooser != null)
+				fromDateChooser.setEnabled(true);
+			if (toDateChooser != null)
+				toDateChooser.setEnabled(true);
+
+			updatePaginationControls();
+		}
+	}
+
+	/**
 	 * Create top section
 	 */
 	private static JPanel createTopSection() {
@@ -281,12 +261,14 @@ public class PaymentsPage {
 		titleRow.add(Box.createHorizontalGlue());
 
 		// Payment Type filter
+		CustomerPaymentState state = controller.getState();
 		String[] paymentTypeOptions = { "All", TYPE_PAID_CASH, TYPE_PAID_CHEQUE, TYPE_PARTIAL, TYPE_LOAN };
 		paymentTypeFilterCombo = new JComboBox<>(paymentTypeOptions);
 		paymentTypeFilterCombo.setFont(new Font("Arial", Font.PLAIN, 14));
 		paymentTypeFilterCombo.setPreferredSize(new Dimension(140, 38));
 		paymentTypeFilterCombo.setMaximumSize(new Dimension(140, 38));
 		paymentTypeFilterCombo.setBackground(Color.WHITE);
+		paymentTypeFilterCombo.setSelectedItem(state.getPaymentType());
 
 		JLabel paymentTypeLabel = new JLabel("Payment Type:");
 		paymentTypeLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -304,6 +286,7 @@ public class PaymentsPage {
 		statusFilterCombo.setPreferredSize(new Dimension(140, 38));
 		statusFilterCombo.setMaximumSize(new Dimension(140, 38));
 		statusFilterCombo.setBackground(Color.WHITE);
+		statusFilterCombo.setSelectedItem(state.getStatus());
 
 		JLabel statusLabel = new JLabel("Status:");
 		statusLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -330,6 +313,7 @@ public class PaymentsPage {
 		customerSearchField.setBorder(BorderFactory.createCompoundBorder(
 				BorderFactory.createLineBorder(new Color(200, 190, 180), 1), new EmptyBorder(5, 10, 5, 10)));
 		customerSearchField.setToolTipText("Search by customer or delivery name");
+		customerSearchField.setText(state.getSearch());
 
 		JLabel customerLabel = new JLabel("Search:");
 		customerLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -346,6 +330,7 @@ public class PaymentsPage {
 		fromDateChooser.setPreferredSize(new Dimension(140, 38));
 		fromDateChooser.setMaximumSize(new Dimension(140, 38));
 		fromDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
+		fromDateChooser.setDate(state.getFromDate());
 
 		JLabel fromDateLabel = new JLabel("From Date:");
 		fromDateLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -362,6 +347,7 @@ public class PaymentsPage {
 		toDateChooser.setPreferredSize(new Dimension(140, 38));
 		toDateChooser.setMaximumSize(new Dimension(140, 38));
 		toDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
+		toDateChooser.setDate(state.getToDate());
 
 		JLabel toDateLabel = new JLabel("To Date:");
 		toDateLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -393,52 +379,20 @@ public class PaymentsPage {
 	 * Perform search/filter
 	 */
 	private static void performSearch() {
-		String customerSearch = customerSearchField.getText().trim().toLowerCase();
+		String searchText = customerSearchField.getText().trim();
+		String paymentType = (String) paymentTypeFilterCombo.getSelectedItem();
+		String status = (String) statusFilterCombo.getSelectedItem();
 		Date fromDate = fromDateChooser.getDate();
 		Date toDate = toDateChooser.getDate();
-		String selectedPaymentType = (String) paymentTypeFilterCombo.getSelectedItem();
-		String selectedStatus = (String) statusFilterCombo.getSelectedItem();
 
-		// Filter with AND logic
-		filteredPayments = allPayments.stream().filter(payment -> {
-			// Customer match
-			boolean customerMatch = customerSearch.isEmpty()
-					|| payment.getCustomerName().toLowerCase().contains(customerSearch)
-					|| payment.getDeliveryName().toLowerCase().contains(customerSearch);
-
-			// Date range match
-			boolean dateMatch = true;
-			if (fromDate != null || toDate != null) {
-				Date paymentDate = payment.getDeliveryDate();
-
-				if (paymentDate != null) {
-					if (fromDate != null && toDate != null) {
-						// Both dates specified - check if payment date is within range
-						dateMatch = !paymentDate.before(fromDate) && !paymentDate.after(toDate);
-					} else if (fromDate != null) {
-						// Only from date - check if payment date is on or after from date
-						dateMatch = !paymentDate.before(fromDate);
-					} else {
-						// Only to date - check if payment date is on or before to date
-						dateMatch = !paymentDate.after(toDate);
-					}
-				} else {
-					dateMatch = false;
-				}
-			}
-
-			// Payment Type match
-			boolean paymentTypeMatch = "All".equals(selectedPaymentType)
-					|| payment.getPaymentType().equals(selectedPaymentType);
-
-			// Status match
-			boolean statusMatch = "All".equals(selectedStatus) || payment.getStatus().equals(selectedStatus);
-
-			return customerMatch && dateMatch && paymentTypeMatch && statusMatch;
-		}).collect(Collectors.toList());
-
-		currentPage = 0;
-		refreshTable();
+		showLoading();
+		controller.search(searchText, paymentType, status, fromDate, toDate, () -> {
+			hideLoading();
+			refreshTable();
+		}, () -> {
+			hideLoading();
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Search failed");
+		});
 	}
 
 	/**
@@ -451,9 +405,14 @@ public class PaymentsPage {
 		paymentTypeFilterCombo.setSelectedIndex(0);
 		statusFilterCombo.setSelectedIndex(0);
 
-		filteredPayments = new ArrayList<>(allPayments);
-		currentPage = 0;
-		refreshTable();
+		showLoading();
+		controller.clearSearch(() -> {
+			hideLoading();
+			refreshTable();
+		}, () -> {
+			hideLoading();
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to clear filters");
+		});
 	}
 
 	/**
@@ -610,12 +569,10 @@ public class PaymentsPage {
 				int row = table.rowAtPoint(e.getPoint());
 				int col = table.columnAtPoint(e.getPoint());
 
-				if (col == 6 && row >= 0) {
-					int dataIndex = currentPage * RECORDS_PER_PAGE + row;
-					if (dataIndex < filteredPayments.size()) {
-						CustomerPayments payment = filteredPayments.get(dataIndex);
-						showActionMenu(e.getComponent(), e.getX(), e.getY(), payment, row);
-					}
+				CustomerPaymentState state = controller.getState();
+				if (col == 6 && row >= 0 && row < state.getPayments().size()) {
+					CustomerPayments payment = state.getPayments().get(row);
+					showActionMenu(e.getComponent(), e.getX(), e.getY(), payment, row);
 				}
 			}
 		});
@@ -638,19 +595,15 @@ public class PaymentsPage {
 	}
 
 	/**
-	 * Update table with current page data
+	 * Update table with current data from state
 	 */
 	private static void updateTableData(DefaultTableModel model) {
 		model.setRowCount(0);
 
-		int startIndex = currentPage * RECORDS_PER_PAGE;
-		int endIndex = Math.min(startIndex + RECORDS_PER_PAGE, filteredPayments.size());
-
+		CustomerPaymentState state = controller.getState();
 		SimpleDateFormat dateFormat = new SimpleDateFormat("MMM dd, yyyy");
 
-		for (int i = startIndex; i < endIndex; i++) {
-			CustomerPayments p = filteredPayments.get(i);
-
+		for (CustomerPayments p : state.getPayments()) {
 			String formattedAmount = currencyFormatter.format(p.getTotalPayment()).replace("PHP", "₱");
 			String formattedDate = p.getDeliveryDate() != null ? dateFormat.format(p.getDeliveryDate()) : "N/A";
 
@@ -719,7 +672,7 @@ public class PaymentsPage {
 	}
 
 	/**
-	 * Show delete confirmation (UI only for now)
+	 * Show delete confirmation
 	 */
 	private static void showDeleteConfirmation(CustomerPayments payment) {
 		JDialog confirmDialog = new JDialog(SwingUtilities.getWindowAncestor(table), "Confirm Delete");
@@ -762,7 +715,15 @@ public class PaymentsPage {
 		deleteBtn.setPreferredSize(new Dimension(120, 40));
 		deleteBtn.addActionListener(e -> {
 			confirmDialog.dispose();
-			ToastNotification.showInfo(SwingUtilities.getWindowAncestor(table), "Delete functionality - Coming soon!");
+			deleteBtn.setEnabled(false);
+
+			controller.deletePayment(payment.getId(), () -> {
+				refreshPaymentData();
+				ToastNotification.showSuccess(SwingUtilities.getWindowAncestor(table), "Payment deleted successfully!");
+			}, err -> {
+				ToastNotification.showError(SwingUtilities.getWindowAncestor(table), err);
+				deleteBtn.setEnabled(true);
+			});
 		});
 		confirmDialog.add(deleteBtn, gbc);
 
@@ -799,8 +760,6 @@ public class PaymentsPage {
 
 		paginationPanel.add(controlsPanel, BorderLayout.EAST);
 
-		updatePaginationControls();
-
 		return paginationPanel;
 	}
 
@@ -808,21 +767,37 @@ public class PaymentsPage {
 	 * Go to previous page
 	 */
 	private static void goToPreviousPage() {
-		if (currentPage > 0) {
-			currentPage--;
+		controller.goToPreviousPage(() -> {
 			refreshTable();
-		}
+		});
 	}
 
 	/**
 	 * Go to next page
 	 */
 	private static void goToNextPage() {
-		int maxPage = (int) Math.ceil((double) filteredPayments.size() / RECORDS_PER_PAGE) - 1;
-		if (currentPage < maxPage) {
-			currentPage++;
+		showLoading();
+		controller.loadPayments(true, () -> {
+			hideLoading();
 			refreshTable();
-		}
+		}, () -> {
+			hideLoading();
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to load next page");
+		});
+	}
+
+	/**
+	 * Refresh payment data
+	 */
+	public static void refreshPaymentData() {
+		showLoading();
+		controller.refreshCurrentPage(() -> {
+			hideLoading();
+			refreshTable();
+		}, () -> {
+			hideLoading();
+			ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanelRef), "Failed to refresh data");
+		});
 	}
 
 	/**
@@ -854,11 +829,42 @@ public class PaymentsPage {
 		if (pageInfoLabel == null)
 			return;
 
-		int startIndex = currentPage * RECORDS_PER_PAGE + 1;
-		int endIndex = Math.min((currentPage + 1) * RECORDS_PER_PAGE, filteredPayments.size());
-		int total = filteredPayments.size();
+		CustomerPaymentState state = controller.getState();
+		String infoText = "Showing " + state.getPayments().size() + " payments";
 
-		String infoText = "Showing " + startIndex + "-" + endIndex + " of " + total + " payments";
+		// Add filter info
+		boolean hasFilters = false;
+		StringBuilder filterInfo = new StringBuilder();
+
+		if (!state.getSearch().isEmpty()) {
+			filterInfo.append("search: \"").append(state.getSearch()).append("\"");
+			hasFilters = true;
+		}
+
+		if (!"All".equals(state.getPaymentType())) {
+			if (hasFilters)
+				filterInfo.append(", ");
+			filterInfo.append("type: ").append(state.getPaymentType());
+			hasFilters = true;
+		}
+
+		if (!"All".equals(state.getStatus())) {
+			if (hasFilters)
+				filterInfo.append(", ");
+			filterInfo.append("status: ").append(state.getStatus());
+			hasFilters = true;
+		}
+
+		if (state.getFromDate() != null || state.getToDate() != null) {
+			if (hasFilters)
+				filterInfo.append(", ");
+			filterInfo.append("date range");
+			hasFilters = true;
+		}
+
+		if (hasFilters) {
+			infoText += " (filtered by: " + filterInfo.toString() + ")";
+		}
 
 		pageInfoLabel.setText(infoText);
 	}
@@ -867,13 +873,14 @@ public class PaymentsPage {
 	 * Update pagination controls
 	 */
 	private static void updatePaginationControls() {
+		CustomerPaymentState state = controller.getState();
+
 		if (prevBtn != null) {
-			prevBtn.setEnabled(currentPage > 0);
+			prevBtn.setEnabled(!state.getPageHistory().isEmpty());
 		}
 
 		if (nextBtn != null) {
-			int maxPage = (int) Math.ceil((double) filteredPayments.size() / RECORDS_PER_PAGE) - 1;
-			nextBtn.setEnabled(currentPage < maxPage);
+			nextBtn.setEnabled(state.hasNextPage());
 		}
 	}
 

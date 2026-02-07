@@ -32,6 +32,7 @@ public class CustomerPayments {
 		this.createdAt = createdAt;
 	}
 
+	// raw data for delivery view module functionality
 	public CustomerPayments(Integer id, int customerId, int customerDeliveryId, String paymentType, String status,
 			double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt) {
 		this.id = id;
@@ -45,7 +46,7 @@ public class CustomerPayments {
 		this.createdAt = createdAt;
 	}
 
-	// Constructor for Payment Management list
+	// complete data for a page view
 	public CustomerPayments(Integer id, int customerId, int customerDeliveryId, String paymentType, String status,
 			double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt, String customerName,
 			String deliveryName, Date deliveryDate) {

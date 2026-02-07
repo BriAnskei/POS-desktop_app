@@ -33,6 +33,7 @@ public class BranchesController {
 	public void loadBranches(boolean isNextPage, Runnable onDone, Runnable onError) {
 		new SwingWorker<List<Branch>, Void>() {
 			private List<Branch> loaded;
+
 			private Exception error;
 
 			@Override
@@ -40,6 +41,7 @@ public class BranchesController {
 				try {
 					String filter = state.getSearch().isEmpty() ? null : state.getSearch();
 					loaded = service.fetchBranchCursor(state.getLastSeenBranchId(), filter, state.getPageSize());
+
 				} catch (Exception e) {
 					error = e;
 				}
@@ -62,9 +64,15 @@ public class BranchesController {
 						state.pushPageToHistory(new PageState(historyLastSeenId, currentBranches, state.getSearch()));
 					}
 
-					// Update state with loaded data
+					boolean hasNext = loaded.size() > state.getPageSize();
+
+					if (hasNext) {
+						// remove the extra item
+						loaded.remove(loaded.size() - 1);
+					}
+
+					state.setHasNextPage(hasNext);
 					state.setBranches(loaded);
-					state.setHasNextPage(loaded.size() >= state.getPageSize());
 
 					// Update last seen ID for next page
 					if (!loaded.isEmpty()) {
@@ -92,7 +100,6 @@ public class BranchesController {
 			protected List<Branch> doInBackground() {
 				try {
 					customerBranches = service.getBranchesByCustomerId(customerId);
-					System.out.println("customer branches coount: " + customerBranches.size());
 
 				} catch (Exception e) {
 					error = e;

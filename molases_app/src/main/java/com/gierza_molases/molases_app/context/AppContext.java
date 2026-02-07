@@ -3,6 +3,7 @@ package com.gierza_molases.molases_app.context;
 import java.sql.Connection;
 
 import com.gierza_molases.molases_app.UiController.BranchesController;
+import com.gierza_molases.molases_app.UiController.CustomerPaymentController;
 import com.gierza_molases.molases_app.UiController.CustomersController;
 import com.gierza_molases.molases_app.UiController.DeliveryController;
 import com.gierza_molases.molases_app.UiController.DeliveryDetailsController;
@@ -20,6 +21,7 @@ import com.gierza_molases.molases_app.dao.ProductDeliveryDao;
 import com.gierza_molases.molases_app.service.BranchDeliveryService;
 import com.gierza_molases.molases_app.service.BranchService;
 import com.gierza_molases.molases_app.service.CustomerDeliveryService;
+import com.gierza_molases.molases_app.service.CustomerPaymentsService;
 import com.gierza_molases.molases_app.service.CustomerService;
 import com.gierza_molases.molases_app.service.DeliveryService;
 import com.gierza_molases.molases_app.service.ProductAssociationService;
@@ -38,6 +40,7 @@ public class AppContext {
 	private static DeliveryService deliveryService;
 	private static CustomerDeliveryService customerDeliveryService;
 	private static BranchDeliveryService branchDeliveryService;
+	private static CustomerPaymentsService customerPaymentsService;
 
 	// Controllers
 	public static CustomersController customersController;
@@ -46,6 +49,7 @@ public class AppContext {
 	public static DeliveryController deliveryController;
 	public static NewDeliveryController newDeliveryController;
 	public static DeliveryDetailsController deliveryDetialsController;
+	public static CustomerPaymentController customerPaymentController;
 
 	public static void init() {
 		// DB connection
@@ -74,6 +78,7 @@ public class AppContext {
 				customerDao, branchDao, productDao, customerPaymentsDao);
 		customerDeliveryService = new CustomerDeliveryService(customerDeliveryDao, branchDeliveryDao);
 		branchDeliveryService = new BranchDeliveryService(branchDeliveryDao);
+		customerPaymentsService = new CustomerPaymentsService(customerPaymentsDao);
 
 		// Initialize controller with a new state instance
 		customersController = new CustomersController(new CustomerState(), customerService);
@@ -84,6 +89,8 @@ public class AppContext {
 		newDeliveryController = new NewDeliveryController(new NewDeliveryState(), customersController,
 				branchesController, productsController, deliveryService);
 		deliveryDetialsController = new DeliveryDetailsController(new DeliveryDetailsState(), deliveryService);
+
+		customerPaymentController = new CustomerPaymentController(new CustomerPaymentState(), customerPaymentsService);
 
 	}
 
