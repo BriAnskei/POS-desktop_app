@@ -1,7 +1,7 @@
 package com.gierza_molases.molases_app.context;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Stack;
 
@@ -11,8 +11,8 @@ public class CustomerPaymentState {
 	private String search = "";
 	private String paymentType = "All";
 	private String status = "All";
-	private Date fromDate = null;
-	private Date toDate = null;
+	private LocalDateTime fromDate = null;
+	private LocalDateTime toDate = null;
 	private Long lastSeenPaymentId = null;
 	private boolean hasNextPage = true;
 	private int pageSize = 15;
@@ -28,11 +28,11 @@ public class CustomerPaymentState {
 		private String searchFilter;
 		private String paymentTypeFilter;
 		private String statusFilter;
-		private Date fromDate;
-		private Date toDate;
+		private LocalDateTime fromDate;
+		private LocalDateTime toDate;
 
 		public PageState(Long lastSeenPaymentId, List<CustomerPayments> payments, String searchFilter,
-				String paymentTypeFilter, String statusFilter, Date fromDate, Date toDate) {
+				String paymentTypeFilter, String statusFilter, LocalDateTime fromDate, LocalDateTime toDate) {
 			this.lastSeenPaymentId = lastSeenPaymentId;
 			this.payments = new ArrayList<>(payments); // Create a copy
 			this.searchFilter = searchFilter;
@@ -62,11 +62,11 @@ public class CustomerPaymentState {
 			return statusFilter;
 		}
 
-		public Date getFromDate() {
+		public LocalDateTime getFromDate() {
 			return fromDate;
 		}
 
-		public Date getToDate() {
+		public LocalDateTime getToDate() {
 			return toDate;
 		}
 	}
@@ -84,11 +84,11 @@ public class CustomerPaymentState {
 		return status;
 	}
 
-	public Date getFromDate() {
+	public LocalDateTime getFromDate() {
 		return fromDate;
 	}
 
-	public Date getToDate() {
+	public LocalDateTime getToDate() {
 		return toDate;
 	}
 
@@ -129,11 +129,11 @@ public class CustomerPaymentState {
 		this.status = status;
 	}
 
-	public void setFromDate(Date fromDate) {
+	public void setFromDate(LocalDateTime fromDate) {
 		this.fromDate = fromDate;
 	}
 
-	public void setToDate(Date toDate) {
+	public void setToDate(LocalDateTime toDate) {
 		this.toDate = toDate;
 	}
 

@@ -1,5 +1,6 @@
 package com.gierza_molases.molases_app.UiController;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.function.Consumer;
 
@@ -43,7 +44,7 @@ public class CustomerPaymentController {
 					String paymentTypeFilter = "All".equals(state.getPaymentType()) ? null : state.getPaymentType();
 					String statusFilter = "All".equals(state.getStatus()) ? null : state.getStatus();
 
-					loaded = service.fetchPayamentsCursor(state.getLastSeenPaymentId(), searchFilter, paymentTypeFilter,
+					loaded = service.fetchPaymentsCursor(state.getLastSeenPaymentId(), searchFilter, paymentTypeFilter,
 							statusFilter, state.getFromDate(), state.getToDate(), state.getPageSize());
 
 				} catch (Exception e) {
@@ -151,8 +152,8 @@ public class CustomerPaymentController {
 	/**
 	 * Perform search and reload from first page
 	 */
-	public void search(String searchText, String paymentType, String status, java.util.Date fromDate,
-			java.util.Date toDate, Runnable onDone, Runnable onError) {
+	public void search(String searchText, String paymentType, String status, LocalDateTime fromDate,
+			LocalDateTime toDate, Runnable onDone, Runnable onError) {
 		state.setSearch(searchText);
 		state.setPaymentType(paymentType);
 		state.setStatus(status);

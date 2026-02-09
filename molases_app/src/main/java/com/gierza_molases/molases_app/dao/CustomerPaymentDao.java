@@ -6,9 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -52,16 +50,6 @@ public class CustomerPaymentDao {
 			    LEFT JOIN customer_delivery cd ON cd.id = cp.customer_delivery_id
 			    LEFT JOIN delivery d ON d.id = cd.delivery_id
 			    WHERE cp.id < ?
-			      AND (? IS NULL OR cp.payment_type = ?)
-			      AND (? IS NULL OR cp.status = ?)
-			      AND (
-			            ? IS NULL
-			            OR (d.schedule_date IS NOT NULL AND d.schedule_date >= ?)
-			          )
-			      AND (
-			            ? IS NULL
-			            OR (d.schedule_date IS NOT NULL AND d.schedule_date < ?)
-			          )
 			    ORDER BY cp.id DESC
 			    LIMIT ?;
 			""";
@@ -120,6 +108,28 @@ public class CustomerPaymentDao {
 			    WHERE customer_delivery_id = ?
 			""";
 
+	private static final String SELECT_BY_ID = """
+			    SELECT
+			       cp.id,
+			       cp.customer_id,
+			       cp.customer_delivery_id,
+			       cp.payment_type,
+			       cp.status,
+			       cp.total,
+			       cp.total_payment,
+			       cp.promise_to_pay,
+			       cp.created_at,
+
+			       c.display_name  AS customer_name,
+			       d.name          AS delivery_name,
+			       d.schedule_date AS delivery_date
+			   FROM customer_payments cp
+			   JOIN customer c ON c.id = cp.customer_id
+			   LEFT JOIN customer_delivery cd ON cd.id = cp.customer_delivery_id
+			   LEFT JOIN delivery d ON d.id = cd.delivery_id
+			   WHERE cp.id = ?
+			""";
+
 	public CustomerPaymentDao(Connection conn) {
 		this.conn = conn;
 	}
@@ -157,39 +167,23 @@ public class CustomerPaymentDao {
 	}
 
 	public List<CustomerPayments> fetchNextPage(Long lastSeenPaymentId, String search, String paymentType,
-			String status, Date fromDate, Date toDate, int pageSize) {
-		boolean hasSearch = search != null && !search.isBlank();
-
-		return hasSearch
+			String status, LocalDateTime fromDate, LocalDateTime toDate, int pageSize) {
+		boolean hasFilter = (search != null && !search.isBlank()) || paymentType != null || status != null
+				|| fromDate != null || toDate != null;
+		return hasFilter
 				? fetchNextPageWithSearch(lastSeenPaymentId, search, paymentType, status, fromDate, toDate, pageSize)
-				: fetchNextPageNoSearch(lastSeenPaymentId, paymentType, status, fromDate, toDate, pageSize);
+				: fetchNextPageNoSearch(lastSeenPaymentId, pageSize);
 	}
 
-	private List<CustomerPayments> fetchNextPageNoSearch(Long lastSeenPaymentId, String paymentType, String status,
-			Date fromDate, Date toDate, int pageSize) {
+	private List<CustomerPayments> fetchNextPageNoSearch(Long lastSeenPaymentId, int pageSize) {
 		List<CustomerPayments> payments = new ArrayList<>();
 
 		try (PreparedStatement ps = conn.prepareStatement(SELECT_PAYMENTS_BASE)) {
 
 			long cursor = lastSeenPaymentId != null ? lastSeenPaymentId : Long.MAX_VALUE;
 
-			Timestamp fromTs = toStartOfDay(fromDate);
-			Timestamp toTs = toStartOfNextDay(toDate);
-
 			int i = 1;
 			ps.setLong(i++, cursor);
-
-			ps.setString(i++, paymentType);
-			ps.setString(i++, paymentType);
-
-			ps.setString(i++, status);
-			ps.setString(i++, status);
-
-			ps.setTimestamp(i++, fromTs);
-			ps.setTimestamp(i++, fromTs);
-
-			ps.setTimestamp(i++, toTs);
-			ps.setTimestamp(i++, toTs);
 
 			ps.setInt(i++, pageSize);
 
@@ -207,7 +201,7 @@ public class CustomerPaymentDao {
 	}
 
 	private List<CustomerPayments> fetchNextPageWithSearch(Long lastSeenPaymentId, String search, String paymentType,
-			String status, Date fromDate, Date toDate, int pageSize) {
+			String status, LocalDateTime fromDate, LocalDateTime toDate, int pageSize) {
 
 		List<CustomerPayments> payments = new ArrayList<>();
 
@@ -229,18 +223,19 @@ public class CustomerPaymentDao {
 			ps.setString(i++, paymentType);
 			ps.setString(i++, paymentType);
 
-			ps.setString(i++, status);
-			ps.setString(i++, status);
+			String statusLow = status == null || status.isBlank() ? null : status.toLowerCase();
 
-			// date filters
-			LocalDate from = fromDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-			LocalDate to = toDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+			ps.setString(i++, statusLow);
+			ps.setString(i++, statusLow);
 
-			ps.setTimestamp(i++, Timestamp.valueOf(from.atStartOfDay()));
-			ps.setTimestamp(i++, Timestamp.valueOf(from.atStartOfDay()));
+			Timestamp fromTs = fromDate == null ? null : Timestamp.valueOf(fromDate);
+			Timestamp toTs = toDate == null ? null : Timestamp.valueOf(toDate.plusDays(1));
 
-			ps.setTimestamp(i++, Timestamp.valueOf(to.plusDays(1).atStartOfDay()));
-			ps.setTimestamp(i++, Timestamp.valueOf(to.plusDays(1).atStartOfDay()));
+			ps.setTimestamp(i++, fromTs);
+			ps.setTimestamp(i++, fromTs);
+
+			ps.setTimestamp(i++, toTs);
+			ps.setTimestamp(i++, toTs);
 
 			ps.setInt(i, pageSize);
 
@@ -255,6 +250,22 @@ public class CustomerPaymentDao {
 		}
 
 		return payments;
+	}
+
+	public CustomerPayments findById(int customerPaymentId) throws SQLException {
+
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_BY_ID)) {
+
+			ps.setInt(1, customerPaymentId);
+
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					return mapRow(rs);
+				}
+			}
+		}
+
+		throw new SQLException("No customer_payment found for customer_delivery_id = " + customerPaymentId);
 	}
 
 	public CustomerPayments findByCustomerDeliveryId(int customerDeliveryId, Connection conn) throws SQLException {
@@ -315,24 +326,6 @@ public class CustomerPaymentDao {
 
 		return new CustomerPayments(id, customerId, customerDeliveryId, paymentType, status, total, totalPayment,
 				promiseToPay, createdAt);
-	}
-
-	private static Timestamp toStartOfDay(Date date) {
-		if (date == null)
-			return null;
-
-		LocalDate ld = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-
-		return Timestamp.valueOf(ld.atStartOfDay());
-	}
-
-	private static Timestamp toStartOfNextDay(Date date) {
-		if (date == null)
-			return null;
-
-		LocalDate ld = date.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
-
-		return Timestamp.valueOf(ld.plusDays(1).atStartOfDay());
 	}
 
 }

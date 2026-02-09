@@ -4,6 +4,7 @@ import java.sql.Connection;
 
 import com.gierza_molases.molases_app.UiController.BranchesController;
 import com.gierza_molases.molases_app.UiController.CustomerPaymentController;
+import com.gierza_molases.molases_app.UiController.CustomerPaymentViewController;
 import com.gierza_molases.molases_app.UiController.CustomersController;
 import com.gierza_molases.molases_app.UiController.DeliveryController;
 import com.gierza_molases.molases_app.UiController.DeliveryDetailsController;
@@ -50,6 +51,7 @@ public class AppContext {
 	public static NewDeliveryController newDeliveryController;
 	public static DeliveryDetailsController deliveryDetialsController;
 	public static CustomerPaymentController customerPaymentController;
+	public static CustomerPaymentViewController customerPaymentViewController;
 
 	public static void init() {
 		// DB connection
@@ -91,6 +93,8 @@ public class AppContext {
 		deliveryDetialsController = new DeliveryDetailsController(new DeliveryDetailsState(), deliveryService);
 
 		customerPaymentController = new CustomerPaymentController(new CustomerPaymentState(), customerPaymentsService);
+		customerPaymentViewController = new CustomerPaymentViewController(new CustomerPaymentViewState(),
+				customerPaymentsService);
 
 	}
 

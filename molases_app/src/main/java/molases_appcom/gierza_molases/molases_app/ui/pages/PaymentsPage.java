@@ -14,6 +14,9 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.Locale;
 
@@ -100,9 +103,32 @@ public class PaymentsPage {
 	// Currency formatter
 	private static final NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("en", "PH"));
 
+	// Date formatter for display
+	private static final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
+
 	static {
 		currencyFormatter.setMaximumFractionDigits(2);
 		currencyFormatter.setMinimumFractionDigits(2);
+	}
+
+	/**
+	 * Helper method to convert Date to LocalDateTime
+	 */
+	private static LocalDateTime dateToLocalDateTime(Date date) {
+		if (date == null) {
+			return null;
+		}
+		return date.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+	}
+
+	/**
+	 * Helper method to convert LocalDateTime to Date
+	 */
+	private static Date localDateTimeToDate(LocalDateTime localDateTime) {
+		if (localDateTime == null) {
+			return null;
+		}
+		return Date.from(localDateTime.atZone(ZoneId.systemDefault()).toInstant());
 	}
 
 	/**
@@ -330,7 +356,7 @@ public class PaymentsPage {
 		fromDateChooser.setPreferredSize(new Dimension(140, 38));
 		fromDateChooser.setMaximumSize(new Dimension(140, 38));
 		fromDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
-		fromDateChooser.setDate(state.getFromDate());
+		fromDateChooser.setDate(localDateTimeToDate(state.getFromDate()));
 
 		JLabel fromDateLabel = new JLabel("From Date:");
 		fromDateLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -347,7 +373,7 @@ public class PaymentsPage {
 		toDateChooser.setPreferredSize(new Dimension(140, 38));
 		toDateChooser.setMaximumSize(new Dimension(140, 38));
 		toDateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
-		toDateChooser.setDate(state.getToDate());
+		toDateChooser.setDate(localDateTimeToDate(state.getToDate()));
 
 		JLabel toDateLabel = new JLabel("To Date:");
 		toDateLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -382,8 +408,8 @@ public class PaymentsPage {
 		String searchText = customerSearchField.getText().trim();
 		String paymentType = (String) paymentTypeFilterCombo.getSelectedItem();
 		String status = (String) statusFilterCombo.getSelectedItem();
-		Date fromDate = fromDateChooser.getDate();
-		Date toDate = toDateChooser.getDate();
+		LocalDateTime fromDate = dateToLocalDateTime(fromDateChooser.getDate());
+		LocalDateTime toDate = dateToLocalDateTime(toDateChooser.getDate());
 
 		showLoading();
 		controller.search(searchText, paymentType, status, fromDate, toDate, () -> {
@@ -511,11 +537,11 @@ public class PaymentsPage {
 				if (!isSelected) {
 					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
 
-					String status = value.toString();
-					if (status.equals(STATUS_PENDING)) {
+					String status = value.toString().toLowerCase();
+					if (status.equals(STATUS_PENDING.toLowerCase())) {
 						setForeground(COLOR_PENDING);
 						setFont(new Font("Arial", Font.BOLD, 14));
-					} else if (status.equals(STATUS_COMPLETE)) {
+					} else if (status.equals(STATUS_COMPLETE.toLowerCase())) {
 						setForeground(COLOR_COMPLETE);
 						setFont(new Font("Arial", Font.BOLD, 14));
 					}
@@ -607,8 +633,10 @@ public class PaymentsPage {
 			String formattedAmount = currencyFormatter.format(p.getTotalPayment()).replace("PHP", "₱");
 			String formattedDate = p.getDeliveryDate() != null ? dateFormat.format(p.getDeliveryDate()) : "N/A";
 
+			String status = p.getStatus();
+
 			model.addRow(new Object[] { p.getCustomerName(), p.getDeliveryName(), formattedDate, p.getPaymentType(),
-					p.getStatus(), formattedAmount, "⚙ Actions" });
+					status.substring(0, 1).toUpperCase() + status.substring(1), formattedAmount, "⚙ Actions" });
 		}
 	}
 
@@ -637,19 +665,9 @@ public class PaymentsPage {
 		JButton viewPaymentBtn = createActionButton("💰 View Payment", new Color(70, 130, 180));
 		viewPaymentBtn.addActionListener(e -> {
 			actionDialog.dispose();
-			ToastNotification.showInfo(SwingUtilities.getWindowAncestor(parent),
-					"View Payment functionality - Coming soon!");
+			navigateToPaymentView(payment);
 		});
 		actionDialog.add(viewPaymentBtn, gbc);
-
-		gbc.gridy++;
-		JButton viewDetailsBtn = createActionButton("👁️ View Details", ACCENT_GOLD);
-		viewDetailsBtn.addActionListener(e -> {
-			actionDialog.dispose();
-			ToastNotification.showInfo(SwingUtilities.getWindowAncestor(parent),
-					"View Details functionality - Coming soon!");
-		});
-		actionDialog.add(viewDetailsBtn, gbc);
 
 		gbc.gridy++;
 		JButton deleteBtn = createActionButton("🗑️ Delete", new Color(180, 50, 50));
@@ -669,6 +687,29 @@ public class PaymentsPage {
 		actionDialog.setMinimumSize(new Dimension(350, 280));
 		actionDialog.setLocationRelativeTo(null);
 		actionDialog.setVisible(true);
+	}
+
+	/**
+	 * Navigate to payment view page
+	 */
+	private static void navigateToPaymentView(CustomerPayments payment) {
+		// Get the parent frame/panel where PaymentsPage is displayed
+		java.awt.Container parent = mainPanelRef.getParent();
+
+		// Create the payment view page with a back callback
+		JPanel paymentViewPanel = PaymentViewPage.createPanel(payment, () -> {
+			// On back: restore the payments page
+			parent.removeAll();
+			parent.add(createPanel());
+			parent.revalidate();
+			parent.repaint();
+		});
+
+		// Replace current panel with payment view
+		parent.removeAll();
+		parent.add(paymentViewPanel);
+		parent.revalidate();
+		parent.repaint();
 	}
 
 	/**

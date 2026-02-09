@@ -287,7 +287,8 @@ CREATE TABLE IF NOT EXISTS customer_payments (
 
     payment_type TEXT NOT NULL,
     
-    status TEXT,   -- done, pending
+    status TEXT,   -- complete, pending
+    note TEXT,
 
     total REAL NOT NULL,
     total_payment REAL NOT NULL,  -- over all payment
@@ -299,7 +300,7 @@ CREATE TABLE IF NOT EXISTS customer_payments (
     FOREIGN KEY (customer_id) REFERENCES customer(id)    
     	ON UPDATE CASCADE
         ON DELETE CASCADE,
-        
+      
         
     FOREIGN KEY (customer_delivery_id) REFERENCES customer_delivery(id)
          ON UPDATE CASCADE
@@ -316,6 +317,7 @@ ON customer_payments (created_at);
 CREATE TABLE IF NOT EXISTS payment_history (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     customer_payment_id INTEGER NOT NULL,
+    amount REAL NOT NULL,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 
     FOREIGN KEY (customer_payment_id)
