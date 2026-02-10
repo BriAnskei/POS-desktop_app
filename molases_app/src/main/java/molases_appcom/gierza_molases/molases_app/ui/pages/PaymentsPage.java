@@ -106,6 +106,8 @@ public class PaymentsPage {
 	// Date formatter for display
 	private static final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
 
+	private static java.util.function.Consumer<CustomerPayments> currentOnViewPayment;
+
 	static {
 		currencyFormatter.setMaximumFractionDigits(2);
 		currencyFormatter.setMinimumFractionDigits(2);
@@ -134,7 +136,10 @@ public class PaymentsPage {
 	/**
 	 * Create the Payments Page panel
 	 */
-	public static JPanel createPanel() {
+	public static JPanel createPanel(java.util.function.Consumer<CustomerPayments> onViewPayment) {
+		// Store the callback
+		currentOnViewPayment = onViewPayment;
+
 		// Reset state when creating panel
 		controller.resetState();
 
@@ -693,23 +698,9 @@ public class PaymentsPage {
 	 * Navigate to payment view page
 	 */
 	private static void navigateToPaymentView(CustomerPayments payment) {
-		// Get the parent frame/panel where PaymentsPage is displayed
-		java.awt.Container parent = mainPanelRef.getParent();
-
-		// Create the payment view page with a back callback
-		JPanel paymentViewPanel = PaymentViewPage.createPanel(payment, () -> {
-			// On back: restore the payments page
-			parent.removeAll();
-			parent.add(createPanel());
-			parent.revalidate();
-			parent.repaint();
-		});
-
-		// Replace current panel with payment view
-		parent.removeAll();
-		parent.add(paymentViewPanel);
-		parent.revalidate();
-		parent.repaint();
+		if (currentOnViewPayment != null) {
+			currentOnViewPayment.accept(payment);
+		}
 	}
 
 	/**

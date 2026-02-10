@@ -43,6 +43,8 @@ public class CustomerPaymentDao {
 			        cp.created_at,
 
 			        c.display_name        AS customer_name,
+
+			        d.id				  AS deliver_id,
 			        d.name                AS delivery_name,
 			        d.schedule_date       AS delivery_date
 			    FROM customer_payments cp
@@ -67,6 +69,9 @@ public class CustomerPaymentDao {
 			        cp.created_at,
 
 			        c.display_name  AS customer_name,
+
+
+			        d.id				  AS deliver_id,
 			        d.name          AS delivery_name,
 			        d.schedule_date AS delivery_date
 			    FROM customer_payments cp
@@ -130,6 +135,11 @@ public class CustomerPaymentDao {
 			   WHERE cp.id = ?
 			""";
 
+	// UPDATE
+	private final String UPDATE_TYPE_SQL = """
+			UPDATE customer_payments SET total_payment = ? WHERE id = ?
+			""";
+
 	public CustomerPaymentDao(Connection conn) {
 		this.conn = conn;
 	}
@@ -153,7 +163,7 @@ public class CustomerPaymentDao {
 				ps.setDouble(6, payment.getTotalPayment());
 
 				// PROMISE TO PAY (loan only)
-				if ("loan".equals(payment.getPaymentType())) {
+				if ("loan".equals(payment.getPaymentType().toLowerCase())) {
 					ps.setDate(7, new java.sql.Date(payment.getPromiseToPay().getTime()));
 				} else {
 					ps.setNull(7, Types.DATE);
@@ -284,6 +294,43 @@ public class CustomerPaymentDao {
 		throw new SQLException("No customer_payment found for customer_delivery_id = " + customerDeliveryId);
 	}
 
+	/*
+	 * Used directly in the view page, changing from 'loan' to 'partial' or vice
+	 * versa.
+	 * 
+	 * promiseToPay will be filled only when the tyoe update us changed from partial
+	 * to loan
+	 */
+	public void updateType(int id, String newType, Date promiseToPay) throws SQLException {
+		CustomerPayments customerPayments = findById(id);
+		String originalType = customerPayments.getPaymentType();
+
+		boolean fromLoanToPartial = "loan".equals(newType) && "partial".equals(originalType);
+		boolean fromPartialToLoan = "partial".equals(newType) && "loan".equals(originalType);
+
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_BY_CUSTOMER_DELIVERY_ID)) {
+
+			ps.setString(1, newType);
+
+			// set promise to pay on Loan updates
+			if (fromPartialToLoan) {
+				ps.setDate(2, new java.sql.Date(promiseToPay.getTime()));
+			} else if (fromLoanToPartial) {
+				ps.setNull(2, Types.DATE);
+			} else {
+				throw new SQLException("Invalid status action");
+			}
+
+			ps.setInt(3, id);
+
+			ps.executeUpdate();
+		}
+	}
+
+	public void updatePromiseToPay(int id, Date newPromiseToPay) {
+
+	}
+
 	// Utility functions
 
 	/*
@@ -297,7 +344,9 @@ public class CustomerPaymentDao {
 				rs.getTimestamp("created_at").toLocalDateTime(),
 
 				// JOIN fields
-				rs.getString("customer_name"), rs.getString("delivery_name"), rs.getDate("delivery_date"));
+
+				rs.getInt("deliver_id"), rs.getString("customer_name"), rs.getString("delivery_name"),
+				rs.getDate("delivery_date"));
 	}
 
 	/*

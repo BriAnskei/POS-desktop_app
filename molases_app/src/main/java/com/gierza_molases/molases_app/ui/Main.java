@@ -1,4 +1,5 @@
 package com.gierza_molases.molases_app.ui;
+
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
@@ -27,6 +28,7 @@ import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 
 import com.gierza_molases.molases_app.context.AppContext;
+import com.gierza_molases.molases_app.model.CustomerPayments;
 
 public class Main extends JFrame {
 
@@ -48,6 +50,7 @@ public class Main extends JFrame {
 
 	// View delivery detials handler
 	private int currentDeliveryId = -1;
+	private CustomerPayments currentPayment = null;
 
 	/**
 	 * Launch the application.
@@ -180,6 +183,7 @@ public class Main extends JFrame {
 			break;
 		case "Payments":
 			iconPanel = new PaymentsIcon();
+
 			break;
 		case "Branches":
 			iconPanel = new BranchesIcon();
@@ -262,6 +266,10 @@ public class Main extends JFrame {
 	 * Handle navigation between pages
 	 */
 	private void handleNavigation(String pageName) {
+		handleNavigation(pageName, true);
+	}
+
+	private void handleNavigation(String pageName, boolean isForNavigation) {
 		currentPage = pageName;
 
 		// Update all nav buttons
@@ -299,7 +307,9 @@ public class Main extends JFrame {
 			}
 		}
 
-		showPage(pageName);
+		if (isForNavigation) {
+			showPage(pageName);
+		}
 	}
 
 	/**
@@ -338,8 +348,25 @@ public class Main extends JFrame {
 			break;
 
 		case "Payments":
-			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.PaymentsPage.createPanel(),
-					BorderLayout.CENTER);
+			mainContentArea
+					.add(molases_appcom.gierza_molases.molases_app.ui.pages.PaymentsPage.createPanel((payment) -> { // onViewPayment
+																													// callback
+						currentPayment = payment;
+						showPage("ViewPayment");
+
+					}), BorderLayout.CENTER);
+			break;
+
+		case "ViewPayment":
+			if (currentPayment != null) {
+				mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.PaymentViewPage.createPanel(
+						currentPayment, () -> showPage("Payments"), // onBack
+						(deliveryId) -> { // onNavigateToDelivery
+							currentDeliveryId = deliveryId;
+							showPage("ViewDelivery");
+							handleNavigation("Delivery", false);
+						}), BorderLayout.CENTER);
+			}
 			break;
 		case "Branches":
 			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.BranchesPage.createPanel(),

@@ -4,6 +4,7 @@ import java.time.LocalDateTime;
 import java.util.Date;
 
 public class CustomerPayments {
+
 	private Integer id;
 	private int customerId;
 	private int customerDeliveryId;
@@ -15,6 +16,7 @@ public class CustomerPayments {
 	private LocalDateTime createdAt;
 
 	// ===== Fetch-only / JOIN fields =====
+	private int deliveryId;
 	private String customerName;
 	private String deliveryName;
 	private Date deliveryDate;
@@ -48,8 +50,9 @@ public class CustomerPayments {
 
 	// complete data for a page view
 	public CustomerPayments(Integer id, int customerId, int customerDeliveryId, String paymentType, String status,
-			double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt, String customerName,
-			String deliveryName, Date deliveryDate) {
+			double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt, int deliveryId,
+			String customerName, String deliveryName, Date deliveryDate) {
+
 		this.id = id;
 		this.customerId = customerId;
 		this.customerDeliveryId = customerDeliveryId;
@@ -60,15 +63,13 @@ public class CustomerPayments {
 		this.promiseToPay = promiseToPay;
 		this.createdAt = createdAt;
 
-		// JOIN fields
+		this.deliveryId = deliveryId;
 		this.customerName = customerName;
 		this.deliveryName = deliveryName;
 		this.deliveryDate = deliveryDate;
 	}
 
-	public void setCustomerDeliveryId(int customerDeliverId) {
-		this.customerDeliveryId = customerDeliverId;
-	}
+	// ===== Getters =====
 
 	public Integer getId() {
 		return id;
@@ -106,6 +107,10 @@ public class CustomerPayments {
 		return createdAt;
 	}
 
+	public int getDeliveryId() {
+		return deliveryId;
+	}
+
 	public String getCustomerName() {
 		return customerName;
 	}
@@ -118,6 +123,60 @@ public class CustomerPayments {
 		return deliveryDate;
 	}
 
+	// ===== Setters =====
+
+	public void setId(Integer id) {
+		this.id = id;
+	}
+
+	public void setCustomerId(int customerId) {
+		this.customerId = customerId;
+	}
+
+	public void setCustomerDeliveryId(int customerDeliveryId) {
+		this.customerDeliveryId = customerDeliveryId;
+	}
+
+	public void setPaymentType(String paymentType) {
+		this.paymentType = paymentType;
+	}
+
+	public void setStatus(String status) {
+		this.status = status;
+	}
+
+	public void setTotal(double total) {
+		this.total = total;
+	}
+
+	public void setTotalPayment(double totalPayment) {
+		this.totalPayment = totalPayment;
+	}
+
+	public void setPromiseToPay(Date promiseToPay) {
+		this.promiseToPay = promiseToPay;
+	}
+
+	public void setCreatedAt(LocalDateTime createdAt) {
+		this.createdAt = createdAt;
+	}
+
+	public void setDeliveryId(int deliveryId) {
+		this.deliveryId = deliveryId;
+	}
+
+	public void setCustomerName(String customerName) {
+		this.customerName = customerName;
+	}
+
+	public void setDeliveryName(String deliveryName) {
+		this.deliveryName = deliveryName;
+	}
+
+	public void setDeliveryDate(Date deliveryDate) {
+		this.deliveryDate = deliveryDate;
+	}
+
 	@Override
 	public String toString() {
 		return "CustomerPayments{" + "id=" + id + ", customerId=" + customerId + ", customerDeliveryId="
@@ -125,5 +184,4 @@ public class CustomerPayments {
 				+ ", total=" + total + ", totalPayment=" + totalPayment + ", promiseToPay=" + promiseToPay
 				+ ", createdAt=" + createdAt + '}';
 	}
-
 }
