@@ -6,6 +6,7 @@ import com.gierza_molases.molases_app.UiController.BranchesController;
 import com.gierza_molases.molases_app.UiController.CustomerPaymentController;
 import com.gierza_molases.molases_app.UiController.CustomerPaymentViewController;
 import com.gierza_molases.molases_app.UiController.CustomersController;
+import com.gierza_molases.molases_app.UiController.DashboardController;
 import com.gierza_molases.molases_app.UiController.DeliveryController;
 import com.gierza_molases.molases_app.UiController.DeliveryDetailsController;
 import com.gierza_molases.molases_app.UiController.NewDeliveryController;
@@ -52,6 +53,7 @@ public class AppContext {
 	public static DeliveryDetailsController deliveryDetialsController;
 	public static CustomerPaymentController customerPaymentController;
 	public static CustomerPaymentViewController customerPaymentViewController;
+	public static DashboardController dashboardController;
 
 	public static void init() {
 		// DB connection
@@ -95,6 +97,8 @@ public class AppContext {
 		customerPaymentController = new CustomerPaymentController(new CustomerPaymentState(), customerPaymentsService);
 		customerPaymentViewController = new CustomerPaymentViewController(new CustomerPaymentViewState(),
 				customerPaymentsService);
+
+		dashboardController = new DashboardController(new DashboardState());
 
 	}
 

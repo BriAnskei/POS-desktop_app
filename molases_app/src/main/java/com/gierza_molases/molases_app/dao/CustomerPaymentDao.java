@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDateTime;
@@ -140,30 +141,35 @@ public class CustomerPaymentDao {
 			UPDATE customer_payments SET total_payment = ? WHERE id = ?
 			""";
 
+	private final String UPDATE_PROMISE_TO_PAY = """
+			UPDATE customer_payments SET promise_to_pay = ? WHERE id = ?
+			""";
+
 	public CustomerPaymentDao(Connection conn) {
 		this.conn = conn;
 	}
 
-	public void insertAll(List<CustomerPayments> customerPayments, Connection conn) throws SQLException {
+	public List<Integer> insertAll(List<CustomerPayments> customerPayments, Connection conn) throws SQLException {
+
+		List<Integer> insertedIds = new ArrayList<>();
+
 		if (customerPayments == null || customerPayments.isEmpty()) {
-			return;
+			return insertedIds;
 		}
 
-		try (PreparedStatement ps = conn.prepareStatement(INSERT)) {
+		try (PreparedStatement ps = conn.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
 
 			for (CustomerPayments payment : customerPayments) {
 
 				ps.setInt(1, payment.getCustomerId());
 				ps.setInt(2, payment.getCustomerDeliveryId());
 				ps.setString(3, payment.getPaymentType());
-
 				ps.setString(4, payment.getStatus());
-
 				ps.setDouble(5, payment.getTotal());
 				ps.setDouble(6, payment.getTotalPayment());
 
 				// PROMISE TO PAY (loan only)
-				if ("loan".equals(payment.getPaymentType().toLowerCase())) {
+				if ("loan".equalsIgnoreCase(payment.getPaymentType())) {
 					ps.setDate(7, new java.sql.Date(payment.getPromiseToPay().getTime()));
 				} else {
 					ps.setNull(7, Types.DATE);
@@ -173,7 +179,15 @@ public class CustomerPaymentDao {
 			}
 
 			ps.executeBatch();
+
+			try (ResultSet rs = ps.getGeneratedKeys()) {
+				while (rs.next()) {
+					insertedIds.add(rs.getInt(1));
+				}
+			}
 		}
+
+		return insertedIds;
 	}
 
 	public List<CustomerPayments> fetchNextPage(Long lastSeenPaymentId, String search, String paymentType,
@@ -308,7 +322,7 @@ public class CustomerPaymentDao {
 		boolean fromLoanToPartial = "loan".equals(newType) && "partial".equals(originalType);
 		boolean fromPartialToLoan = "partial".equals(newType) && "loan".equals(originalType);
 
-		try (PreparedStatement ps = conn.prepareStatement(SELECT_BY_CUSTOMER_DELIVERY_ID)) {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_TYPE_SQL)) {
 
 			ps.setString(1, newType);
 
@@ -327,7 +341,14 @@ public class CustomerPaymentDao {
 		}
 	}
 
-	public void updatePromiseToPay(int id, Date newPromiseToPay) {
+	public void updatePromiseToPay(int id, Date newPromiseToPay) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_PROMISE_TO_PAY)) {
+
+			ps.setDate(1, new java.sql.Date(newPromiseToPay.getTime()));
+			ps.setInt(2, id);
+			ps.executeUpdate();
+
+		}
 
 	}
 

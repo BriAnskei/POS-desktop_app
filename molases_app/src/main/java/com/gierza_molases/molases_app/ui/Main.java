@@ -320,6 +320,13 @@ public class Main extends JFrame {
 
 		switch (pageName) {
 
+		case "Dashboard":
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DashboardPage.createPanel(
+					() -> handleNavigation("Delivery"), // "View All" on deliveries table
+					() -> handleNavigation("Payments") // "View All" on payments table
+			), BorderLayout.CENTER);
+			break;
+
 		// delivery module page
 		case "Delivery":
 			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.DeliveriesPage.createPanel(

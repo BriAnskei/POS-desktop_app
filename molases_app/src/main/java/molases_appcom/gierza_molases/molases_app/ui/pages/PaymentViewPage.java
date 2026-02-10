@@ -83,6 +83,7 @@ public class PaymentViewPage {
 	// State
 	private static Runnable currentOnBack;
 	private static JPanel mainPanel;
+	private static JPanel contentContainer;
 
 	/**
 	 * Create the Payment View Page panel
@@ -97,11 +98,30 @@ public class PaymentViewPage {
 		mainPanel.setBackground(CONTENT_BG);
 		mainPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-		// Header
+		// Header (fixed at top, not scrollable)
 		mainPanel.add(createHeader(), BorderLayout.NORTH);
 
-		// Content (sections)
-		mainPanel.add(createContentPanel(), BorderLayout.CENTER);
+		// Create content container panel
+		contentContainer = new JPanel(new BorderLayout());
+		contentContainer.setBackground(CONTENT_BG);
+		contentContainer.add(createContentPanel(), BorderLayout.CENTER);
+
+		// Wrap content in scroll pane
+		JScrollPane scrollPane = new JScrollPane(contentContainer);
+		scrollPane.setBackground(CONTENT_BG);
+		scrollPane.getViewport().setBackground(CONTENT_BG);
+		scrollPane.setBorder(null);
+
+		// Configure scroll pane
+		scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+		scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+
+		// Improve scroll speed
+		scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+		scrollPane.getVerticalScrollBar().setBlockIncrement(50);
+
+		// Add scroll pane to main panel
+		mainPanel.add(scrollPane, BorderLayout.CENTER);
 
 		return mainPanel;
 	}
@@ -348,7 +368,7 @@ public class PaymentViewPage {
 			// Load payment history from state
 			for (PaymentHistory payment : paymentHistory) {
 				model.addRow(new Object[] { currencyFormatter.format(payment.getAmount()).replace("PHP", "₱"),
-						dateTimeFormatter.format(payment.getPaidAt()) });
+						dateTimeFormatter.format(payment.getCreatedAt()) });
 			}
 
 			javax.swing.JTable table = new javax.swing.JTable(model);
@@ -698,21 +718,46 @@ public class PaymentViewPage {
 	 * Refresh the entire page to show updated data
 	 */
 	private static void refreshPage() {
-		if (mainPanel == null)
+		if (contentContainer == null)
 			return;
 
 		SwingUtilities.invokeLater(() -> {
-			// Remove all components
-			mainPanel.removeAll();
+			// Remove all components from content container
+			contentContainer.removeAll();
 
-			// Recreate header and content
-			mainPanel.add(createHeader(), BorderLayout.NORTH);
-			mainPanel.add(createContentPanel(), BorderLayout.CENTER);
+			// Recreate content
+			contentContainer.add(createContentPanel(), BorderLayout.CENTER);
 
 			// Refresh display
-			mainPanel.revalidate();
-			mainPanel.repaint();
+			contentContainer.revalidate();
+			contentContainer.repaint();
+
+			// Scroll to top after refresh
+			if (mainPanel != null) {
+				JScrollPane scrollPane = findScrollPane(mainPanel);
+				if (scrollPane != null) {
+					SwingUtilities.invokeLater(() -> {
+						scrollPane.getVerticalScrollBar().setValue(0);
+					});
+				}
+			}
 		});
+	}
+
+	/**
+	 * Helper method to find JScrollPane in component hierarchy
+	 */
+	private static JScrollPane findScrollPane(java.awt.Container container) {
+		for (java.awt.Component comp : container.getComponents()) {
+			if (comp instanceof JScrollPane) {
+				return (JScrollPane) comp;
+			} else if (comp instanceof java.awt.Container) {
+				JScrollPane found = findScrollPane((java.awt.Container) comp);
+				if (found != null)
+					return found;
+			}
+		}
+		return null;
 	}
 
 	/**

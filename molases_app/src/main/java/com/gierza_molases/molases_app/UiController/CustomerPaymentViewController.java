@@ -63,7 +63,7 @@ public class CustomerPaymentViewController {
 		// TEMPORARY: Mock implementation - update state directly
 		try {
 			// Add to payment history
-			PaymentHistory newPayment = new PaymentHistory(amount, paymentDate);
+			PaymentHistory newPayment = new PaymentHistory(null, 0, amount, paymentDate);
 			state.addPaymentHistory(newPayment);
 
 			// Update total payment
@@ -170,7 +170,7 @@ public class CustomerPaymentViewController {
 			payment.setPromiseToPay(null);
 
 			// Add to payment history
-			PaymentHistory newPayment = new PaymentHistory(partialAmount, new Date());
+			PaymentHistory newPayment = new PaymentHistory(null, 0, partialAmount, new Date());
 			state.addPaymentHistory(newPayment);
 
 			// Note: Status remains "Pending" - manual update will be implemented later
