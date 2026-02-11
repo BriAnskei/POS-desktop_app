@@ -1,3 +1,4 @@
+
 PRAGMA foreign_keys = ON;
 
 
@@ -288,7 +289,7 @@ CREATE TABLE IF NOT EXISTS customer_payments (
     payment_type TEXT NOT NULL,
     
     status TEXT,   -- complete, pending
-    note TEXT,
+    notes TEXT,
 
     total REAL NOT NULL,
     total_payment REAL NOT NULL,  -- over all payment

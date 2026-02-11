@@ -31,6 +31,7 @@ import javax.swing.border.EmptyBorder;
 import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.CustomerPayments;
 import com.gierza_molases.molases_app.model.PaymentHistory;
+import com.gierza_molases.molases_app.ui.components.ToastNotification;
 import com.gierza_molases.molases_app.ui.components.delivery.UIComponentFactory;
 
 public class PaymentViewPage {
@@ -85,43 +86,39 @@ public class PaymentViewPage {
 	private static JPanel mainPanel;
 	private static JPanel contentContainer;
 
-	/**
-	 * Create the Payment View Page panel
-	 */
 	public static JPanel createPanel(CustomerPayments payment, Runnable onBack,
 			java.util.function.Consumer<Integer> onNavigateToDelivery) {
 		AppContext.customerPaymentViewController.setCustomerPayment(payment);
 		currentOnBack = onBack;
-		currentOnNavigateToDelivery = onNavigateToDelivery; // Store the callback
+		currentOnNavigateToDelivery = onNavigateToDelivery;
 
 		mainPanel = new JPanel(new BorderLayout());
 		mainPanel.setBackground(CONTENT_BG);
 		mainPanel.setBorder(new EmptyBorder(15, 15, 15, 15));
 
-		// Header (fixed at top, not scrollable)
 		mainPanel.add(createHeader(), BorderLayout.NORTH);
 
-		// Create content container panel
 		contentContainer = new JPanel(new BorderLayout());
 		contentContainer.setBackground(CONTENT_BG);
 		contentContainer.add(createContentPanel(), BorderLayout.CENTER);
 
-		// Wrap content in scroll pane
 		JScrollPane scrollPane = new JScrollPane(contentContainer);
 		scrollPane.setBackground(CONTENT_BG);
 		scrollPane.getViewport().setBackground(CONTENT_BG);
 		scrollPane.setBorder(null);
-
-		// Configure scroll pane
 		scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 		scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-
-		// Improve scroll speed
 		scrollPane.getVerticalScrollBar().setUnitIncrement(16);
 		scrollPane.getVerticalScrollBar().setBlockIncrement(50);
 
-		// Add scroll pane to main panel
 		mainPanel.add(scrollPane, BorderLayout.CENTER);
+
+		// Load payment history AFTER mainPanel exists so toast has a parent window
+		AppContext.customerPaymentViewController.loadPaymentHistory(
+				() -> SwingUtilities.invokeLater(() -> refreshPage()),
+				(errorMsg) -> SwingUtilities
+						.invokeLater(() -> ToastNotification.showError(SwingUtilities.getWindowAncestor(mainPanel),
+								"Failed to load payment history: " + errorMsg)));
 
 		return mainPanel;
 	}
@@ -257,12 +254,22 @@ public class PaymentViewPage {
 		section.add(separator);
 		section.add(Box.createVerticalStrut(25));
 
-		// ========== PAYMENT INFORMATION ==========
+		// ========== PAYMENT INFORMATION HEADER (with Notes button) ==========
+		JPanel paymentInfoHeader = new JPanel(new BorderLayout());
+		paymentInfoHeader.setBackground(SECTION_BG);
+		paymentInfoHeader.setAlignmentX(JPanel.LEFT_ALIGNMENT);
+		paymentInfoHeader.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
+
 		JLabel paymentTitleLabel = new JLabel("💰 PAYMENT INFORMATION");
 		paymentTitleLabel.setFont(new Font("Arial", Font.BOLD, 18));
 		paymentTitleLabel.setForeground(TEXT_DARK);
-		paymentTitleLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
-		section.add(paymentTitleLabel);
+		paymentInfoHeader.add(paymentTitleLabel, BorderLayout.WEST);
+
+		JButton notesBtn = createSmallNotesButton();
+		notesBtn.addActionListener(e -> showNotesDialog());
+		paymentInfoHeader.add(notesBtn, BorderLayout.EAST);
+
+		section.add(paymentInfoHeader);
 
 		section.add(Box.createVerticalStrut(15));
 
@@ -271,7 +278,8 @@ public class PaymentViewPage {
 		section.add(createInfoRow("Customer Name:", customerName));
 		section.add(Box.createVerticalStrut(10));
 
-		// Payment Type with Edit button (for Loan and Partial only)
+		// Payment Type with Edit button (for Loan and Partial only, hidden when Loan +
+		// Complete)
 		section.add(createPaymentTypeRow());
 		section.add(Box.createVerticalStrut(10));
 
@@ -356,19 +364,30 @@ public class PaymentViewPage {
 			emptyPanel.add(emptyLabel);
 			section.add(emptyPanel, BorderLayout.CENTER);
 		} else {
-			// Table with payment history
-			String[] columns = { "Amount Paid", "Paid At" };
+			// Check if edit button should be shown (only for Loan or Partial)
+			boolean showEditButton = TYPE_LOAN.equals(currentPayment.getPaymentType())
+					|| TYPE_PARTIAL.equals(currentPayment.getPaymentType());
+			// Table columns - conditional Action column
+			String[] columns = showEditButton ? new String[] { "Amount Paid", "Paid At", "Action" }
+					: new String[] { "Amount Paid", "Paid At" };
+
 			javax.swing.table.DefaultTableModel model = new javax.swing.table.DefaultTableModel(columns, 0) {
 				@Override
 				public boolean isCellEditable(int row, int column) {
-					return false;
+					// Only Action column is editable (if it exists)
+					return showEditButton && column == 2;
 				}
 			};
 
 			// Load payment history from state
 			for (PaymentHistory payment : paymentHistory) {
-				model.addRow(new Object[] { currencyFormatter.format(payment.getAmount()).replace("PHP", "₱"),
-						dateTimeFormatter.format(payment.getCreatedAt()) });
+				if (showEditButton) {
+					model.addRow(new Object[] { currencyFormatter.format(payment.getAmount()).replace("PHP", "₱"),
+							dateFormatter.format(payment.getCreatedAt()), "" });
+				} else {
+					model.addRow(new Object[] { currencyFormatter.format(payment.getAmount()).replace("PHP", "₱"),
+							dateFormatter.format(payment.getCreatedAt()) });
+				}
 			}
 
 			javax.swing.JTable table = new javax.swing.JTable(model);
@@ -381,8 +400,16 @@ public class PaymentViewPage {
 			table.setSelectionForeground(TEXT_DARK);
 
 			// Set column widths
-			table.getColumnModel().getColumn(0).setPreferredWidth(150);
-			table.getColumnModel().getColumn(1).setPreferredWidth(200);
+			if (showEditButton) {
+				table.getColumnModel().getColumn(0).setPreferredWidth(150);
+				table.getColumnModel().getColumn(1).setPreferredWidth(200);
+				table.getColumnModel().getColumn(2).setPreferredWidth(60);
+				table.getColumnModel().getColumn(2).setMaxWidth(60);
+				table.getColumnModel().getColumn(2).setMinWidth(60);
+			} else {
+				table.getColumnModel().getColumn(0).setPreferredWidth(150);
+				table.getColumnModel().getColumn(1).setPreferredWidth(250);
+			}
 
 			// Custom header
 			javax.swing.table.JTableHeader header = table.getTableHeader();
@@ -401,29 +428,84 @@ public class PaymentViewPage {
 				table.getColumnModel().getColumn(i).setHeaderRenderer(headerRenderer);
 			}
 
-			// Custom cell renderer for alternating rows and right-align amount
 			table.setDefaultRenderer(Object.class, new javax.swing.table.DefaultTableCellRenderer() {
 				@Override
 				public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
 						boolean isSelected, boolean hasFocus, int row, int column) {
 					java.awt.Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row,
 							column);
-
 					if (!isSelected) {
 						c.setBackground(row % 2 == 0 ? Color.WHITE : new Color(248, 245, 240));
 						setForeground(TEXT_DARK);
 					}
-
-					if (column == 0) { // Amount column - right align
+					if (column == 0) {
 						setHorizontalAlignment(SwingConstants.RIGHT);
 					} else {
 						setHorizontalAlignment(SwingConstants.LEFT);
 					}
-
 					((JLabel) c).setBorder(new EmptyBorder(5, 15, 5, 15));
 					return c;
 				}
 			});
+
+			// Action column setup - ONLY if edit button should be shown
+			if (showEditButton) {
+				// Action column — button renderer
+				table.getColumnModel().getColumn(2).setCellRenderer(new javax.swing.table.TableCellRenderer() {
+					@Override
+					public java.awt.Component getTableCellRendererComponent(javax.swing.JTable table, Object value,
+							boolean isSelected, boolean hasFocus, int row, int column) {
+						JButton btn = new JButton("✏️");
+						btn.setFont(new Font("Arial", Font.PLAIN, 14));
+						btn.setBackground(isSelected ? new Color(230, 218, 200)
+								: (row % 2 == 0 ? Color.WHITE : new Color(248, 245, 240)));
+						btn.setForeground(TEXT_DARK);
+						btn.setFocusPainted(false);
+						btn.setBorderPainted(false);
+						btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+						btn.setToolTipText("Edit payment amount");
+						return btn;
+					}
+				});
+
+				// Action column — button editor (makes the button actually clickable)
+				table.getColumnModel().getColumn(2).setCellEditor(new javax.swing.DefaultCellEditor(new JTextField()) {
+					private JButton btn;
+					private int clickedRow;
+
+					{
+						btn = new JButton("✏️");
+						btn.setFont(new Font("Arial", Font.PLAIN, 14));
+						btn.setBackground(Color.WHITE);
+						btn.setForeground(TEXT_DARK);
+						btn.setFocusPainted(false);
+						btn.setBorderPainted(false);
+						btn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+						btn.setToolTipText("Edit payment amount");
+
+						btn.addActionListener(e -> {
+							fireEditingStopped();
+							PaymentHistory selected = paymentHistory.get(clickedRow);
+							showEditPaymentHistoryAmountDialog(selected);
+						});
+
+						setClickCountToStart(1);
+					}
+
+					@Override
+					public java.awt.Component getTableCellEditorComponent(javax.swing.JTable table, Object value,
+							boolean isSelected, int row, int column) {
+						clickedRow = row;
+						btn.setBackground(new Color(230, 218, 200));
+						return btn;
+					}
+
+					@Override
+					public Object getCellEditorValue() {
+						return "";
+					}
+				});
+			}
 
 			JScrollPane scrollPane = new JScrollPane(table);
 			scrollPane.setBorder(BorderFactory.createLineBorder(new Color(220, 210, 200), 1));
@@ -462,7 +544,16 @@ public class PaymentViewPage {
 	}
 
 	/**
-	 * Create payment type row with colored text and edit button
+	 * Show edit payment history amount dialog
+	 */
+	private static void showEditPaymentHistoryAmountDialog(PaymentHistory paymentHistory) {
+		com.gierza_molases.molases_app.ui.dialogs.Delivery.EditPaymentAmountDialog
+				.show(SwingUtilities.getWindowAncestor(mainPanel), paymentHistory, () -> refreshPage());
+	}
+
+	/**
+	 * Create payment type row with colored text and edit button. Edit button is
+	 * hidden when payment type is Loan AND status is Complete.
 	 */
 	private static JPanel createPaymentTypeRow() {
 		CustomerPayments currentPayment = AppContext.customerPaymentViewController.getState().getCustomerPayment();
@@ -485,13 +576,15 @@ public class PaymentViewPage {
 
 		// Value (colored based on payment type)
 		String paymentType = currentPayment.getPaymentType();
+		String status = currentPayment.getStatus();
 		JLabel valueLabel = new JLabel(paymentType);
 		valueLabel.setFont(new Font("Arial", Font.BOLD, 15));
 		valueLabel.setForeground(getPaymentTypeColor(paymentType));
 		row.add(valueLabel);
 
-		// Edit button (only for Loan and Partial)
-		if (TYPE_LOAN.equals(paymentType) || TYPE_PARTIAL.equals(paymentType)) {
+		// Edit button: show for Loan/Partial, but hide when Loan + Complete
+		boolean isLoanComplete = TYPE_LOAN.equals(paymentType) && STATUS_COMPLETE.equalsIgnoreCase(status);
+		if ((TYPE_LOAN.equals(paymentType) || TYPE_PARTIAL.equals(paymentType)) && !isLoanComplete) {
 			row.add(Box.createHorizontalStrut(10));
 			JButton editBtn = createSmallEditButton();
 			editBtn.addActionListener(e -> showEditPaymentTypeDialog());
@@ -504,7 +597,8 @@ public class PaymentViewPage {
 	}
 
 	/**
-	 * Create status row with colored text and edit button for Loan payments
+	 * Create status row with colored text and edit button for Loan payments. The
+	 * edit button remains visible even when status is Complete.
 	 */
 	private static JPanel createStatusRow() {
 		CustomerPayments currentPayment = AppContext.customerPaymentViewController.getState().getCustomerPayment();
@@ -533,7 +627,7 @@ public class PaymentViewPage {
 		valueLabel.setForeground(getStatusColor(status));
 		row.add(valueLabel);
 
-		// Edit button (only for Loan payment type)
+		// Edit button (only for Loan payment type — always shown regardless of status)
 		if (TYPE_LOAN.equals(currentPayment.getPaymentType())) {
 			row.add(Box.createHorizontalStrut(10));
 			JButton editBtn = createSmallEditButton();
@@ -556,12 +650,13 @@ public class PaymentViewPage {
 		com.gierza_molases.molases_app.ui.dialogs.Delivery.EditStatusDialog dialog = new com.gierza_molases.molases_app.ui.dialogs.Delivery.EditStatusDialog(
 				SwingUtilities.getWindowAncestor(mainPanel), currentPayment.getStatus(), () -> refreshPage());
 
-		dialog.setVisible(true); // ← Changed from dialog.show()
+		dialog.setVisible(true);
 	}
 
 	/**
-	 * Create promise to pay row with date and edit button Highlights in red if date
-	 * is overdue
+	 * Create promise to pay row with date and edit button. Edit button is hidden
+	 * when payment type is Loan AND status is Complete. Highlights in red if date
+	 * is overdue.
 	 */
 	private static JPanel createPromiseToPayRow() {
 		CustomerPayments currentPayment = AppContext.customerPaymentViewController.getState().getCustomerPayment();
@@ -609,16 +704,21 @@ public class PaymentViewPage {
 		// Set color based on overdue status
 		valueLabel.setForeground(isOverdue ? Color.RED : TEXT_DARK);
 		if (isOverdue) {
-			valueLabel.setFont(new Font("Arial", Font.BOLD, 15)); // Make it bold too
+			valueLabel.setFont(new Font("Arial", Font.BOLD, 15));
 		}
 
 		row.add(valueLabel);
 
-		// Edit button
-		row.add(Box.createHorizontalStrut(10));
-		JButton editBtn = createSmallEditButton();
-		editBtn.addActionListener(e -> showEditPromiseToPayDialog());
-		row.add(editBtn);
+		// Edit button: hidden when Loan + Complete
+		String status = currentPayment.getStatus();
+		boolean isLoanComplete = TYPE_LOAN.equals(currentPayment.getPaymentType())
+				&& STATUS_COMPLETE.equalsIgnoreCase(status);
+		if (!isLoanComplete) {
+			row.add(Box.createHorizontalStrut(10));
+			JButton editBtn = createSmallEditButton();
+			editBtn.addActionListener(e -> showEditPromiseToPayDialog());
+			row.add(editBtn);
+		}
 
 		row.add(Box.createHorizontalGlue());
 
@@ -712,6 +812,44 @@ public class PaymentViewPage {
 		});
 
 		return editBtn;
+	}
+
+	/**
+	 * Create small notes button (matches the style of createSmallEditButton)
+	 */
+	private static JButton createSmallNotesButton() {
+		JButton notesBtn = new JButton("🗒️ Notes");
+		notesBtn.setFont(new Font("Arial", Font.PLAIN, 12));
+		notesBtn.setBackground(new Color(100, 100, 100));
+		notesBtn.setForeground(TEXT_LIGHT);
+		notesBtn.setFocusPainted(false);
+		notesBtn.setBorderPainted(false);
+		notesBtn.setCursor(new Cursor(Cursor.HAND_CURSOR));
+		notesBtn.setPreferredSize(new Dimension(80, 25));
+		notesBtn.setMaximumSize(new Dimension(80, 25));
+
+		notesBtn.addMouseListener(new MouseAdapter() {
+			@Override
+			public void mouseEntered(MouseEvent e) {
+				if (notesBtn.isEnabled()) {
+					notesBtn.setBackground(new Color(130, 130, 130));
+				}
+			}
+
+			@Override
+			public void mouseExited(MouseEvent e) {
+				notesBtn.setBackground(new Color(100, 100, 100));
+			}
+		});
+
+		return notesBtn;
+	}
+
+	/**
+	 * Show notes dialog (stub — implementation to be added later)
+	 */
+	private static void showNotesDialog() {
+		// TODO: implement notes dialog
 	}
 
 	/**
@@ -851,7 +989,6 @@ public class PaymentViewPage {
 		JPanel dynamicPanel = new JPanel();
 		dynamicPanel.setLayout(new BoxLayout(dynamicPanel, BoxLayout.Y_AXIS));
 		dynamicPanel.setBackground(Color.WHITE);
-		// NO FIXED SIZE - let it start at 0 height and grow as needed
 		dialog.add(dynamicPanel, gbc);
 
 		// Components that will be shown/hidden dynamically
@@ -863,7 +1000,7 @@ public class PaymentViewPage {
 		remainingBalanceLabel.setFont(new Font("Arial", Font.BOLD, 13));
 		remainingBalanceLabel.setForeground(TEXT_DARK);
 		remainingBalanceLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
-		remainingBalanceLabel.setBorder(new EmptyBorder(10, 0, 0, 0)); // Top padding when shown
+		remainingBalanceLabel.setBorder(new EmptyBorder(10, 0, 0, 0));
 
 		JLabel partialAmountLabel = new JLabel("Enter partial payment amount:");
 		partialAmountLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -884,14 +1021,14 @@ public class PaymentViewPage {
 		partialWarningLabel.setForeground(new Color(180, 100, 0));
 		partialWarningLabel.setHorizontalAlignment(SwingConstants.CENTER);
 		partialWarningLabel.setAlignmentX(JLabel.CENTER_ALIGNMENT);
-		partialWarningLabel.setBorder(new EmptyBorder(10, 0, 10, 0)); // Bottom padding when shown
+		partialWarningLabel.setBorder(new EmptyBorder(10, 0, 10, 0));
 
 		// Promise to pay components (for Partial → Loan)
 		JLabel promiseLabel = new JLabel("Select Promise to Pay date:");
 		promiseLabel.setFont(new Font("Arial", Font.PLAIN, 13));
 		promiseLabel.setForeground(TEXT_DARK);
 		promiseLabel.setAlignmentX(JLabel.LEFT_ALIGNMENT);
-		promiseLabel.setBorder(new EmptyBorder(10, 0, 0, 0)); // Top padding when shown
+		promiseLabel.setBorder(new EmptyBorder(10, 0, 0, 0));
 
 		com.toedter.calendar.JDateChooser dateChooser = new com.toedter.calendar.JDateChooser();
 		dateChooser.setDateFormatString("MMM dd, yyyy");
@@ -909,7 +1046,7 @@ public class PaymentViewPage {
 		loanWarningLabel.setForeground(new Color(180, 100, 0));
 		loanWarningLabel.setHorizontalAlignment(SwingConstants.CENTER);
 		loanWarningLabel.setAlignmentX(JLabel.CENTER_ALIGNMENT);
-		loanWarningLabel.setBorder(new EmptyBorder(10, 0, 10, 0)); // Bottom padding when shown
+		loanWarningLabel.setBorder(new EmptyBorder(10, 0, 10, 0));
 
 		// Method to update dynamic panel based on selection
 		Runnable updateDynamicPanel = () -> {
@@ -986,14 +1123,12 @@ public class PaymentViewPage {
 			if (currentType.equals(TYPE_LOAN) && newType.equals(TYPE_PARTIAL)) {
 				String amountText = partialAmountField.getText().trim();
 
-				// Validation: Check if amount is entered
 				if (amountText.isEmpty()) {
 					com.gierza_molases.molases_app.ui.components.ToastNotification.showError(dialog,
 							"Please enter a partial payment amount.");
 					return;
 				}
 
-				// Validation: Parse amount
 				double partialAmount;
 				try {
 					partialAmount = Double.parseDouble(amountText);
@@ -1003,14 +1138,12 @@ public class PaymentViewPage {
 					return;
 				}
 
-				// Validation: Amount must be > 0
 				if (partialAmount <= 0) {
 					com.gierza_molases.molases_app.ui.components.ToastNotification.showError(dialog,
 							"Partial payment amount must be greater than 0.");
 					return;
 				}
 
-				// Validation: Amount must be < remaining balance (strictly less than)
 				if (partialAmount >= remainingBalance) {
 					com.gierza_molases.molases_app.ui.components.ToastNotification.showError(dialog,
 							"Partial payment amount must be less than the remaining balance ("
@@ -1018,12 +1151,10 @@ public class PaymentViewPage {
 					return;
 				}
 
-				// Disable buttons during processing
 				saveBtn.setEnabled(false);
 				cancelBtn.setEnabled(false);
 				saveBtn.setText("Saving...");
 
-				// Call controller
 				AppContext.customerPaymentViewController.updatePaymentTypeWithPartialPayment(newType, partialAmount,
 						() -> {
 							SwingUtilities.invokeLater(() -> {
@@ -1047,14 +1178,12 @@ public class PaymentViewPage {
 			else if (currentType.equals(TYPE_PARTIAL) && newType.equals(TYPE_LOAN)) {
 				java.util.Date selectedDate = dateChooser.getDate();
 
-				// Validation: Check if date is selected
 				if (selectedDate == null) {
 					com.gierza_molases.molases_app.ui.components.ToastNotification.showError(dialog,
 							"Please select a Promise to Pay date.");
 					return;
 				}
 
-				// Validation: Check if date is not in the past
 				java.util.Date today = new java.util.Date();
 				java.util.Calendar cal = java.util.Calendar.getInstance();
 				cal.setTime(today);
@@ -1070,12 +1199,10 @@ public class PaymentViewPage {
 					return;
 				}
 
-				// Disable buttons during processing
 				saveBtn.setEnabled(false);
 				cancelBtn.setEnabled(false);
 				saveBtn.setText("Saving...");
 
-				// Call controller
 				AppContext.customerPaymentViewController.updatePaymentTypeWithPromiseToPay(newType, selectedDate,
 						() -> {
 							SwingUtilities.invokeLater(() -> {
@@ -1098,9 +1225,8 @@ public class PaymentViewPage {
 		});
 		dialog.add(saveBtn, gbc);
 
-		// Initial pack - compact size with just basic elements
 		dialog.pack();
-		dialog.setMinimumSize(new Dimension(400, dialog.getHeight())); // Set min size based on packed height
+		dialog.setMinimumSize(new Dimension(400, dialog.getHeight()));
 		dialog.setLocationRelativeTo(SwingUtilities.getWindowAncestor(mainPanel));
 		dialog.setVisible(true);
 	}
@@ -1141,13 +1267,11 @@ public class PaymentViewPage {
 		gbc.gridy++;
 		gbc.insets = new Insets(10, 30, 20, 30);
 
-		// Date chooser
 		com.toedter.calendar.JDateChooser dateChooser = new com.toedter.calendar.JDateChooser();
 		dateChooser.setDateFormatString("MMM dd, yyyy");
 		dateChooser.setPreferredSize(new Dimension(250, 35));
 		dateChooser.setFont(new Font("Arial", Font.PLAIN, 14));
 
-		// Set current promise to pay date if exists
 		if (currentPayment.getPromiseToPay() != null) {
 			dateChooser.setDate(currentPayment.getPromiseToPay());
 		}
@@ -1158,8 +1282,8 @@ public class PaymentViewPage {
 		gbc.gridy++;
 		gbc.gridwidth = 1;
 		gbc.insets = new Insets(20, 30, 20, 10);
-		gbc.weighty = 0; // Don't stretch buttons
-		gbc.weightx = 0.0; // Don't expand horizontally <-- ADD THIS
+		gbc.weighty = 0;
+		gbc.weightx = 0.0;
 		gbc.fill = GridBagConstraints.HORIZONTAL;
 
 		JButton cancelBtn = createStyledButton("Cancel", new Color(120, 120, 120));
@@ -1174,16 +1298,13 @@ public class PaymentViewPage {
 		saveBtn.addActionListener(e -> {
 			java.util.Date selectedDate = dateChooser.getDate();
 
-			// Validation: Check if date is selected
 			if (selectedDate == null) {
 				javax.swing.JOptionPane.showMessageDialog(dialog, "Please select a date.", "Validation Error",
 						javax.swing.JOptionPane.WARNING_MESSAGE);
 				return;
 			}
 
-			// Validation: Check if date is not in the past
 			java.util.Date today = new java.util.Date();
-			// Reset time to start of day for comparison
 			java.util.Calendar cal = java.util.Calendar.getInstance();
 			cal.setTime(today);
 			cal.set(java.util.Calendar.HOUR_OF_DAY, 0);
@@ -1199,30 +1320,22 @@ public class PaymentViewPage {
 				return;
 			}
 
-			// Disable buttons during processing
 			saveBtn.setEnabled(false);
 			cancelBtn.setEnabled(false);
 			saveBtn.setText("Saving...");
 
-			// Call controller to update promise to pay
 			AppContext.customerPaymentViewController.updatePromiseToPay(selectedDate, () -> {
-				// Success callback
 				SwingUtilities.invokeLater(() -> {
 					dialog.dispose();
 					com.gierza_molases.molases_app.ui.components.ToastNotification.showSuccess(
 							SwingUtilities.getWindowAncestor(mainPanel), "Promise to Pay date updated successfully!");
-
-					// Refresh the page to show updated data
 					refreshPage();
 				});
 			}, (errorMsg) -> {
-				// Error callback
 				SwingUtilities.invokeLater(() -> {
-					// Re-enable buttons
 					saveBtn.setEnabled(true);
 					cancelBtn.setEnabled(true);
 					saveBtn.setText("Save");
-
 					com.gierza_molases.molases_app.ui.components.ToastNotification.showError(
 							SwingUtilities.getWindowAncestor(mainPanel),
 							"Failed to update Promise to Pay: " + errorMsg);

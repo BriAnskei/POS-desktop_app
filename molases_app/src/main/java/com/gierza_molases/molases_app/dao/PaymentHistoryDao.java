@@ -15,11 +15,14 @@ public class PaymentHistoryDao {
 	private final Connection conn;
 
 	// ===== SQL
+
+	// INSERT
 	private static final String INSERT_SQL = """
 			    INSERT INTO payment_history (customer_payment_id, amount)
 			    VALUES (?, ?)
 			""";
 
+	// READ
 	private static final String FETCH_BY_CUSTOMER_PAYMENT_ID = """
 			    SELECT id, customer_payment_id, amount, created_at
 			    FROM payment_history
@@ -27,12 +30,28 @@ public class PaymentHistoryDao {
 			    ORDER BY created_at ASC
 			""";
 
+	private static final String FETCH_BY_ID_SQL = """
+			    SELECT id, customer_payment_id, amount, created_at
+			    FROM payment_history
+			    WHERE id = ?
+			""";
+
+	private static final String SELECT_LATEST_BY_CUSTOMER_PAYMENT = """
+					   SELECT *
+			FROM payment_history
+			WHERE customer_payment_id = ?
+			ORDER BY created_at DESC
+			LIMIT 1;
+
+					""";
+
+	// UPDATE
 	private static final String UPDATE_AMOUNT_SQL = """
 			    UPDATE payment_history
 			    SET amount = ?
 			    WHERE id = ?
 			""";
-
+	// DELETE
 	private static final String DELETE_SQL = """
 			    DELETE FROM payment_history
 			    WHERE id = ?
@@ -43,21 +62,21 @@ public class PaymentHistoryDao {
 	}
 
 	// ===== CREATE
-	public void insert(int customerPaymentId, PaymentHistory paymentHistory) throws SQLException {
-		insert(customerPaymentId, paymentHistory, conn);
+	public void insert(PaymentHistory paymentHistory) throws SQLException {
+		insert(paymentHistory, conn);
 	}
 
-	public void insert(int customerPaymentId, PaymentHistory paymentHistory, Connection conn) throws SQLException {
+	public void insert(PaymentHistory paymentHistory, Connection conn) throws SQLException {
 
 		try (PreparedStatement ps = conn.prepareStatement(INSERT_SQL)) {
-			ps.setInt(1, customerPaymentId);
+			ps.setInt(1, paymentHistory.getCustomerPaymentId());
 			ps.setDouble(2, paymentHistory.getAmount());
 			ps.executeUpdate();
 		}
 	}
 
 	// ===== READ
-	public List<PaymentHistory> fetchByCustomerPaymentId(int customerPaymentId, Connection conn) throws SQLException {
+	public List<PaymentHistory> fetchByCustomerPaymentId(int customerPaymentId) throws SQLException {
 
 		List<PaymentHistory> histories = new ArrayList<>();
 
@@ -66,18 +85,43 @@ public class PaymentHistoryDao {
 
 			try (ResultSet rs = ps.executeQuery()) {
 				while (rs.next()) {
-					PaymentHistory ph = new PaymentHistory();
-					ph.setId(rs.getInt("id"));
-					ph.setCustomerPaymentId(rs.getInt("customer_payment_id"));
-					ph.setAmount(rs.getDouble("amount"));
-					ph.setCreatedAt(new Date(rs.getTimestamp("created_at").getTime()));
-
+					PaymentHistory ph = mapRow(rs);
 					histories.add(ph);
 				}
 			}
 		}
 
 		return histories;
+	}
+
+	public PaymentHistory findById(int paymentHistoryId, Connection conn) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(FETCH_BY_ID_SQL)) {
+			ps.setInt(1, paymentHistoryId);
+
+			try (ResultSet rs = ps.executeQuery()) {
+				if (rs.next()) {
+					return mapRow(rs);
+				}
+				return null; // not found
+			}
+		}
+	}
+
+	public PaymentHistory findLatestByCustomerPaymentId(int customerPaymentId, Connection conn) throws SQLException {
+
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_LATEST_BY_CUSTOMER_PAYMENT)) {
+
+			ps.setInt(1, customerPaymentId);
+
+			try (ResultSet rs = ps.executeQuery()) {
+
+				if (rs.next()) {
+					return mapRow(rs);
+				}
+
+				return null;
+			}
+		}
 	}
 
 	// ===== UPDATE
@@ -90,10 +134,21 @@ public class PaymentHistoryDao {
 	}
 
 	// ===== DELETE
-	public void delete(int id) throws SQLException {
+	public void delete(int id, Connection conn) throws SQLException {
 		try (PreparedStatement ps = conn.prepareStatement(DELETE_SQL)) {
 			ps.setInt(1, id);
 			ps.executeUpdate();
 		}
 	}
+
+	private PaymentHistory mapRow(ResultSet rs) throws SQLException {
+		PaymentHistory ph = new PaymentHistory();
+		ph.setId(rs.getInt("id"));
+		ph.setCustomerPaymentId(rs.getInt("customer_payment_id"));
+		ph.setAmount(rs.getDouble("amount"));
+		ph.setCreatedAt(new Date(rs.getTimestamp("created_at").getTime()));
+
+		return ph;
+	}
+
 }

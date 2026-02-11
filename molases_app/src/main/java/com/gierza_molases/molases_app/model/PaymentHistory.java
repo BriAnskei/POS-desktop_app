@@ -18,6 +18,13 @@ public class PaymentHistory {
 		this.createdAt = createdAt;
 	}
 
+	public PaymentHistory(int customerPaymentId, double amount) {
+
+		this.customerPaymentId = customerPaymentId;
+		this.amount = amount;
+
+	}
+
 	// ===== Getters & Setters =====
 
 	public Integer getId() {

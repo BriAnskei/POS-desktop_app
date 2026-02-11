@@ -27,6 +27,7 @@ public class TransactionHelper {
 			} catch (SQLException ex) {
 				throw new RuntimeException("Rollback failed", ex);
 			}
+			System.err.println("Transaction Failure: " + e.getMessage());
 			throw new RuntimeException("Transaction failed", e);
 		} finally {
 			try {

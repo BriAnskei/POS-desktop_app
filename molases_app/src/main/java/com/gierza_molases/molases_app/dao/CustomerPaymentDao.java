@@ -38,6 +38,7 @@ public class CustomerPaymentDao {
 			        cp.customer_delivery_id,
 			        cp.payment_type,
 			        cp.status,
+			        cp.notes,
 			        cp.total,
 			        cp.total_payment,
 			        cp.promise_to_pay,
@@ -64,6 +65,7 @@ public class CustomerPaymentDao {
 			        cp.customer_delivery_id,
 			        cp.payment_type,
 			        cp.status,
+			        cp.notes,
 			        cp.total,
 			        cp.total_payment,
 			        cp.promise_to_pay,
@@ -126,7 +128,11 @@ public class CustomerPaymentDao {
 			       cp.promise_to_pay,
 			       cp.created_at,
 
+
 			       c.display_name  AS customer_name,
+
+
+			         d.id				  AS deliver_id,
 			       d.name          AS delivery_name,
 			       d.schedule_date AS delivery_date
 			   FROM customer_payments cp
@@ -138,56 +144,50 @@ public class CustomerPaymentDao {
 
 	// UPDATE
 	private final String UPDATE_TYPE_SQL = """
-			UPDATE customer_payments SET total_payment = ? WHERE id = ?
+			UPDATE customer_payments SET payment_type = ? WHERE id = ?
+			""";
+	private final String UPDATE_STATUS_SQL = """
+			UPDATE customer_payments SET status = ? WHERE id = ?
 			""";
 
 	private final String UPDATE_PROMISE_TO_PAY = """
 			UPDATE customer_payments SET promise_to_pay = ? WHERE id = ?
 			""";
 
+	private final String UPDATE_TOTAL_PAYMEN = """
+			UPDATE customer_payments SET total_payment = ? WHERE id = ?
+			""";
+
 	public CustomerPaymentDao(Connection conn) {
 		this.conn = conn;
 	}
 
-	public List<Integer> insertAll(List<CustomerPayments> customerPayments, Connection conn) throws SQLException {
-
-		List<Integer> insertedIds = new ArrayList<>();
-
-		if (customerPayments == null || customerPayments.isEmpty()) {
-			return insertedIds;
-		}
+	public int insert(CustomerPayments customerPayment, Connection conn) throws SQLException {
 
 		try (PreparedStatement ps = conn.prepareStatement(INSERT, Statement.RETURN_GENERATED_KEYS)) {
 
-			for (CustomerPayments payment : customerPayments) {
+			ps.setInt(1, customerPayment.getCustomerId());
+			ps.setInt(2, customerPayment.getCustomerDeliveryId());
+			ps.setString(3, customerPayment.getPaymentType());
+			ps.setString(4, customerPayment.getStatus());
+			ps.setDouble(5, customerPayment.getTotal());
+			ps.setDouble(6, customerPayment.getTotalPayment());
 
-				ps.setInt(1, payment.getCustomerId());
-				ps.setInt(2, payment.getCustomerDeliveryId());
-				ps.setString(3, payment.getPaymentType());
-				ps.setString(4, payment.getStatus());
-				ps.setDouble(5, payment.getTotal());
-				ps.setDouble(6, payment.getTotalPayment());
-
-				// PROMISE TO PAY (loan only)
-				if ("loan".equalsIgnoreCase(payment.getPaymentType())) {
-					ps.setDate(7, new java.sql.Date(payment.getPromiseToPay().getTime()));
-				} else {
-					ps.setNull(7, Types.DATE);
-				}
-
-				ps.addBatch();
+			// PROMISE TO PAY (loan only)
+			if ("loan".equalsIgnoreCase(customerPayment.getPaymentType())) {
+				ps.setDate(7, new java.sql.Date(customerPayment.getPromiseToPay().getTime()));
+			} else {
+				ps.setNull(7, Types.DATE);
 			}
-
-			ps.executeBatch();
-
+			ps.executeUpdate();
 			try (ResultSet rs = ps.getGeneratedKeys()) {
-				while (rs.next()) {
-					insertedIds.add(rs.getInt(1));
+				if (rs.next()) {
+					return rs.getInt(1);
 				}
 			}
 		}
+		throw new SQLException("Failed to insert customer_delivery");
 
-		return insertedIds;
 	}
 
 	public List<CustomerPayments> fetchNextPage(Long lastSeenPaymentId, String search, String paymentType,
@@ -277,6 +277,10 @@ public class CustomerPaymentDao {
 	}
 
 	public CustomerPayments findById(int customerPaymentId) throws SQLException {
+		return findById(customerPaymentId, conn);
+	}
+
+	public CustomerPayments findById(int customerPaymentId, Connection conn) throws SQLException {
 
 		try (PreparedStatement ps = conn.prepareStatement(SELECT_BY_ID)) {
 
@@ -284,12 +288,13 @@ public class CustomerPaymentDao {
 
 			try (ResultSet rs = ps.executeQuery()) {
 				if (rs.next()) {
-					return mapRow(rs);
+					CustomerPayments cp = mapRow(rs);
+					return cp;
 				}
 			}
 		}
 
-		throw new SQLException("No customer_payment found for customer_delivery_id = " + customerPaymentId);
+		throw new SQLException("No customer_payment found for id = " + customerPaymentId);
 	}
 
 	public CustomerPayments findByCustomerDeliveryId(int customerDeliveryId, Connection conn) throws SQLException {
@@ -308,48 +313,65 @@ public class CustomerPaymentDao {
 		throw new SQLException("No customer_payment found for customer_delivery_id = " + customerDeliveryId);
 	}
 
-	/*
-	 * Used directly in the view page, changing from 'loan' to 'partial' or vice
-	 * versa.
-	 * 
-	 * promiseToPay will be filled only when the tyoe update us changed from partial
-	 * to loan
-	 */
-	public void updateType(int id, String newType, Date promiseToPay) throws SQLException {
-		CustomerPayments customerPayments = findById(id);
-		String originalType = customerPayments.getPaymentType();
+	// increase the total_paid based on the new amount
+	public void updateForNewPayment(int id, double paymentAmount, Connection conn) throws SQLException {
+		CustomerPayments customerPayment = this.findById(id, conn);
 
-		boolean fromLoanToPartial = "loan".equals(newType) && "partial".equals(originalType);
-		boolean fromPartialToLoan = "partial".equals(newType) && "loan".equals(originalType);
+		if (customerPayment == null) {
+			throw new SQLException("Failed in updateForNewPayment: Cannot find customer oayment with this id");
+		}
 
-		try (PreparedStatement ps = conn.prepareStatement(UPDATE_TYPE_SQL)) {
+		double currentAmount = customerPayment.getTotalPayment();
+		// add the old one to new payment
+		double updatedValue = currentAmount + paymentAmount;
+		updateTotalPayment(id, updatedValue, conn);
+	}
 
-			ps.setString(1, newType);
+	public void updateTotalPayment(int id, double amount, Connection conn) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_TOTAL_PAYMEN)) {
 
-			// set promise to pay on Loan updates
-			if (fromPartialToLoan) {
-				ps.setDate(2, new java.sql.Date(promiseToPay.getTime()));
-			} else if (fromLoanToPartial) {
-				ps.setNull(2, Types.DATE);
-			} else {
-				throw new SQLException("Invalid status action");
-			}
-
-			ps.setInt(3, id);
+			ps.setDouble(1, amount);
+			ps.setInt(2, id);
 
 			ps.executeUpdate();
 		}
+
 	}
 
-	public void updatePromiseToPay(int id, Date newPromiseToPay) throws SQLException {
-		try (PreparedStatement ps = conn.prepareStatement(UPDATE_PROMISE_TO_PAY)) {
-
-			ps.setDate(1, new java.sql.Date(newPromiseToPay.getTime()));
+	public void updateType(int id, String newType, Connection conn) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_TYPE_SQL)) {
+			ps.setString(1, newType);
 			ps.setInt(2, id);
 			ps.executeUpdate();
 
 		}
+	}
 
+	public void updatePromiseToPay(int id, Date newPromiseToPay) throws SQLException {
+		updatePromiseToPay(id, newPromiseToPay, conn);
+	}
+
+	public void updatePromiseToPay(int id, Date newPromiseToPay, Connection conn) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_PROMISE_TO_PAY)) {
+
+			if (newPromiseToPay != null) {
+				ps.setDate(1, new java.sql.Date(newPromiseToPay.getTime()));
+			} else {
+				ps.setNull(1, java.sql.Types.DATE);
+			}
+
+			ps.setInt(2, id);
+			ps.executeUpdate();
+		}
+	}
+
+	public void updateStatus(int id, String newStatus, Connection conn) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_STATUS_SQL)) {
+			ps.setString(1, newStatus);
+			ps.setInt(2, id);
+			ps.executeUpdate();
+
+		}
 	}
 
 	// Utility functions
@@ -357,17 +379,20 @@ public class CustomerPaymentDao {
 	/*
 	 * Complete property map with addition properties
 	 */
-	private CustomerPayments mapRow(ResultSet rs) throws SQLException {
+	private CustomerPayments mapRow(ResultSet rs) {
+		try {
+			return new CustomerPayments(rs.getInt("id"), rs.getInt("customer_id"), rs.getInt("customer_delivery_id"),
+					rs.getString("payment_type"), rs.getString("status"), rs.getString("notes"), rs.getDouble("total"),
+					rs.getDouble("total_payment"), rs.getDate("promise_to_pay"),
+					rs.getTimestamp("created_at").toLocalDateTime(),
 
-		return new CustomerPayments(rs.getInt("id"), rs.getInt("customer_id"), rs.getInt("customer_delivery_id"),
-				rs.getString("payment_type"), rs.getString("status"), rs.getDouble("total"),
-				rs.getDouble("total_payment"), rs.getDate("promise_to_pay"),
-				rs.getTimestamp("created_at").toLocalDateTime(),
-
-				// JOIN fields
-
-				rs.getInt("deliver_id"), rs.getString("customer_name"), rs.getString("delivery_name"),
-				rs.getDate("delivery_date"));
+					// JOIN fields
+					rs.getInt("deliver_id"), rs.getString("customer_name"), rs.getString("delivery_name"),
+					rs.getDate("delivery_date"));
+		} catch (SQLException err) {
+			System.err.println("Failed mapping: " + err);
+			throw new RuntimeException("Error mapping CustomerPayments row", err);
+		}
 	}
 
 	/*

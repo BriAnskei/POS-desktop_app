@@ -14,6 +14,7 @@ import com.gierza_molases.molases_app.dao.CustomerDao;
 import com.gierza_molases.molases_app.dao.CustomerDeliveryDao;
 import com.gierza_molases.molases_app.dao.CustomerPaymentDao;
 import com.gierza_molases.molases_app.dao.DeliveryDao;
+import com.gierza_molases.molases_app.dao.PaymentHistoryDao;
 import com.gierza_molases.molases_app.dao.ProductDao;
 import com.gierza_molases.molases_app.dao.ProductDeliveryDao;
 import com.gierza_molases.molases_app.dto.delivery.BranchDeliveryChanges;
@@ -29,6 +30,7 @@ import com.gierza_molases.molases_app.model.Customer;
 import com.gierza_molases.molases_app.model.CustomerDelivery;
 import com.gierza_molases.molases_app.model.CustomerPayments;
 import com.gierza_molases.molases_app.model.Delivery;
+import com.gierza_molases.molases_app.model.PaymentHistory;
 import com.gierza_molases.molases_app.model.Product;
 import com.gierza_molases.molases_app.model.ProductDelivery;
 import com.gierza_molases.molases_app.model.ProductWithQuantity;
@@ -41,7 +43,8 @@ public class DeliveryService {
 	private final CustomerDeliveryDao customerDeliveryDao;
 	private final BranchDeliveryDao branchDeliveryDao;
 	private final ProductDeliveryDao productDeliveryDao;
-	private final CustomerPaymentDao customerPaymentdao;;
+	private final CustomerPaymentDao customerPaymentdao;
+	private final PaymentHistoryDao paymentHistoryDao;
 
 	// transaction fetcher (Mapper) Dao
 	private final CustomerDao customerDao;
@@ -50,12 +53,14 @@ public class DeliveryService {
 
 	public DeliveryService(DeliveryDao deliveryDao, CustomerDeliveryDao customerDeliverDao,
 			BranchDeliveryDao branchDeliveryDao, ProductDeliveryDao productDeliveryDao, CustomerDao customerDao,
-			BranchDao branchDao, ProductDao productDao, CustomerPaymentDao customerPaymentdao) {
+			BranchDao branchDao, ProductDao productDao, CustomerPaymentDao customerPaymentdao,
+			PaymentHistoryDao paymentHistoryDao) {
 		this.deliveryDao = deliveryDao;
 		this.customerDeliveryDao = customerDeliverDao;
 		this.branchDeliveryDao = branchDeliveryDao;
 		this.productDeliveryDao = productDeliveryDao;
 		this.customerPaymentdao = customerPaymentdao;
+		this.paymentHistoryDao = paymentHistoryDao;
 
 		this.customerDao = customerDao;
 		this.branchDao = branchDao;
@@ -391,9 +396,28 @@ public class DeliveryService {
 				cp.setCustomerDeliveryId(customerIdToCustomerDeliveryId.get(cp.getCustomerId()));
 			}
 
-		}
+			int insertedCustomerPaymentId = customerPaymentdao.insert(cp, conn);
 
-		customerPaymentdao.insertAll(customerPayments, conn);
+			// check if it is: paid cheque, paid cash, partial, we create a payment history
+			// for this type of payment.
+			boolean isNeedToCreatePayment = List.of("Partial", "Paid Cheque", "Paid Cash")
+					.contains(cp.getPaymentType());
+
+			if (isNeedToCreatePayment) {
+				// paid cheque/cash fill create a payment that is equal to the total
+				// payment(fully paid)
+				// partial will get the set the partials payment as the first payment history
+
+				boolean isFullyPaid = List.of("Paid Cheque", "Paid Cash").contains(cp.getPaymentType());
+
+				double amount = isFullyPaid ? cp.getTotal() : cp.getTotalPayment();
+
+				PaymentHistory ph = new PaymentHistory(insertedCustomerPaymentId, amount);
+
+				paymentHistoryDao.insert(ph, conn);
+			}
+
+		}
 
 	}
 

@@ -9,9 +9,13 @@ public class CustomerPayments {
 	private int customerId;
 	private int customerDeliveryId;
 	private String paymentType;
+
 	private String status;
+	private String notes;
+
 	private double total;
 	private double totalPayment;
+
 	private Date promiseToPay; // loan payment
 	private LocalDateTime createdAt;
 
@@ -50,16 +54,20 @@ public class CustomerPayments {
 
 	// complete data for a page view
 	public CustomerPayments(Integer id, int customerId, int customerDeliveryId, String paymentType, String status,
-			double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt, int deliveryId,
+			String notes, double total, double totalPayment, Date promiseToPay, LocalDateTime createdAt, int deliveryId,
 			String customerName, String deliveryName, Date deliveryDate) {
 
 		this.id = id;
 		this.customerId = customerId;
 		this.customerDeliveryId = customerDeliveryId;
 		this.paymentType = paymentType;
+
 		this.status = status;
+		this.notes = notes;
+
 		this.total = total;
 		this.totalPayment = totalPayment;
+
 		this.promiseToPay = promiseToPay;
 		this.createdAt = createdAt;
 
@@ -89,6 +97,10 @@ public class CustomerPayments {
 
 	public String getStatus() {
 		return status;
+	}
+
+	public String getNotes() {
+		return notes;
 	}
 
 	public double getTotal() {
@@ -143,6 +155,10 @@ public class CustomerPayments {
 
 	public void setStatus(String status) {
 		this.status = status;
+	}
+
+	public void setNotes(String notes) {
+		this.notes = notes;
 	}
 
 	public void setTotal(double total) {

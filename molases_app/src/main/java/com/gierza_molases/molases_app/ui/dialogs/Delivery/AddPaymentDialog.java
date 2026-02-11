@@ -280,8 +280,7 @@ public class AddPaymentDialog extends JDialog {
 		saveBtn.setText("Saving...");
 
 		// Call controller to add payment
-		Date paymentDate = new Date(); // Today's date
-		AppContext.customerPaymentViewController.addPayment(paymentAmount, paymentDate, () -> {
+		AppContext.customerPaymentViewController.addPayment(paymentAmount, () -> {
 			SwingUtilities.invokeLater(() -> {
 				dispose();
 				ToastNotification.showSuccess(getOwner(), "Payment added successfully!");
