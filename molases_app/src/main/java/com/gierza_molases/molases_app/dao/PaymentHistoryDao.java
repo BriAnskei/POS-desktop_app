@@ -4,8 +4,8 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 import com.gierza_molases.molases_app.model.PaymentHistory;
@@ -146,8 +146,13 @@ public class PaymentHistoryDao {
 		ph.setId(rs.getInt("id"));
 		ph.setCustomerPaymentId(rs.getInt("customer_payment_id"));
 		ph.setAmount(rs.getDouble("amount"));
-		ph.setCreatedAt(new Date(rs.getTimestamp("created_at").getTime()));
 
+		// For SQLite: read as UTC
+		Timestamp ts = rs.getTimestamp("created_at",
+				java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("UTC")));
+		if (ts != null) {
+			ph.setCreatedAt(ts.toInstant());
+		}
 		return ph;
 	}
 

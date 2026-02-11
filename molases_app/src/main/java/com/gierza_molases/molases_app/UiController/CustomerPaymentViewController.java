@@ -154,12 +154,10 @@ public class CustomerPaymentViewController {
 			@Override
 			protected Void doInBackground() {
 				try {
-					// TODO: Backend implementation - update payment history amount in database
-					// customerPaymentService.updatePaymentHistoryAmount(paymentHistoryId,
-					// newAmount);
 
-					// Placeholder for now
-					System.out.println("Updating payment history ID " + paymentHistoryId + " to amount: " + newAmount);
+					int customerPaymentId = payment.getId();
+					customerPaymentService.updatePaymentAmount(customerPaymentId, paymentHistoryId, newAmount);
+
 				} catch (Exception e) {
 					error = e;
 				}
@@ -216,6 +214,53 @@ public class CustomerPaymentViewController {
 
 				if (onSuccess != null) {
 					onSuccess.run();
+				}
+			}
+		}.execute();
+	}
+
+	/**
+	 * Update notes for the current payment
+	 * 
+	 * @param notes     The notes text to save
+	 * @param onSuccess Callback on successful update
+	 * @param onError   Callback on error with error message
+	 */
+	public void updateNotes(String notes, Runnable onSuccess, Consumer<String> onError) {
+		CustomerPayments payment = state.getCustomerPayment();
+		if (payment == null) {
+			if (onError != null) {
+				onError.accept("No payment data available");
+			}
+			return;
+		}
+
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					int customerPaymentId = payment.getId();
+
+					customerPaymentService.setNotes(customerPaymentId, notes);
+					payment.setNotes(notes);
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					if (onError != null) {
+						onError.accept("Failed to update notes: " + error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
 				}
 			}
 		}.execute();

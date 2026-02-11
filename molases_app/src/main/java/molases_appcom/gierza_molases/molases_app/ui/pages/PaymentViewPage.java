@@ -12,6 +12,8 @@ import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.NumberFormat;
 import java.text.SimpleDateFormat;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 
@@ -68,11 +70,15 @@ public class PaymentViewPage {
 	private static final Color SECTION_BORDER = new Color(220, 210, 200);
 
 	// Currency formatter
-	private static final NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("en", "PH"));
+	private static final NumberFormat currencyFormatter = NumberFormat
+			.getCurrencyInstance(Locale.forLanguageTag("en-PH"));
 
-	// Date formatter
-	private static final SimpleDateFormat dateFormatter = new SimpleDateFormat("MMM dd, yyyy");
-	private static final SimpleDateFormat dateTimeFormatter = new SimpleDateFormat("MMM dd, yyyy hh:mm a");
+	// For PaymentHistory.createdAt → Instant
+	private static final DateTimeFormatter INSTANT_FORMATTER = DateTimeFormatter.ofPattern("MMM dd, yyyy")
+			.withZone(ZoneId.systemDefault());
+
+	// For legacy java.util.Date → deliveryDate, promiseToPay
+	private static final SimpleDateFormat DATE_FORMATTER = new SimpleDateFormat("MMM dd, yyyy");
 
 	private static java.util.function.Consumer<Integer> currentOnNavigateToDelivery;
 
@@ -232,8 +238,9 @@ public class PaymentViewPage {
 
 		// Delivery Date
 		String deliveryDate = currentPayment.getDeliveryDate() != null
-				? dateFormatter.format(currentPayment.getDeliveryDate())
+				? DATE_FORMATTER.format(currentPayment.getDeliveryDate())
 				: "N/A";
+
 		section.add(createInfoRow("Delivery Date:", deliveryDate));
 		section.add(Box.createVerticalStrut(15));
 
@@ -365,8 +372,8 @@ public class PaymentViewPage {
 			section.add(emptyPanel, BorderLayout.CENTER);
 		} else {
 			// Check if edit button should be shown (only for Loan or Partial)
-			boolean showEditButton = TYPE_LOAN.equals(currentPayment.getPaymentType())
-					|| TYPE_PARTIAL.equals(currentPayment.getPaymentType());
+			// For Loan: hide edit button when status is Complete
+			boolean showEditButton = TYPE_PARTIAL.equals(currentPayment.getPaymentType());
 			// Table columns - conditional Action column
 			String[] columns = showEditButton ? new String[] { "Amount Paid", "Paid At", "Action" }
 					: new String[] { "Amount Paid", "Paid At" };
@@ -381,12 +388,15 @@ public class PaymentViewPage {
 
 			// Load payment history from state
 			for (PaymentHistory payment : paymentHistory) {
+
+				String formattedDate = INSTANT_FORMATTER.format(payment.getCreatedAt());
+
+				String formattedAmount = currencyFormatter.format(payment.getAmount()).replace("PHP", "₱");
+
 				if (showEditButton) {
-					model.addRow(new Object[] { currencyFormatter.format(payment.getAmount()).replace("PHP", "₱"),
-							dateFormatter.format(payment.getCreatedAt()), "" });
+					model.addRow(new Object[] { formattedAmount, formattedDate, "" });
 				} else {
-					model.addRow(new Object[] { currencyFormatter.format(payment.getAmount()).replace("PHP", "₱"),
-							dateFormatter.format(payment.getCreatedAt()) });
+					model.addRow(new Object[] { formattedAmount, formattedDate });
 				}
 			}
 
@@ -679,7 +689,7 @@ public class PaymentViewPage {
 
 		// Value
 		String promiseToPayDate = currentPayment.getPromiseToPay() != null
-				? dateFormatter.format(currentPayment.getPromiseToPay())
+				? DATE_FORMATTER.format(currentPayment.getPromiseToPay())
 				: "Not set";
 		JLabel valueLabel = new JLabel(promiseToPayDate);
 		valueLabel.setFont(new Font("Arial", Font.PLAIN, 15));
@@ -846,10 +856,11 @@ public class PaymentViewPage {
 	}
 
 	/**
-	 * Show notes dialog (stub — implementation to be added later)
+	 * Show notes dialog
 	 */
 	private static void showNotesDialog() {
-		// TODO: implement notes dialog
+		com.gierza_molases.molases_app.ui.dialogs.Delivery.DeliveryNotesDialog
+				.show(SwingUtilities.getWindowAncestor(mainPanel));
 	}
 
 	/**

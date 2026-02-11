@@ -163,7 +163,13 @@ public class CustomerPaymentsService {
 			customerPaymentDao.updateTotalPayment(customerPaymentId, newPaymentAmount, conn);
 			paymentHistoryDao.updateAmount(paymentHistoryId, updatedAmount);
 
+			customerPaymentDao.updateStatusBasedOnTotalPayment(customerPaymentId, conn);
+
 		});
+	}
+
+	public void setNotes(int id, String notes) throws SQLException {
+		customerPaymentDao.setNotes(id, notes);
 	}
 
 }

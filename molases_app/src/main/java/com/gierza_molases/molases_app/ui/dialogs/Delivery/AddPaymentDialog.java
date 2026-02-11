@@ -35,7 +35,8 @@ public class AddPaymentDialog extends JDialog {
 	private static final Color ACCENT_GOLD = new Color(184, 134, 11);
 
 	// Currency formatter
-	private static final NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("en", "PH"));
+	private static final NumberFormat currencyFormatter = NumberFormat
+			.getCurrencyInstance(Locale.forLanguageTag("en-PH"));
 
 	// Date formatter
 	private static final SimpleDateFormat dateFormatter = new SimpleDateFormat("MMM dd, yyyy");

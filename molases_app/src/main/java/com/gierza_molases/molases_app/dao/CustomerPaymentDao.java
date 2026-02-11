@@ -123,6 +123,7 @@ public class CustomerPaymentDao {
 			       cp.customer_delivery_id,
 			       cp.payment_type,
 			       cp.status,
+			       cp.notes,
 			       cp.total,
 			       cp.total_payment,
 			       cp.promise_to_pay,
@@ -156,6 +157,10 @@ public class CustomerPaymentDao {
 
 	private final String UPDATE_TOTAL_PAYMEN = """
 			UPDATE customer_payments SET total_payment = ? WHERE id = ?
+			""";
+
+	private final String SET_NOTES = """
+			UPDATE customer_payments SET notes = ? WHERE id = ?
 			""";
 
 	public CustomerPaymentDao(Connection conn) {
@@ -313,6 +318,15 @@ public class CustomerPaymentDao {
 		throw new SQLException("No customer_payment found for customer_delivery_id = " + customerDeliveryId);
 	}
 
+	public void setNotes(int id, String notes) throws SQLException {
+		try (PreparedStatement ps = conn.prepareStatement(SET_NOTES)) {
+			ps.setString(1, notes);
+			ps.setInt(2, id);
+
+			ps.executeUpdate();
+		}
+	}
+
 	// increase the total_paid based on the new amount
 	public void updateForNewPayment(int id, double paymentAmount, Connection conn) throws SQLException {
 		CustomerPayments customerPayment = this.findById(id, conn);
@@ -363,6 +377,19 @@ public class CustomerPaymentDao {
 			ps.setInt(2, id);
 			ps.executeUpdate();
 		}
+	}
+
+	public void updateStatusBasedOnTotalPayment(int id, Connection conn) throws SQLException {
+		CustomerPayments cp = findById(id, conn);
+
+		boolean isFullyPaid = cp.getTotal() == cp.getTotalPayment();
+
+		if (isFullyPaid) {
+			updateStatus(id, "complete", conn);
+		} else {
+			updateStatus(id, "pending", conn);
+		}
+
 	}
 
 	public void updateStatus(int id, String newStatus, Connection conn) throws SQLException {

@@ -101,7 +101,8 @@ public class PaymentsPage {
 	private static LoadingSpinner spinner;
 
 	// Currency formatter
-	private static final NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("en", "PH"));
+	private static final NumberFormat currencyFormatter = NumberFormat
+			.getCurrencyInstance(Locale.forLanguageTag("en-PH"));
 
 	// Date formatter for display
 	private static final DateTimeFormatter dateFormatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");

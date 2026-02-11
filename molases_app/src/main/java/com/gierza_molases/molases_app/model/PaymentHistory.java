@@ -1,17 +1,18 @@
 package com.gierza_molases.molases_app.model;
 
-import java.util.Date;
+import java.time.Instant;
 
 public class PaymentHistory {
+
 	private Integer id;
 	private int customerPaymentId;
 	private double amount;
-	private Date createdAt;
+	private Instant createdAt;
 
 	public PaymentHistory() {
 	}
 
-	public PaymentHistory(Integer id, int customerPaymentId, double amount, Date createdAt) {
+	public PaymentHistory(Integer id, int customerPaymentId, double amount, Instant createdAt) {
 		this.id = id;
 		this.customerPaymentId = customerPaymentId;
 		this.amount = amount;
@@ -19,13 +20,11 @@ public class PaymentHistory {
 	}
 
 	public PaymentHistory(int customerPaymentId, double amount) {
-
 		this.customerPaymentId = customerPaymentId;
 		this.amount = amount;
-
 	}
 
-	// ===== Getters & Setters =====
+	// Getters & Setters
 
 	public Integer getId() {
 		return id;
@@ -51,11 +50,11 @@ public class PaymentHistory {
 		this.amount = amount;
 	}
 
-	public Date getCreatedAt() {
+	public Instant getCreatedAt() {
 		return createdAt;
 	}
 
-	public void setCreatedAt(Date createdAt) {
+	public void setCreatedAt(Instant createdAt) {
 		this.createdAt = createdAt;
 	}
 }

@@ -91,7 +91,7 @@ public class DashboardPage {
 	private static final Color COLOR_LOAN = new Color(123, 31, 162);
 
 	// Currency formatter
-	private static final NumberFormat CURRENCY = NumberFormat.getCurrencyInstance(new Locale("en", "PH"));
+	private static final NumberFormat CURRENCY = NumberFormat.getCurrencyInstance(Locale.forLanguageTag("en-PH"));
 	static {
 		CURRENCY.setMaximumFractionDigits(2);
 		CURRENCY.setMinimumFractionDigits(2);

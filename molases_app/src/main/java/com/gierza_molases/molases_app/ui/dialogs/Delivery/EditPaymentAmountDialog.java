@@ -11,7 +11,6 @@ import java.awt.Window;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.text.NumberFormat;
-import java.text.SimpleDateFormat;
 import java.util.Locale;
 
 import javax.swing.JButton;
@@ -36,8 +35,11 @@ public class EditPaymentAmountDialog extends JDialog {
 	private static final Color ACCENT_GOLD = new Color(184, 134, 11);
 
 	// Formatters
-	private static final NumberFormat currencyFormatter = NumberFormat.getCurrencyInstance(new Locale("en", "PH"));
-	private static final SimpleDateFormat dateFormatter = new SimpleDateFormat("MMM dd, yyyy");
+	private static final NumberFormat currencyFormatter = NumberFormat
+			.getCurrencyInstance(Locale.forLanguageTag("en-PH"));
+
+	private static final java.time.format.DateTimeFormatter dateFormatter = java.time.format.DateTimeFormatter
+			.ofPattern("MMM dd, yyyy").withZone(java.time.ZoneId.systemDefault());
 
 	static {
 		currencyFormatter.setMaximumFractionDigits(2);
@@ -201,7 +203,7 @@ public class EditPaymentAmountDialog extends JDialog {
 		AppContext.customerPaymentViewController.updatePaymentHistoryAmount(paymentHistory.getId(), newAmount, () -> {
 			SwingUtilities.invokeLater(() -> {
 				dispose();
-				ToastNotification.showSuccess(getOwner(), newAmountText);
+				ToastNotification.showSuccess(getOwner(), "Amount Updated to: " + newAmountText);
 				if (onSuccess != null) {
 					onSuccess.run();
 				}
