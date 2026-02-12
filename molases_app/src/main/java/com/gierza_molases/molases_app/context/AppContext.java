@@ -16,6 +16,7 @@ import com.gierza_molases.molases_app.dao.BranchDeliveryDao;
 import com.gierza_molases.molases_app.dao.CustomerDao;
 import com.gierza_molases.molases_app.dao.CustomerDeliveryDao;
 import com.gierza_molases.molases_app.dao.CustomerPaymentDao;
+import com.gierza_molases.molases_app.dao.DashboardDao;
 import com.gierza_molases.molases_app.dao.DeliveryDao;
 import com.gierza_molases.molases_app.dao.PaymentHistoryDao;
 import com.gierza_molases.molases_app.dao.ProductAssociationDao;
@@ -26,6 +27,7 @@ import com.gierza_molases.molases_app.service.BranchService;
 import com.gierza_molases.molases_app.service.CustomerDeliveryService;
 import com.gierza_molases.molases_app.service.CustomerPaymentsService;
 import com.gierza_molases.molases_app.service.CustomerService;
+import com.gierza_molases.molases_app.service.DashboardService;
 import com.gierza_molases.molases_app.service.DeliveryService;
 import com.gierza_molases.molases_app.service.ProductAssociationService;
 import com.gierza_molases.molases_app.service.ProductService;
@@ -36,6 +38,7 @@ public class AppContext {
 	private static Connection conn;
 
 	// Services
+	public static DashboardService dashBoardService;
 	public static CustomerService customerService;
 	public static BranchService branchService;
 	public static ProductService productService;
@@ -62,6 +65,8 @@ public class AppContext {
 		DatabaseInitializer.init();
 
 		// DAO instance
+		DashboardDao dashBoardDao = new DashboardDao(conn);
+
 		CustomerDao customerDao = new CustomerDao(conn);
 		BranchDao branchDao = new BranchDao(conn);
 		ProductDao productDao = new ProductDao(conn);
@@ -78,6 +83,8 @@ public class AppContext {
 		PaymentHistoryDao paymentHistoryDao = new PaymentHistoryDao(conn);
 
 		// service instance
+		dashBoardService = new DashboardService(dashBoardDao);
+
 		customerService = new CustomerService(customerDao, branchDao);
 		branchService = new BranchService(branchDao, customerDao, branchDeliveryDao);
 		productService = new ProductService(productDao, productAssociationDao);
@@ -102,7 +109,7 @@ public class AppContext {
 		customerPaymentViewController = new CustomerPaymentViewController(new CustomerPaymentViewState(),
 				customerPaymentsService);
 
-		dashboardController = new DashboardController(new DashboardState());
+		dashboardController = new DashboardController(dashBoardService, new DashboardState());
 
 	}
 

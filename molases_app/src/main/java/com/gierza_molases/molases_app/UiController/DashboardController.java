@@ -2,20 +2,21 @@ package com.gierza_molases.molases_app.UiController;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 
-import javax.swing.SwingUtilities;
+import javax.swing.SwingWorker;
 
 import com.gierza_molases.molases_app.context.DashboardState;
-import com.gierza_molases.molases_app.context.DashboardState.RecentDelivery;
-import com.gierza_molases.molases_app.context.DashboardState.RecentPayment;
 import com.gierza_molases.molases_app.context.DashboardState.UpcomingDelivery;
 import com.gierza_molases.molases_app.context.DashboardState.UpcomingLoanPayment;
+import com.gierza_molases.molases_app.model.CustomerPayments;
+import com.gierza_molases.molases_app.model.Delivery;
+import com.gierza_molases.molases_app.model.response.DashboardDataResponse;
+import com.gierza_molases.molases_app.model.response.OperationSummary;
+import com.gierza_molases.molases_app.model.response.RevenueSummary;
+import com.gierza_molases.molases_app.service.DashboardService;
 
 /**
  * Controller for the Dashboard page.
@@ -25,9 +26,11 @@ import com.gierza_molases.molases_app.context.DashboardState.UpcomingLoanPayment
  */
 public class DashboardController {
 
+	private final DashboardService service;
 	private final DashboardState state;
 
-	public DashboardController(DashboardState state) {
+	public DashboardController(DashboardService service, DashboardState state) {
+		this.service = service;
 		this.state = state;
 	}
 
@@ -44,67 +47,45 @@ public class DashboardController {
 	 * state (null = no filter = current month for financial cards).
 	 */
 	public void loadDashboard(Runnable onSuccess, Consumer<String> onError) {
-		new Thread(() -> {
-			try {
-				LocalDate from = state.getFilterFrom();
-				LocalDate to = state.getFilterTo();
+		new SwingWorker<Void, Void>() {
+			private DashboardDataResponse dashboardDataResponse;
+			private Exception error;
 
-				// ── Static counts (not affected by date filter) ───────────────
-				int totalDeliveries = fetchTotalDeliveries();
-				int pendingDeliveries = fetchPendingDeliveries();
-				int totalCustomers = fetchTotalCustomers();
-				int totalBranches = fetchTotalBranches();
-				int totalProducts = fetchTotalProducts();
-				int paymentsThisMonth = fetchPaymentsThisMonth();
+			@Override
+			protected Void doInBackground() {
+				try {
+					LocalDate from = state.getFilterFrom();
+					LocalDate to = state.getFilterTo();
 
-				// ── Financial cards (scoped to date range) ────────────────────
-				BigDecimal totalRevenueMonth = fetchTotalRevenue(from, to);
-				BigDecimal expensesMonth = fetchExpenses(from, to);
-				BigDecimal netProfitMonth = totalRevenueMonth.subtract(expensesMonth);
-				BigDecimal totalRevenueAllTime = fetchTotalRevenueAllTime();
-				BigDecimal pendingPayments = fetchPendingPayments();
+					// Fetch the complete dashboard data from service
+					dashboardDataResponse = service.fetchDashBoardData(from, to);
 
-				// ── Monthly income chart (last 12 months, ignores date filter) ─
-				Map<String, BigDecimal> monthlyIncome = fetchMonthlyIncome();
-
-				// ── Upcoming sections (ignores date filter) ───────────────────
-				List<UpcomingLoanPayment> upcomingLoans = fetchUpcomingLoanPayments(7);
-				List<UpcomingDelivery> upcomingDeliveries = fetchUpcomingDeliveries(7);
-
-				// ── Recent activity (scoped to date range) ────────────────────
-				List<RecentDelivery> recentDeliveries = fetchRecentDeliveries(5, from, to);
-				List<RecentPayment> recentPayments = fetchRecentPayments(5, from, to);
-
-				SwingUtilities.invokeLater(() -> {
-					state.setTotalDeliveries(totalDeliveries);
-					state.setPendingDeliveries(pendingDeliveries);
-					state.setTotalCustomers(totalCustomers);
-					state.setTotalBranches(totalBranches);
-					state.setTotalProducts(totalProducts);
-					state.setPaymentsThisMonth(paymentsThisMonth);
-					state.setTotalRevenueMonth(totalRevenueMonth);
-					state.setExpensesMonth(expensesMonth);
-					state.setNetProfitMonth(netProfitMonth);
-					state.setTotalRevenueAllTime(totalRevenueAllTime);
-					state.setPendingPaymentsTotal(pendingPayments);
-					state.setMonthlyIncome(monthlyIncome);
-					state.setUpcomingLoanPayments(upcomingLoans);
-					state.setUpcomingDeliveries(upcomingDeliveries);
-					state.setRecentDeliveries(recentDeliveries);
-					state.setRecentPayments(recentPayments);
-
-					if (onSuccess != null)
-						onSuccess.run();
-				});
-
-			} catch (Exception e) {
-				e.printStackTrace();
-				SwingUtilities.invokeLater(() -> {
-					if (onError != null)
-						onError.accept("Failed to load dashboard: " + e.getMessage());
-				});
+				} catch (Exception e) {
+					error = e;
+				}
+				return null;
 			}
-		}, "DashboardController-load").start();
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept("Failed to load dashboard: " + error.getMessage());
+					}
+				} else {
+					// Store the response in state
+					state.setDashboardData(dashboardDataResponse);
+
+					// Map and populate state from response
+					populateStateFromResponse(dashboardDataResponse);
+
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
 	}
 
 	/**
@@ -135,179 +116,141 @@ public class DashboardController {
 	}
 
 	// =========================================================================
-	// Private fetch helpers — MOCK DATA
-	// Replace each body with your real DAO / service call.
-	// The LocalDate parameters are passed through so your DAO can use them.
+	// Private mapping methods
 	// =========================================================================
 
-	private int fetchTotalDeliveries() {
-		simulateDelay();
-		// TODO: return AppContext.deliveryRepository.countAll();
-		return 142;
-	}
+	/**
+	 * Populate state from the dashboard response
+	 */
+	private void populateStateFromResponse(DashboardDataResponse response) {
+		if (response == null)
+			return;
 
-	private int fetchPendingDeliveries() {
-		// TODO: return AppContext.deliveryRepository.countByStatus("pending");
-		return 18;
-	}
+		// ── Revenue Summary ────────────────────────────────────────────────
+		RevenueSummary revenueSummary = response.getRevenueSummary();
+		if (revenueSummary != null) {
+			state.setTotalRevenueMonth(BigDecimal.valueOf(revenueSummary.getTotalRevenue()));
+			state.setExpensesMonth(BigDecimal.valueOf(revenueSummary.getTotalExpenses()));
+			state.setNetProfitMonth(BigDecimal.valueOf(revenueSummary.getNetProfit()));
+		}
 
-	private int fetchTotalCustomers() {
-		// TODO: return AppContext.customerRepository.countAll();
-		return 57;
-	}
+		// ── Operation Summary ──────────────────────────────────────────────
+		OperationSummary operationSummary = response.getOperationSummary();
+		if (operationSummary != null) {
+			state.setTotalDeliveries(operationSummary.getTotalDeliveries());
+			state.setPendingDeliveries(operationSummary.getPendingDeliveries());
+			state.setTotalCustomers(operationSummary.getTotalCustomers());
+			state.setTotalProducts(operationSummary.getTotalProducts());
+		}
 
-	private int fetchTotalBranches() {
-		// TODO: return AppContext.branchRepository.countAll();
-		return 5;
-	}
+		// ── Monthly Income Chart ───────────────────────────────────────────
+		if (response.getMonthlyIncome() != null) {
+			state.setMonthlyIncome(response.getMonthlyIncome());
+		}
 
-	private int fetchTotalProducts() {
-		// TODO: return AppContext.productRepository.countAll();
-		return 23;
-	}
+		// ── Upcoming Loan Payments ─────────────────────────────────────────
+		List<CustomerPayments> loanPayments = response.getUpcommingDueLoanPayments();
+		if (loanPayments != null) {
+			state.setUpcomingLoanPayments(mapToUpcomingLoanPayments(loanPayments));
+		}
 
-	private int fetchPaymentsThisMonth() {
-		// TODO: return AppContext.customerPaymentRepository.countThisMonth();
-		return 34;
+		// ── Upcoming Deliveries ────────────────────────────────────────────
+		List<Delivery> deliveries = response.getUpComingDelivery();
+		if (deliveries != null) {
+			state.setUpcomingDeliveries(mapToUpcomingDeliveries(deliveries));
+		}
+
+		// TODO: Add these to your service response if needed
+		// state.setTotalRevenueAllTime(...);
+		// state.setPendingPaymentsTotal(...);
+		// state.setPaymentsThisMonth(...);
+		// state.setTotalBranches(...);
 	}
 
 	/**
-	 * Revenue for the given date range. If from/to are null, defaults to current
-	 * month. TODO: return
-	 * AppContext.customerPaymentRepository.sumRevenueBetween(from, to);
+	 * Map CustomerPayments to UpcomingLoanPayment (state inner class)
 	 */
-	private BigDecimal fetchTotalRevenue(LocalDate from, LocalDate to) {
-		// Mock: vary slightly based on whether a filter is active
-		if (from != null || to != null) {
-			return new BigDecimal("385400.00");
+	private List<UpcomingLoanPayment> mapToUpcomingLoanPayments(List<CustomerPayments> payments) {
+		List<UpcomingLoanPayment> result = new ArrayList<>();
+
+		for (CustomerPayments payment : payments) {
+			// Calculate amount due (total - totalPayment)
+			BigDecimal amountDue = BigDecimal.valueOf(payment.getTotal())
+					.subtract(BigDecimal.valueOf(payment.getTotalPayment()));
+
+			// Convert Date to LocalDate
+			// Handle both java.sql.Date and java.util.Date
+			LocalDate dueDate = null;
+			if (payment.getPromiseToPay() != null) {
+				if (payment.getPromiseToPay() instanceof java.sql.Date) {
+					// java.sql.Date can be converted directly to LocalDate
+					dueDate = ((java.sql.Date) payment.getPromiseToPay()).toLocalDate();
+				} else {
+					// java.util.Date uses toInstant()
+					dueDate = payment.getPromiseToPay().toInstant().atZone(java.time.ZoneId.systemDefault())
+							.toLocalDate();
+				}
+			}
+
+			// Determine status based on due date
+			String status = determinePaymentStatus(dueDate);
+
+			result.add(new UpcomingLoanPayment(payment.getId(), payment.getCustomerName(), payment.getDeliveryName(),
+					amountDue, dueDate, status));
 		}
-		return new BigDecimal("428750.00");
+
+		return result;
 	}
 
 	/**
-	 * Expenses for the given date range. TODO: return
-	 * AppContext.expenseRepository.sumBetween(from, to);
+	 * Map Delivery to UpcomingDelivery (state inner class)
 	 */
-	private BigDecimal fetchExpenses(LocalDate from, LocalDate to) {
-		if (from != null || to != null) {
-			return new BigDecimal("112300.00");
+	private List<UpcomingDelivery> mapToUpcomingDeliveries(List<Delivery> deliveries) {
+		List<UpcomingDelivery> result = new ArrayList<>();
+
+		for (Delivery delivery : deliveries) {
+			// Convert LocalDateTime to LocalDate
+			LocalDate scheduledDate = delivery.getScheduleDate() != null ? delivery.getScheduleDate().toLocalDate()
+					: null;
+
+			// Note: You'll need to add customer and branch info to the Delivery model
+			// or enhance your service to fetch this data via JOINs
+			String customerName = "N/A"; // TODO: Add to Delivery model
+			String branchName = "N/A"; // TODO: Add to Delivery model
+
+			result.add(new UpcomingDelivery(delivery.getId(), delivery.getName(), customerName, branchName,
+					scheduledDate, capitalizeStatus(delivery.getStatus())));
 		}
-		return new BigDecimal("134200.00");
+
+		return result;
 	}
 
-	private BigDecimal fetchTotalRevenueAllTime() {
-		// TODO: return AppContext.customerPaymentRepository.sumAllCompleted();
-		return new BigDecimal("1284750.00");
-	}
-
-	private BigDecimal fetchPendingPayments() {
-		// TODO: return AppContext.customerPaymentRepository.sumPending();
-		return new BigDecimal("237600.50");
-	}
-
-	/** Last 12 months of monthly revenue, ordered oldest → newest. */
-	private Map<String, BigDecimal> fetchMonthlyIncome() {
-		// TODO: return AppContext.customerPaymentRepository.monthlyRevenueLast12();
-		Map<String, BigDecimal> map = new LinkedHashMap<>();
-		LocalDate now = LocalDate.now();
-		DateTimeFormatter fmt = DateTimeFormatter.ofPattern("MMM yy");
-
-		// Realistic-looking mock values that trend upward
-		BigDecimal[] values = { new BigDecimal("210000"), new BigDecimal("185000"), new BigDecimal("245000"),
-				new BigDecimal("198000"), new BigDecimal("275000"), new BigDecimal("310000"), new BigDecimal("289000"),
-				new BigDecimal("325000"), new BigDecimal("298000"), new BigDecimal("356000"), new BigDecimal("380000"),
-				new BigDecimal("428750") };
-
-		for (int i = 11; i >= 0; i--) {
-			LocalDate month = now.minusMonths(i);
-			map.put(month.format(fmt), values[11 - i]);
+	/**
+	 * Determine payment status based on due date
+	 */
+	private String determinePaymentStatus(LocalDate dueDate) {
+		if (dueDate == null) {
+			return "Unknown";
 		}
-		return map;
-	}
 
-	/** Upcoming loan payments due within the next N days. */
-	private List<UpcomingLoanPayment> fetchUpcomingLoanPayments(int limit) {
-		// TODO: return AppContext.customerPaymentRepository.findUpcomingLoans(limit);
-		List<UpcomingLoanPayment> list = new ArrayList<>();
 		LocalDate today = LocalDate.now();
 
-		list.add(new UpcomingLoanPayment(301, "Cruz Enterprises", "DEL-2025-002", new BigDecimal("120000.00"),
-				today.plusDays(2), "Due Soon"));
-		list.add(new UpcomingLoanPayment(302, "Garcia Feeds", "DEL-2025-004", new BigDecimal("89200.00"),
-				today.plusDays(3), "Due Soon"));
-		list.add(new UpcomingLoanPayment(303, "Reyes Trading", "DEL-2025-003", new BigDecimal("67500.50"),
-				today.plusDays(5), "Due Soon"));
-		list.add(new UpcomingLoanPayment(304, "Dela Cruz Agri", "DEL-2025-008", new BigDecimal("45000.00"),
-				today.minusDays(1), "Overdue"));
-		list.add(new UpcomingLoanPayment(305, "Mendoza Supply Co.", "DEL-2025-006", new BigDecimal("210000.00"),
-				today.plusDays(7), "Due Soon"));
-		list.add(new UpcomingLoanPayment(306, "Tan Enterprises", "DEL-2025-010", new BigDecimal("55000.00"),
-				today.minusDays(3), "Overdue"));
-		list.add(new UpcomingLoanPayment(307, "Villanueva Farm", "DEL-2025-012", new BigDecimal("98000.00"),
-				today.plusDays(9), "Due Soon"));
-
-		return list.subList(0, Math.min(limit, list.size()));
-	}
-
-	/** Upcoming scheduled deliveries. */
-	private List<UpcomingDelivery> fetchUpcomingDeliveries(int limit) {
-		// TODO: return AppContext.deliveryRepository.findUpcoming(limit);
-		List<UpcomingDelivery> list = new ArrayList<>();
-		LocalDate today = LocalDate.now();
-
-		list.add(new UpcomingDelivery(401, "DEL-2025-015", "Santos Farm", "Davao Branch", today.plusDays(1),
-				"Scheduled"));
-		list.add(new UpcomingDelivery(402, "DEL-2025-016", "Lim Agri Supply", "Cebu Branch", today.plusDays(1),
-				"In Transit"));
-		list.add(new UpcomingDelivery(403, "DEL-2025-017", "Cruz Enterprises", "Manila Branch", today.plusDays(2),
-				"Scheduled"));
-		list.add(new UpcomingDelivery(404, "DEL-2025-018", "Buenaventura Co.", "Davao Branch", today.plusDays(3),
-				"Scheduled"));
-		list.add(new UpcomingDelivery(405, "DEL-2025-019", "Reyes Trading", "Cebu Branch", today.plusDays(4),
-				"Scheduled"));
-		list.add(new UpcomingDelivery(406, "DEL-2025-020", "Flores Feeds", "Manila Branch", today.plusDays(5),
-				"Scheduled"));
-		list.add(new UpcomingDelivery(407, "DEL-2025-021", "Garcia Feeds", "Davao Branch", today.plusDays(6),
-				"In Transit"));
-
-		return list.subList(0, Math.min(limit, list.size()));
-	}
-
-	private List<RecentDelivery> fetchRecentDeliveries(int limit, LocalDate from, LocalDate to) {
-		// TODO: return AppContext.deliveryRepository.findRecent(limit, from, to);
-		List<RecentDelivery> list = new ArrayList<>();
-		list.add(new RecentDelivery(1001, "DEL-2025-001", "Santos Farm", "Davao Branch", "complete", "Feb 09, 2025"));
-		list.add(
-				new RecentDelivery(1002, "DEL-2025-002", "Cruz Enterprises", "Cebu Branch", "pending", "Feb 09, 2025"));
-		list.add(
-				new RecentDelivery(1003, "DEL-2025-003", "Reyes Trading", "Manila Branch", "complete", "Feb 08, 2025"));
-		list.add(new RecentDelivery(1004, "DEL-2025-004", "Garcia Feeds", "Davao Branch", "pending", "Feb 08, 2025"));
-		list.add(
-				new RecentDelivery(1005, "DEL-2025-005", "Lim Agri Supply", "Cebu Branch", "complete", "Feb 07, 2025"));
-		return list.subList(0, Math.min(limit, list.size()));
-	}
-
-	private List<RecentPayment> fetchRecentPayments(int limit, LocalDate from, LocalDate to) {
-		// TODO: return AppContext.customerPaymentRepository.findRecent(limit, from,
-		// to);
-		List<RecentPayment> list = new ArrayList<>();
-		list.add(new RecentPayment(201, "Santos Farm", "DEL-2025-001", new BigDecimal("45000.00"), "Paid Cash",
-				"complete", "Feb 09, 2025"));
-		list.add(new RecentPayment(202, "Cruz Enterprises", "DEL-2025-002", new BigDecimal("120000.00"), "Paid Cheque",
-				"pending", "Feb 09, 2025"));
-		list.add(new RecentPayment(203, "Reyes Trading", "DEL-2025-003", new BigDecimal("67500.50"), "Partial",
-				"pending", "Feb 08, 2025"));
-		list.add(new RecentPayment(204, "Garcia Feeds", "DEL-2025-004", new BigDecimal("89200.00"), "Loan", "pending",
-				"Feb 08, 2025"));
-		list.add(new RecentPayment(205, "Lim Agri Supply", "DEL-2025-005", new BigDecimal("32750.00"), "Paid Cash",
-				"complete", "Feb 07, 2025"));
-		return list.subList(0, Math.min(limit, list.size()));
-	}
-
-	private void simulateDelay() {
-		try {
-			Thread.sleep(700);
-		} catch (InterruptedException ignored) {
+		if (dueDate.isBefore(today)) {
+			return "Overdue";
+		} else if (dueDate.isEqual(today) || dueDate.isBefore(today.plusDays(7))) {
+			return "Due Soon";
+		} else {
+			return "Upcoming";
 		}
+	}
+
+	/**
+	 * Capitalize status string
+	 */
+	private String capitalizeStatus(String status) {
+		if (status == null || status.isEmpty()) {
+			return "";
+		}
+		return status.substring(0, 1).toUpperCase() + status.substring(1);
 	}
 }

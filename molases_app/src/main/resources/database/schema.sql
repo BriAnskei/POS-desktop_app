@@ -107,7 +107,7 @@ END;
 
 -- Product table
 CREATE TABLE IF NOT EXISTS product (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,          -- UniqueID (PK)
+    id INTEGER PRIMARY KEY AUTOINCREMENT,     
 
 
     product_name TEXT NOT NULL,
@@ -155,10 +155,10 @@ CREATE INDEX IF NOT EXISTS idx_product_assoc_product ON product_association(prod
 CREATE TABLE IF NOT EXISTS delivery (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-    schedule_date DATETIME,
+    schedule_date DATETIME, 	
     name TEXT NOT NULL,
     expenses TEXT,
-    status TEXT,
+    status TEXT,  --scheduled / delivered
     
     total_customers REAL NOT NULL,
     total_branches REAL NOT NULL,
@@ -195,7 +195,7 @@ CREATE TABLE IF NOT EXISTS customer_delivery (
     customer_id INTEGER NOT NULL,           -- FK
     delivery_id INTEGER NOT NULL,           -- FK
     
-     status TEXT, 							-- cancelled /delivered
+     status TEXT, 							-- cancelled / delivered
     
     UNIQUE (customer_id, delivery_id), -- most be unique 
 
@@ -286,7 +286,7 @@ CREATE TABLE IF NOT EXISTS customer_payments (
     customer_id INTEGER NOT NULL,
     customer_delivery_id INTEGER,
 
-    payment_type TEXT NOT NULL,
+    payment_type TEXT NOT NULL, -- Paid Cash, Pad Cheque, Partial, Loan(with promise to pay)
     
     status TEXT,   -- complete, pending
     notes TEXT,

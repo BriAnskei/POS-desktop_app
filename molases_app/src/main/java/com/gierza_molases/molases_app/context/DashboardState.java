@@ -7,10 +7,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.gierza_molases.molases_app.model.response.DashboardDataResponse;
+
 /**
  * State holder for the Dashboard page.
  */
 public class DashboardState {
+
+	private DashboardDataResponse dashboardDataResponse;
 
 	// ── Date filter (set by the UI, read by the controller) ──────────────────
 	private LocalDate filterFrom = null;
@@ -248,6 +252,14 @@ public class DashboardState {
 
 	public void setFilterTo(LocalDate v) {
 		this.filterTo = v;
+	}
+
+	public DashboardDataResponse getDashboardData() {
+		return dashboardDataResponse;
+	}
+
+	public void setDashboardData(DashboardDataResponse dashboardDataResponse) {
+		this.dashboardDataResponse = dashboardDataResponse;
 	}
 
 	// Counts

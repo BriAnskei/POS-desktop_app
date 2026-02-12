@@ -46,8 +46,6 @@ import javax.swing.table.JTableHeader;
 import com.gierza_molases.molases_app.UiController.DashboardController;
 import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.context.DashboardState;
-import com.gierza_molases.molases_app.context.DashboardState.RecentDelivery;
-import com.gierza_molases.molases_app.context.DashboardState.RecentPayment;
 import com.gierza_molases.molases_app.context.DashboardState.UpcomingDelivery;
 import com.gierza_molases.molases_app.context.DashboardState.UpcomingLoanPayment;
 import com.gierza_molases.molases_app.ui.components.LoadingSpinner;
@@ -105,8 +103,6 @@ public class DashboardPage {
 	private static BarChartPanel barChart;
 	private static JTable loanTable;
 	private static JTable upcomingDelivTable;
-	private static JTable recentDelivTable;
-	private static JTable recentPayTable;
 	private static JPanel loadingOverlay;
 	private static LoadingSpinner spinner;
 	private static JLabel filterRangeLabel;
@@ -130,7 +126,7 @@ public class DashboardPage {
 		DashboardPage.onViewPayments = onViewPayments;
 
 		// Null out stale table refs
-		loanTable = upcomingDelivTable = recentDelivTable = recentPayTable = null;
+		loanTable = upcomingDelivTable = null;
 		barChart = null;
 
 		JPanel mainPanel = new JPanel(new BorderLayout(0, 0));
@@ -158,10 +154,6 @@ public class DashboardPage {
 
 		// Row 3: Upcoming Loan Payments (left) + Upcoming Deliveries (right)
 		body.add(buildUpcomingSection());
-		body.add(Box.createVerticalStrut(20));
-
-		// Row 4: Recent Deliveries (left) + Recent Payments (right)
-		body.add(buildRecentActivitySection());
 
 		JScrollPane scrollPane = new JScrollPane(body);
 		scrollPane.setBorder(BorderFactory.createEmptyBorder());
@@ -384,8 +376,6 @@ public class DashboardPage {
 			barChart.setData(s.getMonthlyIncome());
 		updateLoanTable(s.getUpcomingLoanPayments());
 		updateUpcomingDelivTable(s.getUpcomingDeliveries());
-		updateRecentDelivTable(s.getRecentDeliveries());
-		updateRecentPayTable(s.getRecentPayments());
 		if (mainPanelRef != null) {
 			mainPanelRef.revalidate();
 			mainPanelRef.repaint();
@@ -592,7 +582,7 @@ public class DashboardPage {
 		int i = 1;
 		for (UpcomingLoanPayment p : list) {
 			model.addRow(new Object[] { i++, p.getCustomerName(), p.getDeliveryName(), formatPeso(p.getAmountDue()),
-					p.getDueDate().format(DATE_FMT), p.getStatus() });
+					p.getDueDate() != null ? p.getDueDate().format(DATE_FMT) : "N/A", p.getStatus() });
 		}
 	}
 
@@ -650,141 +640,7 @@ public class DashboardPage {
 		int i = 1;
 		for (UpcomingDelivery d : list) {
 			model.addRow(new Object[] { i++, d.getDeliveryName(), d.getCustomerName(), d.getBranchName(),
-					d.getScheduledDate().format(DATE_FMT), d.getStatus() });
-		}
-	}
-
-	// =========================================================================
-	// Row 4 — Recent Deliveries + Recent Payments
-	// =========================================================================
-
-	private static JPanel buildRecentActivitySection() {
-		JPanel section = new JPanel(new GridBagLayout());
-		section.setBackground(CONTENT_BG);
-		section.setAlignmentX(Component.LEFT_ALIGNMENT);
-		section.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
-
-		GridBagConstraints gbc = new GridBagConstraints();
-		gbc.fill = GridBagConstraints.BOTH;
-		gbc.weighty = 1.0;
-		gbc.gridy = 0;
-
-		gbc.gridx = 0;
-		gbc.weightx = 1.0;
-		gbc.insets = new Insets(0, 0, 0, 12);
-		section.add(buildRecentDeliveriesPanel(), gbc);
-
-		gbc.gridx = 1;
-		gbc.insets = new Insets(0, 12, 0, 0);
-		section.add(buildRecentPaymentsPanel(), gbc);
-
-		return section;
-	}
-
-	private static JPanel buildRecentDeliveriesPanel() {
-		JPanel panel = new JPanel(new BorderLayout(0, 8));
-		panel.setBackground(CONTENT_BG);
-
-		JPanel header = new JPanel(new BorderLayout());
-		header.setBackground(CONTENT_BG);
-		JLabel title = new JLabel("Recent Deliveries");
-		title.setFont(new Font("Arial", Font.BOLD, 15));
-		title.setForeground(TEXT_DARK);
-		header.add(title, BorderLayout.WEST);
-		JButton viewAll = createLinkButton("View All →");
-		viewAll.addActionListener(e -> {
-			if (onViewDeliveries != null)
-				onViewDeliveries.run();
-		});
-		header.add(viewAll, BorderLayout.EAST);
-		panel.add(header, BorderLayout.NORTH);
-
-		String[] cols = { "Delivery", "Customer", "Branch", "Status", "Date" };
-		DefaultTableModel model = new DefaultTableModel(cols, 0) {
-			@Override
-			public boolean isCellEditable(int r, int c) {
-				return false;
-			}
-		};
-		recentDelivTable = buildStyledTable(model);
-		recentDelivTable.getColumnModel().getColumn(0).setPreferredWidth(130);
-		recentDelivTable.getColumnModel().getColumn(1).setPreferredWidth(120);
-		recentDelivTable.getColumnModel().getColumn(2).setPreferredWidth(100);
-		recentDelivTable.getColumnModel().getColumn(3).setPreferredWidth(85);
-		recentDelivTable.getColumnModel().getColumn(4).setPreferredWidth(100);
-		recentDelivTable.getColumnModel().getColumn(3).setCellRenderer(genericStatusRenderer());
-
-		panel.add(wrapInScroll(recentDelivTable, 200), BorderLayout.CENTER);
-		return panel;
-	}
-
-	private static void updateRecentDelivTable(List<RecentDelivery> list) {
-		if (recentDelivTable == null)
-			return;
-		DefaultTableModel model = (DefaultTableModel) recentDelivTable.getModel();
-		model.setRowCount(0);
-		if (list == null || list.isEmpty()) {
-			model.addRow(new Object[] { "No recent deliveries", "", "", "", "" });
-			return;
-		}
-		for (RecentDelivery d : list) {
-			model.addRow(new Object[] { d.getDeliveryName(), d.getCustomerName(), d.getBranchName(),
-					capitalize(d.getStatus()), d.getDate() });
-		}
-	}
-
-	private static JPanel buildRecentPaymentsPanel() {
-		JPanel panel = new JPanel(new BorderLayout(0, 8));
-		panel.setBackground(CONTENT_BG);
-
-		JPanel header = new JPanel(new BorderLayout());
-		header.setBackground(CONTENT_BG);
-		JLabel title = new JLabel("Recent Payments");
-		title.setFont(new Font("Arial", Font.BOLD, 15));
-		title.setForeground(TEXT_DARK);
-		header.add(title, BorderLayout.WEST);
-		JButton viewAll = createLinkButton("View All →");
-		viewAll.addActionListener(e -> {
-			if (onViewPayments != null)
-				onViewPayments.run();
-		});
-		header.add(viewAll, BorderLayout.EAST);
-		panel.add(header, BorderLayout.NORTH);
-
-		String[] cols = { "Customer", "Delivery", "Amount", "Type", "Status", "Date" };
-		DefaultTableModel model = new DefaultTableModel(cols, 0) {
-			@Override
-			public boolean isCellEditable(int r, int c) {
-				return false;
-			}
-		};
-		recentPayTable = buildStyledTable(model);
-		recentPayTable.getColumnModel().getColumn(0).setPreferredWidth(110);
-		recentPayTable.getColumnModel().getColumn(1).setPreferredWidth(110);
-		recentPayTable.getColumnModel().getColumn(2).setPreferredWidth(105);
-		recentPayTable.getColumnModel().getColumn(3).setPreferredWidth(95);
-		recentPayTable.getColumnModel().getColumn(4).setPreferredWidth(80);
-		recentPayTable.getColumnModel().getColumn(5).setPreferredWidth(100);
-		recentPayTable.getColumnModel().getColumn(2).setCellRenderer(amountRenderer());
-		recentPayTable.getColumnModel().getColumn(3).setCellRenderer(paymentTypeRenderer());
-		recentPayTable.getColumnModel().getColumn(4).setCellRenderer(genericStatusRenderer());
-
-		panel.add(wrapInScroll(recentPayTable, 200), BorderLayout.CENTER);
-		return panel;
-	}
-
-	private static void updateRecentPayTable(List<RecentPayment> list) {
-		if (recentPayTable == null)
-			return;
-		DefaultTableModel model = (DefaultTableModel) recentPayTable.getModel();
-		model.setRowCount(0);
-		if (list == null || list.isEmpty()) {
-			model.addRow(new Object[] { "No recent payments", "", "", "", "", "" });
-			return;
-		}
-		for (RecentPayment p : list) {
-			model.addRow(new Object[] { p.getCustomerName(), p.getDeliveryName(), formatPeso(p.getAmount()),
-					p.getPaymentType(), capitalize(p.getStatus()), p.getDate() });
+					d.getScheduledDate() != null ? d.getScheduledDate().format(DATE_FMT) : "N/A", d.getStatus() });
 		}
 	}
 
@@ -1105,30 +961,6 @@ public class DashboardPage {
 
 	// ── Cell renderers ────────────────────────────────────────────────────────
 
-	private static DefaultTableCellRenderer genericStatusRenderer() {
-		return new DefaultTableCellRenderer() {
-			@Override
-			public Component getTableCellRendererComponent(JTable t, Object value, boolean isSelected, boolean hasFocus,
-					int row, int col) {
-				Component c = super.getTableCellRendererComponent(t, value, isSelected, hasFocus, row, col);
-				if (!isSelected) {
-					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
-					String s = value == null ? "" : value.toString().toLowerCase();
-					if (s.equals("pending"))
-						setForeground(COLOR_PENDING);
-					else if (s.startsWith("complete"))
-						setForeground(COLOR_COMPLETE);
-					else
-						setForeground(TEXT_DARK);
-					setFont(new Font("Arial", Font.BOLD, 13));
-				}
-				setHorizontalAlignment(SwingConstants.LEFT);
-				((JLabel) c).setBorder(new EmptyBorder(4, 10, 4, 10));
-				return c;
-			}
-		};
-	}
-
 	private static DefaultTableCellRenderer loanStatusRenderer() {
 		return new DefaultTableCellRenderer() {
 			@Override
@@ -1168,41 +1000,6 @@ public class DashboardPage {
 						setForeground(COLOR_SCHEDULED);
 					else
 						setForeground(TEXT_DARK);
-					setFont(new Font("Arial", Font.BOLD, 13));
-				}
-				setHorizontalAlignment(SwingConstants.LEFT);
-				((JLabel) c).setBorder(new EmptyBorder(4, 10, 4, 10));
-				return c;
-			}
-		};
-	}
-
-	private static DefaultTableCellRenderer paymentTypeRenderer() {
-		return new DefaultTableCellRenderer() {
-			@Override
-			public Component getTableCellRendererComponent(JTable t, Object value, boolean isSelected, boolean hasFocus,
-					int row, int col) {
-				Component c = super.getTableCellRendererComponent(t, value, isSelected, hasFocus, row, col);
-				if (!isSelected) {
-					c.setBackground(row % 2 == 0 ? TABLE_ROW_EVEN : TABLE_ROW_ODD);
-					String type = value == null ? "" : value.toString();
-					switch (type) {
-					case "Paid Cash":
-						setForeground(COLOR_PAID_CASH);
-						break;
-					case "Paid Cheque":
-						setForeground(COLOR_PAID_CHEQUE);
-						break;
-					case "Partial":
-						setForeground(COLOR_PARTIAL);
-						break;
-					case "Loan":
-						setForeground(COLOR_LOAN);
-						break;
-					default:
-						setForeground(TEXT_DARK);
-						break;
-					}
 					setFont(new Font("Arial", Font.BOLD, 13));
 				}
 				setHorizontalAlignment(SwingConstants.LEFT);
@@ -1292,11 +1089,5 @@ public class DashboardPage {
 		if (amount == null)
 			return "₱0.00";
 		return CURRENCY.format(amount).replace("PHP", "₱");
-	}
-
-	private static String capitalize(String s) {
-		if (s == null || s.isEmpty())
-			return s;
-		return Character.toUpperCase(s.charAt(0)) + s.substring(1);
 	}
 }
