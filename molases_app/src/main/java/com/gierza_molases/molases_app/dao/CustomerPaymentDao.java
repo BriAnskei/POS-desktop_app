@@ -7,6 +7,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
@@ -180,7 +181,7 @@ public class CustomerPaymentDao {
 
 			// PROMISE TO PAY (loan only)
 			if ("loan".equalsIgnoreCase(customerPayment.getPaymentType())) {
-				ps.setDate(7, new java.sql.Date(customerPayment.getPromiseToPay().getTime()));
+				ps.setString(7, new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(customerPayment.getPromiseToPay()));
 			} else {
 				ps.setNull(7, Types.DATE);
 			}
@@ -369,7 +370,9 @@ public class CustomerPaymentDao {
 		try (PreparedStatement ps = conn.prepareStatement(UPDATE_PROMISE_TO_PAY)) {
 
 			if (newPromiseToPay != null) {
-				ps.setDate(1, new java.sql.Date(newPromiseToPay.getTime()));
+
+				ps.setString(1, new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(newPromiseToPay));
+
 			} else {
 				ps.setNull(1, java.sql.Types.DATE);
 			}
