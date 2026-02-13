@@ -6,7 +6,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -75,7 +77,11 @@ public class DeliveryDao {
 	public int insert(Connection conn, Delivery delivery) throws SQLException {
 		try (PreparedStatement ps = conn.prepareStatement(INSERT_DELIVERY_SQL, Statement.RETURN_GENERATED_KEYS)) {
 
-			ps.setTimestamp(1, Timestamp.valueOf(delivery.getScheduleDate()));
+			long scheduleEpochMillis = delivery.getScheduleDate().atZone(ZoneId.systemDefault()).toInstant()
+					.toEpochMilli();
+
+			ps.setLong(1, scheduleEpochMillis);
+
 			ps.setString(2, delivery.getName());
 			ps.setString(3, delivery.getExpensesAsJson()); // JSON string
 			ps.setString(4, "scheduled");
@@ -263,7 +269,9 @@ public class DeliveryDao {
 
 		Integer id = rs.getInt("id");
 
-		LocalDateTime scheduleDate = rs.getTimestamp("schedule_date").toLocalDateTime();
+		long epochMillis = rs.getLong("schedule_date");
+
+		LocalDateTime scheduleDate = Instant.ofEpochMilli(epochMillis).atZone(ZoneId.systemDefault()).toLocalDateTime();
 
 		String name = rs.getString("name");
 

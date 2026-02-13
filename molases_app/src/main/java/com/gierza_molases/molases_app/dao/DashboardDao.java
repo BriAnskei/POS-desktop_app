@@ -91,34 +91,43 @@ public class DashboardDao {
 
 					""";
 
-	private static final String SELECT_TOTAL_DELIVERIES_BASE_SQL = "SELECT COUNT(*) FROM delivery";
+	private static final String SELECT_TOTAL_DELIVERIES_BASE_SQL = """
+			    SELECT COALESCE(SUM(total_rows), 0)
+			    FROM delivery_daily_counts
+			""";
 
-	private static final String SELECT_PENDING_DELIVERIES_BASE_SQL = "SELECT COUNT(*) FROM delivery WHERE status = 'scheduled'";
+	private static final String SELECT_PENDING_DELIVERIES_BASE_SQL = """
+			    SELECT COALESCE(SUM(total_rows), 0)
+			    FROM delivery_daily_counts
+			    WHERE status = 'scheduled'
+			""";
 
-	private static final String SELECT_TOTAL_CUSTOMERS_SQL = "SELECT COUNT(*) FROM customer";
+	private static final String SELECT_TOTAL_CUSTOMERS_SQL = """
+			   SELECT COUNT(*) FROM customer
+			""";
 
 	private static final String SELECT_TOTAL_PRODUCTS_SQL = "SELECT COUNT(*) FROM product";
 
-	private static final String SELECT_UPCOMMING_DELIVERY = """
-				SELECT
-			    d.id,
-			    d.name,
-			    d.schedule_date,
-			    d.status,
-			    d.total_customers,
-			    d.total_branches,
-			    d.total_gross,
-			    d.total_capital,
-			    d.gross_profit,
-			    d.total_expenses,
-			    d.net_profit,
-			    d.created_at
-			FROM delivery d
-			WHERE date(d.schedule_date) >= date('now', 'start of month')
-			  AND date(d.schedule_date) < date('now', 'start of month', '+2 months')
-			  AND d.status = 'scheduled'
-			ORDER BY date(d.schedule_date) ASC;
-						""";
+	private static final String SELECT_UPCOMING_DELIVERIES_SQL = """
+			    SELECT
+			        d.id,
+			        d.name,
+			        d.schedule_date,
+			        d.status,
+			        d.total_customers,
+			        d.total_branches,
+			        d.total_gross,
+			        d.total_capital,
+			        d.gross_profit,
+			        d.total_expenses,
+			        d.net_profit,
+			        d.created_at
+			    FROM delivery d
+			    WHERE d.schedule_date >= (strftime('%s', 'now', 'start of month') * 1000)
+			      AND d.schedule_date <  (strftime('%s', 'now', 'start of month', '+2 months') * 1000)
+			      AND d.status = 'scheduled'
+			    ORDER BY d.schedule_date ASC
+			""";
 
 	public DashboardDao(Connection conn) {
 		this.conn = conn;
@@ -191,21 +200,11 @@ public class DashboardDao {
 		StringBuilder totalSql = new StringBuilder(SELECT_TOTAL_DELIVERIES_BASE_SQL);
 		StringBuilder pendingSql = new StringBuilder(SELECT_PENDING_DELIVERIES_BASE_SQL);
 
-		if (from != null || to != null) {
-			totalSql.append(" WHERE ");
-			pendingSql.append(" AND ");
+		// total deliveries (no WHERE initially)
+		appendDateFilter(totalSql, from, to, false);
 
-			if (from != null && to != null) {
-				totalSql.append("created_at BETWEEN ? AND ?");
-				pendingSql.append("created_at BETWEEN ? AND ?");
-			} else if (from != null) {
-				totalSql.append("created_at >= ?");
-				pendingSql.append("created_at >= ?");
-			} else {
-				totalSql.append("created_at <= ?");
-				pendingSql.append("created_at <= ?");
-			}
-		}
+		// pending deliveries (already has WHERE status = 'scheduled')
+		appendDateFilter(pendingSql, from, to, true);
 
 		int totalDeliveries;
 		int pendingDeliveries;
@@ -269,7 +268,7 @@ public class DashboardDao {
 	public List<Delivery> fetchUpcomingDeliveriesThisAndNextMonth() {
 		List<Delivery> list = new ArrayList<>();
 
-		try (PreparedStatement ps = conn.prepareStatement(SELECT_UPCOMMING_DELIVERY);
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_UPCOMING_DELIVERIES_SQL);
 				ResultSet rs = ps.executeQuery()) {
 
 			while (rs.next()) {
@@ -334,6 +333,22 @@ public class DashboardDao {
 		} else if (to != null) {
 
 			ps.setString(index, to.atTime(LocalTime.MAX).format(SQLITE_FORMAT));
+		}
+	}
+
+	private void appendDateFilter(StringBuilder sql, LocalDate from, LocalDate to, boolean hasWhere) {
+		if (from == null && to == null) {
+			return;
+		}
+
+		sql.append(hasWhere ? " AND " : " WHERE ");
+
+		if (from != null && to != null) {
+			sql.append("counter_date BETWEEN ? AND ?");
+		} else if (from != null) {
+			sql.append("counter_date >= ?");
+		} else {
+			sql.append("counter_date <= ?");
 		}
 	}
 

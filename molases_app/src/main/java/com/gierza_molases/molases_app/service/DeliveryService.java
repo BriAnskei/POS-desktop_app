@@ -2,6 +2,8 @@ package com.gierza_molases.molases_app.service;
 
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -69,17 +71,23 @@ public class DeliveryService {
 
 	public void addNewDelivery(NewDelivery newDelivery) {
 		TransactionHelper.executeInTransaction(conn -> {
-			int deliveryId = deliveryDao.insert(conn, newDelivery.getDelivery());
+			Delivery delivery = newDelivery.getDelivery();
 
-			insertCustomerDeliveries(deliveryId, newDelivery.getCustomerBranchDeliveries(), conn, true);
+			int deliveryId = deliveryDao.insert(conn, delivery);
+
+			LocalDateTime deliverySchdule = delivery.getScheduleDate();
+
+			insertCustomerDeliveries(deliveryId, newDelivery.getCustomerBranchDeliveries(), conn, true,
+					deliverySchdule);
 
 		});
 	}
 
 	// return a map of customerId -> customerDeliveryId
 	private Map<Integer, Integer> insertCustomerDeliveries(int deliveryId,
-			List<CustomerBranchDelivery> customerBranchDeliveries, Connection conn, boolean isNewDelivery)
-			throws Exception {
+			List<CustomerBranchDelivery> customerBranchDeliveries, Connection conn, boolean isNewDelivery,
+			LocalDateTime deliveryDate) throws Exception {
+
 		Map<Integer, Integer> customerIdToCustomerDeliveryId = new HashMap<>();
 
 		for (CustomerBranchDelivery cbd : customerBranchDeliveries) {
@@ -90,14 +98,14 @@ public class DeliveryService {
 			int customerDeliveryId = customerDeliveryDao.insert(conn, cd, isNewDelivery);
 
 			customerIdToCustomerDeliveryId.put(cd.getCustomerId(), customerDeliveryId);
-			insertAllBranchAndProducts(customerDeliveryId, cbd.getBranches(), conn);
+			insertAllBranchAndProducts(customerDeliveryId, cbd.getBranches(), deliveryDate, conn);
 		}
 
 		return customerIdToCustomerDeliveryId;
 	}
 
 	private void insertAllBranchAndProducts(int customerDeliveryId, Map<BranchDelivery, List<ProductDelivery>> branches,
-			Connection conn) throws Exception {
+			LocalDateTime deliveryDate, Connection conn) throws Exception {
 		for (Map.Entry<BranchDelivery, List<ProductDelivery>> entry : branches.entrySet()) {
 
 			BranchDelivery bd = entry.getKey();
@@ -111,8 +119,9 @@ public class DeliveryService {
 		}
 	}
 
-	public List<Delivery> fetchNextPage(Long lastSeenId, String search, Date startAt, Date endAt) {
-		return deliveryDao.fetchNextPageNewest(lastSeenId, search, startAt, endAt, 15); // page size fixed to 15
+	public List<Delivery> fetchNextPage(Long lastSeenId, String search, Date startAt, Date endAt, int pageSize) {
+		return deliveryDao.fetchNextPageNewest(lastSeenId, search, startAt, endAt, pageSize + 1); // page size fixed to
+																									// 15
 	}
 
 	public DeliveryViewResponse getDeliveryDetials(int deliveryId) {
@@ -278,20 +287,23 @@ public class DeliveryService {
 			// Mark delivered and apply changes
 			proccessMarkAsDeliveredAndApplyChanges(delivery, conn);
 			// Delivery changes and payment types
-			processCustomerDeliveryChanges(delivery.getId(), deliveryChanges, conn);
+			processCustomerDeliveryChanges(delivery, deliveryChanges, conn);
 		});
 	}
 
-	private void processCustomerDeliveryChanges(int deliveryId, DeliveryChanges deliveryChanges, Connection conn)
+	private void processCustomerDeliveryChanges(Delivery delivery, DeliveryChanges deliveryChanges, Connection conn)
 			throws Exception {
+		int deliveryId = delivery.getId();
+		LocalDateTime deliverySchedule = delivery.getScheduleDate();
+
 		Map<Integer, Integer> customerIdToCustomerDeliveryId = new HashMap<>(); // customerId -> customerDelivery (added
 																				// customerDelivery)
 
 		// Save customer delivery changes, and status
 		CustomerDeliveryChanges customerDeliveryChanges = deliveryChanges.getCustomerDeliveryChanges();
 		if (customerDeliveryChanges != null) {
-			customerIdToCustomerDeliveryId = proccessCustomerDeliveriesChanges(deliveryId, customerDeliveryChanges,
-					conn);
+			customerIdToCustomerDeliveryId = proccessCustomerDeliveriesChanges(deliveryId, deliverySchedule,
+					customerDeliveryChanges, conn);
 		}
 
 		// Save branches updates
@@ -314,6 +326,9 @@ public class DeliveryService {
 		List<CustomerPayments> customerPayments = deliveryChanges.getCustomerPaymentTypes();
 		processCustomerDeliveryPayments(customerIdToCustomerDeliveryId, customerPayments, conn);
 
+		// update the last deliver of all the branches that is in this delibery by the
+		// schduled date.
+		branchDao.updateBranchesLastDeliveryDate(deliveryId, deliverySchedule, conn);
 	}
 
 	private void proccessMarkAsDeliveredAndApplyChanges(Delivery delivery, Connection conn) throws SQLException {
@@ -323,14 +338,17 @@ public class DeliveryService {
 	}
 
 	// return a map of customerId -> customerDeliveryId
-	private Map<Integer, Integer> proccessCustomerDeliveriesChanges(int deliveryId,
+	private Map<Integer, Integer> proccessCustomerDeliveriesChanges(int deliveryId, LocalDateTime deliverySchdule,
 			CustomerDeliveryChanges customerDeliveryChanges, Connection conn) throws Exception {
 		List<CustomerBranchDelivery> addedDeliveries = customerDeliveryChanges.getAddedDelivery();
 		Map<Integer, Integer> customerIdToCustomerDeliveryId = new HashMap<>();
 
+		LocalDateTime DeliveryDate = LocalDate.now().atStartOfDay();
+
 		// check for new deliveries added
 		if (addedDeliveries.size() > 0) {
-			customerIdToCustomerDeliveryId = insertCustomerDeliveries(deliveryId, addedDeliveries, conn, false);
+			customerIdToCustomerDeliveryId = insertCustomerDeliveries(deliveryId, addedDeliveries, conn, false,
+					DeliveryDate);
 
 		}
 		return customerIdToCustomerDeliveryId;
@@ -392,6 +410,7 @@ public class DeliveryService {
 		for (CustomerPayments cp : customerPayments) {
 			boolean isCustomerNewlyAdded = customerIdToCustomerDeliveryId.containsKey(cp.getCustomerId());
 
+			// if this is the new customer delivery, we initialize the customerDeliveryId
 			if (isCustomerNewlyAdded) {
 				cp.setCustomerDeliveryId(customerIdToCustomerDeliveryId.get(cp.getCustomerId()));
 			}

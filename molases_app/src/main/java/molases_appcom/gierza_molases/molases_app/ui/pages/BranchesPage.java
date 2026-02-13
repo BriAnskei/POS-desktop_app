@@ -12,6 +12,10 @@ import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 
 import javax.swing.BorderFactory;
 import javax.swing.Box;
@@ -396,10 +400,32 @@ public class BranchesPage {
 
 		BranchState state = controller.getState();
 		for (Branch b : state.getBranches()) {
-			String createdAt = b.getCreatedAt() != null ? b.getCreatedAt() : "";
 
 			model.addRow(new Object[] { b.getCustomerName(), b.getAddress() != null ? b.getAddress() : "",
-					b.getNote() != null ? b.getNote() : "", createdAt, "⚙ Actions" });
+					b.getNote() != null ? b.getNote() : "",
+					b.getLastDelivery() != null ? formatDate(b.getLastDelivery()) : "N/A", "⚙ Actions" });
+		}
+	}
+
+	public static String formatDate(String timestamp) {
+		if (timestamp == null || timestamp.isEmpty()) {
+			return "N/A";
+		}
+
+		try {
+			DateTimeFormatter inputFormatter = new DateTimeFormatterBuilder().appendPattern("yyyy-MM-dd'T'HH:mm")
+					.optionalStart().appendPattern(":ss").optionalStart()
+					.appendFraction(ChronoField.MILLI_OF_SECOND, 0, 3, true).optionalEnd().optionalEnd().toFormatter();
+
+			LocalDateTime dateTime = LocalDateTime.parse(timestamp, inputFormatter);
+
+			DateTimeFormatter outputFormatter = DateTimeFormatter.ofPattern("MMMM d, yyyy");
+
+			return dateTime.format(outputFormatter);
+
+		} catch (Exception e) {
+			System.err.println("Failed to parse date: " + timestamp);
+			return timestamp;
 		}
 	}
 

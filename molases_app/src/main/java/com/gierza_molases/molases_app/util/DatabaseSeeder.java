@@ -45,7 +45,7 @@ public class DatabaseSeeder {
 			seedBranches(conn);
 
 			seedProducts(conn);
-			seedDeliveries(conn);
+//			seedDeliveries(conn);
 
 			conn.commit();
 			System.out.println("✅ Database seeding finished");
@@ -260,7 +260,8 @@ public class DatabaseSeeder {
 				int deliveryId = rsDelivery.getInt(1);
 
 				// 🔥 Randomly pick customer_delivery status
-				String customerDeliveryStatus = CUSTOMER_DELIVERY_STATUSES[RANDOM.nextInt(CUSTOMER_DELIVERY_STATUSES.length)];
+				String customerDeliveryStatus = CUSTOMER_DELIVERY_STATUSES[RANDOM
+						.nextInt(CUSTOMER_DELIVERY_STATUSES.length)];
 
 				// 4️⃣ Insert customer_delivery
 				psCustDel.setInt(1, customerId);
@@ -302,30 +303,30 @@ public class DatabaseSeeder {
 				String promiseToPay = null;
 
 				switch (paymentType) {
-					case "Paid Cash":
-					case "Paid Cheque":
-						// Full payment
-						totalPayment = total;
-						paymentStatus = "complete";
-						break;
+				case "Paid Cash":
+				case "Paid Cheque":
+					// Full payment
+					totalPayment = total;
+					paymentStatus = "complete";
+					break;
 
-					case "Partial":
-						// Random 40-80% payment
-						totalPayment = total * (0.4 + RANDOM.nextDouble() * 0.4);
-						paymentStatus = "pending";
-						break;
+				case "Partial":
+					// Random 40-80% payment
+					totalPayment = total * (0.4 + RANDOM.nextDouble() * 0.4);
+					paymentStatus = "pending";
+					break;
 
-					case "Loan":
-						// No payment yet
-						totalPayment = 0;
-						paymentStatus = "pending";
-						// Promise to pay: 15-60 days from delivery (with time component)
-						int daysOffset = 15 + RANDOM.nextInt(46);
-						promiseToPay = deliveryDate.plusDays(daysOffset).atStartOfDay().format(dtf);
-						break;
+				case "Loan":
+					// No payment yet
+					totalPayment = 0;
+					paymentStatus = "pending";
+					// Promise to pay: 15-60 days from delivery (with time component)
+					int daysOffset = 15 + RANDOM.nextInt(46);
+					promiseToPay = deliveryDate.plusDays(daysOffset).atStartOfDay().format(dtf);
+					break;
 
-					default:
-						throw new IllegalStateException("Unknown payment type: " + paymentType);
+				default:
+					throw new IllegalStateException("Unknown payment type: " + paymentType);
 				}
 
 				psCustPay.setInt(1, customerId);
@@ -345,7 +346,8 @@ public class DatabaseSeeder {
 				if (!paymentType.equals("Loan")) {
 					psPayHist.setInt(1, customerPaymentId);
 					psPayHist.setDouble(2, totalPayment);
-					// 🔥 Set created_at to match delivery month (so Monthly Income chart spreads across 12 months)
+					// 🔥 Set created_at to match delivery month (so Monthly Income chart spreads
+					// across 12 months)
 					psPayHist.setString(3, deliveryDate.atStartOfDay().format(dtf));
 					psPayHist.executeUpdate();
 				}

@@ -137,8 +137,8 @@ public class CustomerPaymentsService {
 
 			double amountReturn = cp.getTotalPayment() - latestPayment.getAmount();
 
-			customerPaymentDao.updateStatus(id, "pending", conn);
 			customerPaymentDao.updateTotalPayment(id, amountReturn, conn);
+			customerPaymentDao.updateStatusBasedOnTotalPayment(id, conn);
 
 			int latestPaymentId = latestPayment.getId();
 			paymentHistoryDao.delete(latestPaymentId, conn);

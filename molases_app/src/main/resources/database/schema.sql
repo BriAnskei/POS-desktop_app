@@ -32,7 +32,7 @@ CREATE TABLE IF NOT EXISTS customer (
 CREATE INDEX IF NOT EXISTS idx_customer_created_at
 ON customer(created_at DESC);
 
- 
+
 
 
 
@@ -42,6 +42,9 @@ CREATE TABLE IF NOT EXISTS branches (
     customer_id INTEGER NOT NULL,
     address TEXT NOT NULL,
     note TEXT,
+    
+    
+    last_delivery_date DATETIME,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (customer_id)
         REFERENCES customer(id)
@@ -57,6 +60,8 @@ ON branches(id);
 -- For join
 CREATE INDEX IF NOT EXISTS idx_branches_customer_id
 ON branches(customer_id);
+
+
 
 
 
@@ -181,8 +186,6 @@ ON delivery(name);
 
 CREATE INDEX IF NOT EXISTS idx_delivery_schedule_date
 ON delivery(schedule_date);
-
-
 
 
 
@@ -327,4 +330,55 @@ CREATE TABLE IF NOT EXISTS payment_history (
         ON DELETE CASCADE
 );
     
+
+
+
+
+
+-- DASHBOARD IMPLEMETATION
+
+
+-- Delivery Counter ALL DELIVERIES
+CREATE TABLE IF NOT EXISTS delivery_daily_counts (
+    counter_date TEXT NOT NULL,
+    status TEXT NOT NULL,
+    total_rows INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (counter_date, status)
+);
+
+-- TRIGGERS
+-- insertion
+CREATE TRIGGER IF NOT EXISTS delivery_ai
+AFTER INSERT ON delivery
+BEGIN
+    INSERT INTO delivery_daily_counts(counter_date, status, total_rows)
+    VALUES (DATE(NEW.created_at), NEW.status, 1)
+    ON CONFLICT(counter_date, status)
+    DO UPDATE SET total_rows = total_rows + 1;
+END;
+-- deletion
+CREATE TRIGGER IF NOT EXISTS delivery_ad
+AFTER DELETE ON delivery
+BEGIN
+    UPDATE delivery_daily_counts
+    SET total_rows = total_rows - 1
+    WHERE counter_date = DATE(OLD.created_at)
+      AND status = OLD.status;
+END;
+-- status change
+CREATE TRIGGER IF NOT EXISTS delivery_au
+AFTER UPDATE OF status, created_at ON delivery
+BEGIN
+    -- subtract old bucket
+    UPDATE delivery_daily_counts
+    SET total_rows = total_rows - 1
+    WHERE counter_date = DATE(OLD.created_at)
+      AND status = OLD.status;
+
+    -- add new bucket
+    INSERT INTO delivery_daily_counts(counter_date, status, total_rows)
+    VALUES (DATE(NEW.created_at), NEW.status, 1)
+    ON CONFLICT(counter_date, status)
+    DO UPDATE SET total_rows = total_rows + 1;
+END;
 

@@ -144,7 +144,8 @@ public class Main extends JFrame {
 		sidebar.add(Box.createVerticalStrut(30));
 
 		// Navigation buttons with custom icons
-		String[] navItems = { "Dashboard", "Delivery", "Customer", "Payments", "Branches", "Product", "Exit" };
+		String[] navItems = { "Dashboard", "Delivery", "Customer", "Payments", "Branches", "Product", "Maintenance",
+				"Exit" };
 
 		for (int i = 0; i < navItems.length; i++) {
 			JPanel navButton = createNavButton(navItems[i]);
@@ -183,13 +184,15 @@ public class Main extends JFrame {
 			break;
 		case "Payments":
 			iconPanel = new PaymentsIcon();
-
 			break;
 		case "Branches":
 			iconPanel = new BranchesIcon();
 			break;
 		case "Product":
 			iconPanel = new ProductIcon();
+			break;
+		case "Maintenance":
+			iconPanel = new MaintenanceIcon();
 			break;
 		case "Exit":
 			iconPanel = new ExitIcon();
@@ -384,28 +387,33 @@ public class Main extends JFrame {
 					BorderLayout.CENTER);
 			break;
 
+		case "Maintenance":
+			mainContentArea.add(molases_appcom.gierza_molases.molases_app.ui.pages.MaintenancePage.createPanel(),
+					BorderLayout.CENTER);
+			break;
+
 		default:
 
 			// Default page with title (for other pages)
 			JPanel pagePanel = new JPanel(new GridBagLayout());
 			pagePanel.setBackground(CONTENT_BG);
 
-			GridBagConstraints gbc = new GridBagConstraints();
-			gbc.gridx = 0;
-			gbc.gridy = 0;
-			gbc.insets = new Insets(0, 0, 20, 0);
+			GridBagConstraints gbcDefault = new GridBagConstraints();
+			gbcDefault.gridx = 0;
+			gbcDefault.gridy = 0;
+			gbcDefault.insets = new Insets(0, 0, 20, 0);
 
 			// Page title
 			JLabel titleLabel = new JLabel(pageName);
 			titleLabel.setFont(new Font("Arial", Font.BOLD, 36));
 			titleLabel.setForeground(TEXT_DARK);
-			pagePanel.add(titleLabel, gbc);
+			pagePanel.add(titleLabel, gbcDefault);
 
-			gbc.gridy = 1;
+			gbcDefault.gridy = 1;
 			JLabel subtitleLabel = new JLabel("This is the " + pageName + " page");
 			subtitleLabel.setFont(new Font("Arial", Font.PLAIN, 18));
 			subtitleLabel.setForeground(new Color(120, 90, 70));
-			pagePanel.add(subtitleLabel, gbc);
+			pagePanel.add(subtitleLabel, gbcDefault);
 
 			mainContentArea.add(pagePanel, BorderLayout.CENTER);
 			break;
@@ -769,6 +777,41 @@ public class Main extends JFrame {
 
 			// Box lines
 			g2d.drawLine(12, 6, 12, 20);
+		}
+	}
+
+	/**
+	 * Maintenance Icon - Wrench/Tools icon
+	 */
+	private class MaintenanceIcon extends JPanel {
+		@Override
+		protected void paintComponent(Graphics g) {
+			super.paintComponent(g);
+			Graphics2D g2d = (Graphics2D) g;
+			g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+			g2d.setColor(TEXT_LIGHT);
+			g2d.setStroke(
+					new java.awt.BasicStroke(2f, java.awt.BasicStroke.CAP_ROUND, java.awt.BasicStroke.JOIN_ROUND));
+
+			// Wrench
+			// Handle
+			g2d.drawLine(6, 16, 11, 11);
+			// Wrench head
+			g2d.drawRoundRect(10, 6, 4, 4, 2, 2);
+			g2d.drawLine(12, 6, 12, 4);
+			g2d.drawLine(10, 8, 8, 8);
+
+			// Screwdriver
+			// Handle
+			g2d.fillRoundRect(14, 14, 2, 6, 2, 2);
+			// Shaft
+			g2d.drawLine(15, 14, 15, 8);
+			// Tip
+			g2d.drawLine(14, 8, 16, 8);
+			g2d.drawLine(14, 7, 16, 7);
+
+			g2d.setStroke(new java.awt.BasicStroke(1f));
 		}
 	}
 

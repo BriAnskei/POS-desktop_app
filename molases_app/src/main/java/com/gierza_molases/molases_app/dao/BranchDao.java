@@ -4,6 +4,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +29,7 @@ public class BranchDao {
 			    b.customer_id,
 			    b.address,
 			    b.note,
+			    b.last_delivery_date,
 			    b.created_at,
 			    c.display_name
 			FROM branches b
@@ -45,6 +47,7 @@ public class BranchDao {
 			    b.customer_id,
 			    b.address,
 			    b.note,
+			    b.last_delivery_date,
 			    b.created_at,
 			    c.display_name,
 			    bm25(customer_fts) AS score
@@ -77,6 +80,18 @@ public class BranchDao {
 			    UPDATE branches
 			    SET address = ?, note = ?
 			    WHERE id = ?
+			""";
+
+	private static final String UPDATE_BRANCH_LAST_DELIVERY = """
+			    UPDATE branches
+				    SET last_delivery_date = ?
+				    WHERE id IN (
+				        SELECT bd.branch_id
+				        FROM branch_delivery bd
+				        JOIN customer_delivery cd
+				            ON bd.customer_delivery_id = cd.id
+				        WHERE cd.delivery_id = ?
+				    )
 			""";
 
 	// Delete
@@ -272,6 +287,16 @@ public class BranchDao {
 		}
 	}
 
+	public void updateBranchesLastDeliveryDate(int deliveryId, LocalDateTime lastDeliveryDate, Connection conn)
+			throws SQLException {
+
+		try (PreparedStatement ps = conn.prepareStatement(UPDATE_BRANCH_LAST_DELIVERY)) {
+			ps.setString(1, lastDeliveryDate.toString()); // or Timestamp
+			ps.setInt(2, deliveryId);
+			ps.executeUpdate();
+		}
+	}
+
 	/**
 	 * Delete branch by ID
 	 * 
@@ -300,12 +325,13 @@ public class BranchDao {
 	// helper mapper
 	private Branch mapRowToBranchOnJoin(ResultSet rs) throws Exception {
 		return new Branch(rs.getInt("id"), rs.getInt("customer_id"), rs.getString("display_name"),
-				rs.getString("address"), rs.getString("note"), rs.getString("created_at"));
+				rs.getString("address"), rs.getString("note"), rs.getString("last_delivery_date"),
+				rs.getString("created_at"));
 	}
 
 	private Branch mapRowToBranch(ResultSet rs) throws Exception {
 		return new Branch(rs.getInt("id"), rs.getInt("customer_id"), null, rs.getString("address"),
-				rs.getString("note"), rs.getString("created_at"));
+				rs.getString("note"), null, rs.getString("created_at"));
 	}
 
 }

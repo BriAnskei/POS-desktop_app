@@ -53,12 +53,6 @@ public class CustomerDao {
 			    LIMIT 20
 			""";
 
-	private static final String COUNT_TOTAL_SQL = """
-			    SELECT COUNT(*)
-			    FROM customer
-			    WHERE (? IS NULL OR display_name LIKE ?)
-			""";
-
 	// UPDATE
 	private static final String UPDATE_INDIVIDUAL_SQL = """
 			    UPDATE customer
@@ -208,22 +202,33 @@ public class CustomerDao {
 	}
 
 	public int getTotalCount(String search) {
-		try (PreparedStatement ps = conn.prepareStatement(COUNT_TOTAL_SQL)) {
 
-			if (search == null || search.isBlank()) {
-				ps.setNull(1, java.sql.Types.VARCHAR);
-				ps.setNull(2, java.sql.Types.VARCHAR);
-			} else {
-				ps.setString(1, search);
-				ps.setString(2, search + "%"); // index-friendly
+		String sql;
+		boolean hasSearch = search != null && !search.isBlank();
+
+		if (hasSearch) {
+			sql = """
+					SELECT COUNT(*)
+					FROM customer_fts
+					WHERE customer_fts MATCH ?
+					""";
+		} else {
+			sql = "SELECT COUNT(*) FROM customer";
+		}
+
+		try (PreparedStatement ps = conn.prepareStatement(sql)) {
+
+			if (hasSearch) {
+				// FTS prefix search
+				ps.setString(1, search + "*");
 			}
 
 			try (ResultSet rs = ps.executeQuery()) {
 				if (rs.next()) {
-
 					return rs.getInt(1);
 				}
 			}
+
 		} catch (Exception e) {
 			throw new RuntimeException("Failed to count customers", e);
 		}

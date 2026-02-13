@@ -100,6 +100,7 @@ public class DashboardPage {
 	// ── Mutable UI refs ───────────────────────────────────────────────────────
 	private static JPanel mainPanelRef;
 	private static JPanel metricsGrid;
+	private static JPanel countCardsPanel; // Added reference for count cards panel
 	private static BarChartPanel barChart;
 	private static JTable loanTable;
 	private static JTable upcomingDelivTable;
@@ -128,6 +129,7 @@ public class DashboardPage {
 		// Null out stale table refs
 		loanTable = upcomingDelivTable = null;
 		barChart = null;
+		countCardsPanel = null; // Reset count cards panel reference
 
 		JPanel mainPanel = new JPanel(new BorderLayout(0, 0));
 		mainPanel.setBackground(CONTENT_BG);
@@ -372,6 +374,7 @@ public class DashboardPage {
 	private static void refreshUI() {
 		DashboardState s = controller.getState();
 		rebuildMetricCards(s);
+		rebuildCountCards(s); // Added: rebuild count cards on refresh
 		if (barChart != null)
 			barChart.setData(s.getMonthlyIncome());
 		updateLoanTable(s.getUpcomingLoanPayments());
@@ -474,8 +477,19 @@ public class DashboardPage {
 	}
 
 	private static JPanel buildCountCardsColumn() {
-		JPanel col = new JPanel(new GridBagLayout());
-		col.setBackground(CONTENT_BG);
+		countCardsPanel = new JPanel(new GridBagLayout()); // Store reference
+		countCardsPanel.setBackground(CONTENT_BG);
+
+		rebuildCountCards(controller.getState()); // Use rebuild method
+
+		return countCardsPanel;
+	}
+
+	// New method to rebuild count cards dynamically
+	private static void rebuildCountCards(DashboardState s) {
+		if (countCardsPanel == null)
+			return;
+		countCardsPanel.removeAll();
 
 		GridBagConstraints gbc = new GridBagConstraints();
 		gbc.fill = GridBagConstraints.BOTH;
@@ -484,20 +498,23 @@ public class DashboardPage {
 		gbc.gridx = 0;
 		gbc.insets = new Insets(0, 0, 10, 0);
 
-		DashboardState s = controller.getState();
-
 		gbc.gridy = 0;
-		col.add(buildSmallCard("Total Deliveries", String.valueOf(s.getTotalDeliveries()), "📦", CARD_BLUE), gbc);
+		countCardsPanel.add(buildSmallCard("Total Deliveries", String.valueOf(s.getTotalDeliveries()), "📦", CARD_BLUE),
+				gbc);
 		gbc.gridy = 1;
-		col.add(buildSmallCard("Pending Deliveries", String.valueOf(s.getPendingDeliveries()), "⏳", CARD_ORANGE), gbc);
+		countCardsPanel.add(
+				buildSmallCard("Pending Deliveries", String.valueOf(s.getPendingDeliveries()), "⏳", CARD_ORANGE), gbc);
 		gbc.gridy = 2;
 		gbc.insets = new Insets(0, 0, 10, 0);
-		col.add(buildSmallCard("Total Customers", String.valueOf(s.getTotalCustomers()), "👥", CARD_PURPLE), gbc);
+		countCardsPanel.add(buildSmallCard("Total Customers", String.valueOf(s.getTotalCustomers()), "👥", CARD_PURPLE),
+				gbc);
 		gbc.gridy = 3;
 		gbc.insets = new Insets(0, 0, 0, 0);
-		col.add(buildSmallCard("Total Products", String.valueOf(s.getTotalProducts()), "🧴", CARD_TEAL), gbc);
+		countCardsPanel.add(buildSmallCard("Total Products", String.valueOf(s.getTotalProducts()), "🧴", CARD_TEAL),
+				gbc);
 
-		return col;
+		countCardsPanel.revalidate();
+		countCardsPanel.repaint();
 	}
 
 	// =========================================================================

@@ -7,6 +7,7 @@ public class Branch {
 	private String address;
 	private String note;
 	private String createdAt;
+	private String lastDelivery;
 
 	private String customerName;
 
@@ -27,12 +28,14 @@ public class Branch {
 	}
 
 	// Full constructor (for SELECT)
-	public Branch(int id, int customerId, String customerName, String address, String note, String createdAt) {
+	public Branch(int id, int customerId, String customerName, String address, String note, String lastDelivery,
+			String createdAt) {
 		this.id = id;
 		this.customerId = customerId;
 		this.customerName = customerName;
 		this.address = address;
 		this.note = note;
+		this.lastDelivery = lastDelivery;
 		this.createdAt = createdAt;
 	}
 
@@ -89,6 +92,10 @@ public class Branch {
 
 	public void setNote(String note) {
 		this.note = note;
+	}
+
+	public String getLastDelivery() {
+		return lastDelivery;
 	}
 
 	public String getCreatedAt() {

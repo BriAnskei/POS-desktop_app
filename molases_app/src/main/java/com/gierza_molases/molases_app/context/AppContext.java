@@ -9,6 +9,7 @@ import com.gierza_molases.molases_app.UiController.CustomersController;
 import com.gierza_molases.molases_app.UiController.DashboardController;
 import com.gierza_molases.molases_app.UiController.DeliveryController;
 import com.gierza_molases.molases_app.UiController.DeliveryDetailsController;
+import com.gierza_molases.molases_app.UiController.MaintenanceController;
 import com.gierza_molases.molases_app.UiController.NewDeliveryController;
 import com.gierza_molases.molases_app.UiController.ProductsController;
 import com.gierza_molases.molases_app.dao.BranchDao;
@@ -18,6 +19,7 @@ import com.gierza_molases.molases_app.dao.CustomerDeliveryDao;
 import com.gierza_molases.molases_app.dao.CustomerPaymentDao;
 import com.gierza_molases.molases_app.dao.DashboardDao;
 import com.gierza_molases.molases_app.dao.DeliveryDao;
+import com.gierza_molases.molases_app.dao.MaintenanceDAO;
 import com.gierza_molases.molases_app.dao.PaymentHistoryDao;
 import com.gierza_molases.molases_app.dao.ProductAssociationDao;
 import com.gierza_molases.molases_app.dao.ProductDao;
@@ -29,6 +31,7 @@ import com.gierza_molases.molases_app.service.CustomerPaymentsService;
 import com.gierza_molases.molases_app.service.CustomerService;
 import com.gierza_molases.molases_app.service.DashboardService;
 import com.gierza_molases.molases_app.service.DeliveryService;
+import com.gierza_molases.molases_app.service.MaintenanceService;
 import com.gierza_molases.molases_app.service.ProductAssociationService;
 import com.gierza_molases.molases_app.service.ProductService;
 import com.gierza_molases.molases_app.util.Database;
@@ -48,6 +51,8 @@ public class AppContext {
 	private static BranchDeliveryService branchDeliveryService;
 	private static CustomerPaymentsService customerPaymentsService;
 
+	private static MaintenanceService maintenanceService;
+
 	// Controllers
 	public static CustomersController customersController;
 	public static BranchesController branchesController;
@@ -58,6 +63,7 @@ public class AppContext {
 	public static CustomerPaymentController customerPaymentController;
 	public static CustomerPaymentViewController customerPaymentViewController;
 	public static DashboardController dashboardController;
+	public static MaintenanceController maintenanceController;
 
 	public static void init() {
 		// DB connection
@@ -82,6 +88,9 @@ public class AppContext {
 		CustomerPaymentDao customerPaymentsDao = new CustomerPaymentDao(conn);
 		PaymentHistoryDao paymentHistoryDao = new PaymentHistoryDao(conn);
 
+		// Maintenance
+		MaintenanceDAO maintenanceDAO = new MaintenanceDAO(conn);
+
 		// service instance
 		dashBoardService = new DashboardService(dashBoardDao);
 
@@ -94,6 +103,8 @@ public class AppContext {
 		customerDeliveryService = new CustomerDeliveryService(customerDeliveryDao, branchDeliveryDao);
 		branchDeliveryService = new BranchDeliveryService(branchDeliveryDao);
 		customerPaymentsService = new CustomerPaymentsService(customerPaymentsDao, paymentHistoryDao);
+
+		maintenanceService = new MaintenanceService(maintenanceDAO);
 
 		// Initialize controller with a new state instance
 		customersController = new CustomersController(new CustomerState(), customerService);
@@ -110,6 +121,7 @@ public class AppContext {
 				customerPaymentsService);
 
 		dashboardController = new DashboardController(dashBoardService, new DashboardState());
+		maintenanceController = new MaintenanceController(maintenanceService);
 
 	}
 

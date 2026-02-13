@@ -38,9 +38,10 @@ public class DeliveryController {
 			@Override
 			protected List<Delivery> doInBackground() {
 				try {
+
 					String filter = state.getSearch().isEmpty() ? null : state.getSearch();
 					loaded = service.fetchNextPage(state.getLastSeenDeliveryId(), filter, state.getStartAt(),
-							state.getEndAt());
+							state.getEndAt(), state.getPageSize());
 				} catch (Exception e) {
 					error = e;
 				}
@@ -65,11 +66,15 @@ public class DeliveryController {
 								state.getStartAt(), state.getEndAt()));
 					}
 
+					boolean hasMore = loaded.size() > state.getPageSize();
+
+					if (hasMore) {
+						loaded.remove(loaded.size() - 1);
+					}
+
 					// Update state with loaded data
 					state.setDeliveries(loaded);
-
-					// TODO: implement a proper fetcher for this.
-					state.setHasNextPage(loaded.size() >= state.getPageSize());
+					state.setHasNextPage(hasMore);
 
 					// Update last seen ID for next page
 					if (!loaded.isEmpty()) {
