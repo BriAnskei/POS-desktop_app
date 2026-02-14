@@ -361,7 +361,7 @@ public class MaintenancePage {
 	/**
 	 * Show password dialog before deletion
 	 */
-	private static void showPasswordDialog() {
+	static void showPasswordDialog() {
 		Window parent = getParentWindow();
 
 		JDialog dialog = new JDialog(parent, "Password Required", JDialog.ModalityType.APPLICATION_MODAL);
@@ -421,13 +421,30 @@ public class MaintenancePage {
 
 		continueButton.addActionListener(e -> {
 			String password = new String(passwordField.getPassword());
-			// TODO: Implement password validation in controller
-			// For now, proceed if password is not empty
-			if (!password.isEmpty()) {
+
+			// Validate password is not empty
+			if (password.isEmpty()) {
+				ToastNotification.showError(parent, "Password is required");
+				return;
+			}
+
+			// Check if controller is initialized
+			if (controller == null) {
+				ToastNotification.showError(parent, "System error: Controller not initialized");
+				dialog.dispose();
+				return;
+			}
+
+			// Validate password using controller
+			boolean isValid = controller.validatePassword(password);
+
+			if (isValid) {
 				dialog.dispose();
 				showDeleteConfirmationDialog();
 			} else {
-				ToastNotification.showError(parent, "Password is required");
+				ToastNotification.showError(parent, "Incorrect password. Please try again.");
+				passwordField.setText(""); // Clear the password field
+				passwordField.requestFocus(); // Focus back to password field
 			}
 		});
 

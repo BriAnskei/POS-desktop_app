@@ -5,6 +5,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.IntConsumer;
@@ -75,41 +76,41 @@ public class MaintenanceDAO {
 	 * @throws SQLException
 	 */
 	public int deleteOldCompletedDeliveries(int yearsOld, IntConsumer progressCallback) throws SQLException {
-		LocalDate cutoffDate = LocalDate.now().minusYears(yearsOld);
-		int deletedCount = 0;
 
-		// Start transaction
+		// Use LocalDateTime instead of LocalDate
+		LocalDateTime cutoffDateTime = LocalDateTime.now().minusYears(yearsOld);
+
+		int deletedCount = 0;
 		boolean autoCommit = connection.getAutoCommit();
 
 		try {
 			connection.setAutoCommit(false);
 
-			// First, get the IDs of deliveries to delete
 			String selectSql = """
-					SELECT d.id
-					FROM delivery d
-					WHERE d.created_at < ?
-					AND NOT EXISTS (
-					    -- Exclude deliveries with any pending payments
-					    SELECT 1
-					    FROM customer_delivery cd
-					    JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
-					    WHERE cd.delivery_id = d.id
-					    AND cp.status = 'pending'
-					)
-					AND EXISTS (
-					    -- Only include deliveries that have at least one payment
-					    SELECT 1
-					    FROM customer_delivery cd
-					    JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
-					    WHERE cd.delivery_id = d.id
-					)
+					    SELECT d.id
+					    FROM delivery d
+					    WHERE d.created_at < ?
+					    AND NOT EXISTS (
+					        SELECT 1
+					        FROM customer_delivery cd
+					        JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
+					        WHERE cd.delivery_id = d.id
+					        AND cp.status = 'pending'
+					    )
+					    AND EXISTS (
+					        SELECT 1
+					        FROM customer_delivery cd
+					        JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
+					        WHERE cd.delivery_id = d.id
+					    )
 					""";
 
 			List<Integer> idsToDelete = new ArrayList<>();
 
 			try (PreparedStatement selectStmt = connection.prepareStatement(selectSql)) {
-				selectStmt.setString(1, cutoffDate.toString());
+
+				// pass full datetime string
+				selectStmt.setString(1, cutoffDateTime.toString());
 
 				try (ResultSet rs = selectStmt.executeQuery()) {
 					while (rs.next()) {
@@ -120,7 +121,6 @@ public class MaintenanceDAO {
 
 			int total = idsToDelete.size();
 
-			// Delete each delivery with progress reporting
 			if (total > 0) {
 				String deleteSql = "DELETE FROM delivery WHERE id = ?";
 
@@ -130,7 +130,6 @@ public class MaintenanceDAO {
 						deleteStmt.executeUpdate();
 						deletedCount++;
 
-						// Report progress
 						if (progressCallback != null) {
 							int progress = (deletedCount * 100) / total;
 							progressCallback.accept(progress);
@@ -139,11 +138,9 @@ public class MaintenanceDAO {
 				}
 			}
 
-			// Commit transaction
 			connection.commit();
 
 		} catch (SQLException e) {
-			// Rollback on error
 			try {
 				connection.rollback();
 			} catch (SQLException rollbackEx) {
@@ -152,7 +149,6 @@ public class MaintenanceDAO {
 			throw e;
 
 		} finally {
-			// Restore original auto-commit state
 			connection.setAutoCommit(autoCommit);
 		}
 

@@ -24,17 +24,7 @@ public class MaintenanceController {
 	 * @return true if password is valid, false otherwise
 	 */
 	public boolean validatePassword(String password) {
-		// TODO: Implement actual password validation logic
-		// This should check against stored credentials, hashed passwords, or admin
-		// permissions
-		// For security, consider:
-		// - Checking against a hashed password stored in config/database
-		// - Implementing rate limiting to prevent brute force
-		// - Logging failed authentication attempts
-		// - Using proper authentication framework (e.g., Spring Security if applicable)
-
-		// Temporary implementation - replace with actual validation
-		return password != null && !password.isEmpty();
+		return maintenanceService.verifyAdminPassword(password);
 	}
 
 	/**

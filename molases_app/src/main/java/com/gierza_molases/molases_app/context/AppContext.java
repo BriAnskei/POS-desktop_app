@@ -113,7 +113,7 @@ public class AppContext {
 		branchDeliveryService = new BranchDeliveryService(branchDeliveryDao);
 		customerPaymentsService = new CustomerPaymentsService(customerPaymentsDao, paymentHistoryDao);
 
-		maintenanceService = new MaintenanceService(maintenanceDAO);
+		maintenanceService = new MaintenanceService(maintenanceDAO, authDao);
 		authService = new AuthService(authDao);
 
 		// Initialize controller with a new state instance

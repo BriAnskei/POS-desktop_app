@@ -30,9 +30,6 @@ public class AuthService {
 		return authDao.validateLogin(userName, password);
 	}
 
-	/**
-	 * Verifies admin password (user id = 1)
-	 */
 	public boolean verifyAdminPassword(String password) {
 		if (password == null || password.isBlank()) {
 			return false;
