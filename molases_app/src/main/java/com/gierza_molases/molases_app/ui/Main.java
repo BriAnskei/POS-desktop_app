@@ -29,6 +29,7 @@ import javax.swing.border.EmptyBorder;
 
 import com.gierza_molases.molases_app.context.AppContext;
 import com.gierza_molases.molases_app.model.CustomerPayments;
+import com.gierza_molases.molases_app.ui.auth.LoginFrame;
 
 public class Main extends JFrame {
 
@@ -52,6 +53,9 @@ public class Main extends JFrame {
 	private int currentDeliveryId = -1;
 	private CustomerPayments currentPayment = null;
 
+	// Security flag - prevents Main from being opened without login
+	private static boolean isAuthenticated = false;
+
 	/**
 	 * Launch the application.
 	 */
@@ -59,15 +63,28 @@ public class Main extends JFrame {
 		AppContext.init();
 
 		EventQueue.invokeLater(() -> {
-			Main frame = new Main();
-			frame.setVisible(true);
+			LoginFrame loginFrame = new LoginFrame();
+			loginFrame.setVisible(true);
 		});
+	}
+
+	/**
+	 * Mark user as authenticated (called by LoginFrame after successful login)
+	 * Package-private so only classes in the same package can call it
+	 */
+	public static void setAuthenticated(boolean authenticated) {
+		isAuthenticated = authenticated;
 	}
 
 	/**
 	 * Create the frame.
 	 */
 	public Main() {
+		// Security check - ensure user is authenticated
+		if (!isAuthenticated) {
+			throw new SecurityException("Unauthorized access: Main window cannot be opened without authentication");
+		}
+
 		setTitle("Gierza Molasses - POS System");
 		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 		setExtendedState(JFrame.MAXIMIZED_BOTH); // Start maximized
@@ -126,7 +143,7 @@ public class Main extends JFrame {
 		logoIconPanel.setMaximumSize(new Dimension(120, 120));
 		logoIconPanel.setBackground(SIDEBAR_BG);
 
-		JLabel subtitleLabel = new JLabel("Molasses POS", JLabel.CENTER);
+		JLabel subtitleLabel = new JLabel("GIERMO-POS", JLabel.CENTER);
 		subtitleLabel.setFont(new Font("Arial", Font.BOLD, 18));
 		subtitleLabel.setForeground(ACCENT_GOLD);
 
@@ -439,7 +456,7 @@ public class Main extends JFrame {
 		JPanel leftPanel = new JPanel(new BorderLayout());
 		leftPanel.setBackground(HEADER_BG);
 
-		JLabel businessLabel = new JLabel("Gierza Molasses Business");
+		JLabel businessLabel = new JLabel("GIERZA AGRICULTURAL MANAGEMENT");
 		businessLabel.setFont(new Font("Arial", Font.BOLD, 20));
 		businessLabel.setForeground(TEXT_DARK);
 		leftPanel.add(businessLabel, BorderLayout.WEST);

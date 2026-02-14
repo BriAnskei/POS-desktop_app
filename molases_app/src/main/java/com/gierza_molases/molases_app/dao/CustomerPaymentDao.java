@@ -133,7 +133,6 @@ public class CustomerPaymentDao {
 
 			       c.display_name  AS customer_name,
 
-
 			         d.id				  AS deliver_id,
 			       d.name          AS delivery_name,
 			       d.schedule_date AS delivery_date

@@ -8,6 +8,10 @@ CREATE TABLE IF NOT EXISTS user (
 	password TEXT
 );
 
+INSERT INTO user (user_name, password)
+SELECT '966400', '966400'
+WHERE NOT EXISTS (SELECT 1 FROM user);
+
 
 -- Customer table
 CREATE TABLE IF NOT EXISTS customer (
@@ -331,6 +335,9 @@ CREATE TABLE IF NOT EXISTS payment_history (
 );
     
 
+CREATE INDEX IF NOT EXISTS idx_payment_history_payment_date
+ON payment_history(customer_payment_id, created_at DESC);
+
 
 
 
@@ -345,6 +352,9 @@ CREATE TABLE IF NOT EXISTS delivery_daily_counts (
     total_rows INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (counter_date, status)
 );
+
+
+
 
 -- TRIGGERS
 -- insertion

@@ -9,9 +9,11 @@ import com.gierza_molases.molases_app.UiController.CustomersController;
 import com.gierza_molases.molases_app.UiController.DashboardController;
 import com.gierza_molases.molases_app.UiController.DeliveryController;
 import com.gierza_molases.molases_app.UiController.DeliveryDetailsController;
+import com.gierza_molases.molases_app.UiController.LoginController;
 import com.gierza_molases.molases_app.UiController.MaintenanceController;
 import com.gierza_molases.molases_app.UiController.NewDeliveryController;
 import com.gierza_molases.molases_app.UiController.ProductsController;
+import com.gierza_molases.molases_app.dao.AuthDao;
 import com.gierza_molases.molases_app.dao.BranchDao;
 import com.gierza_molases.molases_app.dao.BranchDeliveryDao;
 import com.gierza_molases.molases_app.dao.CustomerDao;
@@ -24,6 +26,7 @@ import com.gierza_molases.molases_app.dao.PaymentHistoryDao;
 import com.gierza_molases.molases_app.dao.ProductAssociationDao;
 import com.gierza_molases.molases_app.dao.ProductDao;
 import com.gierza_molases.molases_app.dao.ProductDeliveryDao;
+import com.gierza_molases.molases_app.service.AuthService;
 import com.gierza_molases.molases_app.service.BranchDeliveryService;
 import com.gierza_molases.molases_app.service.BranchService;
 import com.gierza_molases.molases_app.service.CustomerDeliveryService;
@@ -53,6 +56,8 @@ public class AppContext {
 
 	private static MaintenanceService maintenanceService;
 
+	private static AuthService authService;
+
 	// Controllers
 	public static CustomersController customersController;
 	public static BranchesController branchesController;
@@ -64,6 +69,8 @@ public class AppContext {
 	public static CustomerPaymentViewController customerPaymentViewController;
 	public static DashboardController dashboardController;
 	public static MaintenanceController maintenanceController;
+
+	public static LoginController loginController;
 
 	public static void init() {
 		// DB connection
@@ -91,6 +98,8 @@ public class AppContext {
 		// Maintenance
 		MaintenanceDAO maintenanceDAO = new MaintenanceDAO(conn);
 
+		AuthDao authDao = new AuthDao(conn);
+
 		// service instance
 		dashBoardService = new DashboardService(dashBoardDao);
 
@@ -105,6 +114,7 @@ public class AppContext {
 		customerPaymentsService = new CustomerPaymentsService(customerPaymentsDao, paymentHistoryDao);
 
 		maintenanceService = new MaintenanceService(maintenanceDAO);
+		authService = new AuthService(authDao);
 
 		// Initialize controller with a new state instance
 		customersController = new CustomersController(new CustomerState(), customerService);
@@ -122,6 +132,8 @@ public class AppContext {
 
 		dashboardController = new DashboardController(dashBoardService, new DashboardState());
 		maintenanceController = new MaintenanceController(maintenanceService);
+
+		loginController = new LoginController(authService);
 
 	}
 
