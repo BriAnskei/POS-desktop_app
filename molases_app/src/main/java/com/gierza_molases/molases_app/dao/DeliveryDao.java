@@ -6,7 +6,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
@@ -160,10 +162,19 @@ public class DeliveryDao {
 				ps.setString(i++, search + "%");
 			}
 			if (hasStart) {
-				ps.setLong(i++, startAt.getTime());
+				LocalDate startDate = startAt.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+
+				long startOfDay = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+				ps.setLong(i++, startOfDay);
 			}
+
 			if (hasEnd) {
-				ps.setLong(i++, endAt.getTime());
+				LocalDate endDate = endAt.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+
+				long endOfDay = endDate.atTime(LocalTime.MAX).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+				ps.setLong(i++, endOfDay);
 			}
 
 			ps.setInt(i, pageSize);
