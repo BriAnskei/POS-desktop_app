@@ -56,6 +56,7 @@ public class CustomerBranchDetailsDialog extends JDialog {
 	private Runnable onUpdate;
 	private JPanel branchesContainer;
 	private String deliveryStatus;
+	private String customerStatus; // NEW: Track customer delivery status
 
 	public CustomerBranchDetailsDialog(Window parent, Customer customer,
 			Map<Branch, List<ProductWithQuantity>> branchDeliveries, Runnable onUpdate) {
@@ -71,6 +72,9 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		} else {
 			this.deliveryStatus = "Scheduled";
 		}
+
+		// NEW: Get customer delivery status
+		this.customerStatus = AppContext.deliveryDetialsController.getCustomerDeliveryStatus(customer);
 
 		setLayout(new BorderLayout());
 		setBackground(CONTENT_BG);
@@ -129,8 +133,12 @@ public class CustomerBranchDetailsDialog extends JDialog {
 
 		header.add(textPanel, BorderLayout.WEST);
 
-		// Add "Add New Branch" button on the right (only if not delivered)
-		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
+		// MODIFIED: Add "Add New Branch" button only if delivery is not "Delivered" AND
+		// customer is not "Cancelled"
+		boolean isEditingAllowed = !deliveryStatus.equalsIgnoreCase("Delivered")
+				&& !customerStatus.equalsIgnoreCase("Cancelled");
+
+		if (isEditingAllowed) {
 			JButton addBranchBtn = UIComponentFactory.createStyledButton("+ Add New Branch", ACCENT_GOLD);
 			addBranchBtn.setPreferredSize(new Dimension(160, 50));
 			addBranchBtn.setFont(new Font("Arial", Font.BOLD, 14));
@@ -229,14 +237,19 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
 		rightPanel.setBackground(BRANCH_BG);
 
-		// Add Product Button (only if not delivered)
-		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
+		// MODIFIED: Determine if editing is allowed
+		boolean isEditingAllowed = !deliveryStatus.equalsIgnoreCase("Delivered")
+				&& !customerStatus.equalsIgnoreCase("Cancelled");
+
+		// Add Product Button and Status selector (only if editing is allowed)
+		if (isEditingAllowed) {
 			JButton addProductBtn = UIComponentFactory.createStyledButton("+ Add Product", ACCENT_GOLD);
 			addProductBtn.setPreferredSize(new Dimension(140, 35));
 			addProductBtn.addActionListener(e -> handleAddProduct(branch));
 			rightPanel.add(addProductBtn);
 
-			// Status selector (only show if delivery is not "Delivered")
+			// Status selector (only show if delivery is not "Delivered" and customer is not
+			// "Cancelled")
 			JLabel statusLabel = new JLabel("Status:");
 			statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
 			statusLabel.setForeground(TEXT_DARK);
@@ -312,7 +325,8 @@ public class CustomerBranchDetailsDialog extends JDialog {
 			});
 			rightPanel.add(statusCombo);
 		} else {
-			// When delivery is "Delivered", show read-only status
+			// MODIFIED: When editing is not allowed (delivery is "Delivered" OR customer is
+			// "Cancelled"), show read-only status
 			JLabel statusLabel = new JLabel("Status:");
 			statusLabel.setFont(new Font("Arial", Font.BOLD, 14));
 			statusLabel.setForeground(TEXT_DARK);
@@ -428,8 +442,11 @@ public class CustomerBranchDetailsDialog extends JDialog {
 		nameLabel.setForeground(TEXT_DARK);
 		row.add(nameLabel, gbc);
 
-		// Actions button (first row, right side) - only if not delivered
-		if (!deliveryStatus.equalsIgnoreCase("Delivered")) {
+		// MODIFIED: Actions button (first row, right side) - only if editing is allowed
+		boolean isEditingAllowed = !deliveryStatus.equalsIgnoreCase("Delivered")
+				&& !customerStatus.equalsIgnoreCase("Cancelled");
+
+		if (isEditingAllowed) {
 			gbc.gridx = 6;
 			gbc.gridwidth = 1;
 			gbc.anchor = GridBagConstraints.EAST;

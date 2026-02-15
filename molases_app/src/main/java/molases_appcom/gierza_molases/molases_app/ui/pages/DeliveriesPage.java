@@ -635,7 +635,7 @@ public class DeliveriesPage {
 		DefaultTableModel model = (DefaultTableModel) table.getModel();
 		model.setRowCount(0);
 
-		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy hh:mm a");
+		DateTimeFormatter formatter = DateTimeFormatter.ofPattern("MMM dd, yyyy");
 		List<Delivery> deliveries = controller.getState().getDeliveries();
 
 		for (Delivery d : deliveries) {

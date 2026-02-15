@@ -4,136 +4,133 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.IntConsumer;
 
 import com.gierza_molases.molases_app.model.response.DeletionPreview;
 
-/**
- * Data Access Object for Maintenance operations Handles deletion of old
- * completed delivery records
- */
 public class MaintenanceDAO {
 
-	private Connection connection;
+	private final Connection connection;
+
+	// SQLite DATETIME format
+	private static final DateTimeFormatter SQLITE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
 	public MaintenanceDAO(Connection connection) {
-		this.connection = connection;
+		this.connection = Objects.requireNonNull(connection);
+	}
+
+	private String getFormattedCutoff(int yearsOld) {
+		LocalDateTime cutoff = LocalDateTime.now().minusYears(yearsOld);
+		return cutoff.format(SQLITE_FORMATTER);
 	}
 
 	/**
 	 * Preview how many deliveries would be deleted
-	 * 
-	 * @param yearsOld Number of years to look back
-	 * @return Count of deliveries that would be deleted
-	 * @throws SQLException
 	 */
 	public int previewDeletion(int yearsOld) throws SQLException {
-		LocalDate cutoffDate = LocalDate.now().minusYears(yearsOld);
 
 		String sql = """
 				SELECT COUNT(DISTINCT d.id) as count
 				FROM delivery d
-				WHERE d.created_at < ?
+				WHERE d.status = 'delivered' AND d.created_at < ?
 				AND NOT EXISTS (
-				    -- Exclude deliveries with any pending payments
 				    SELECT 1
 				    FROM customer_delivery cd
-				    JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
+				    JOIN customer_payments cp
+				        ON cp.customer_delivery_id = cd.id
 				    WHERE cd.delivery_id = d.id
 				    AND cp.status = 'pending'
 				)
 				AND EXISTS (
-				    -- Only include deliveries that have at least one payment
 				    SELECT 1
 				    FROM customer_delivery cd
-				    JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
+				    JOIN customer_payments cp
+				        ON cp.customer_delivery_id = cd.id
 				    WHERE cd.delivery_id = d.id
 				)
 				""";
 
 		try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-			pstmt.setString(1, cutoffDate.toString());
+			pstmt.setString(1, getFormattedCutoff(yearsOld));
 
 			try (ResultSet rs = pstmt.executeQuery()) {
-				if (rs.next()) {
-					return rs.getInt("count");
+				return rs.next() ? rs.getInt("count") : 0;
+			}
+		}
+	}
+
+	/**
+	 * Delete old completed deliveries
+	 */
+	public int deleteOldCompletedDeliveries(int yearsOld, IntConsumer progressCallback) throws SQLException {
+
+		String selectSql = """
+				SELECT d.id
+				FROM delivery d
+					WHERE d.status = 'delivered' AND d.created_at < ?
+				AND NOT EXISTS (
+				    SELECT 1
+				    FROM customer_delivery cd
+				    JOIN customer_payments cp
+				        ON cp.customer_delivery_id = cd.id
+				    WHERE cd.delivery_id = d.id
+				    AND cp.status = 'pending'
+				)
+				AND EXISTS (
+				    SELECT 1
+				    FROM customer_delivery cd
+				    JOIN customer_payments cp
+				        ON cp.customer_delivery_id = cd.id
+				    WHERE cd.delivery_id = d.id
+				)
+				""";
+
+		List<Integer> idsToDelete = new ArrayList<>();
+
+		try (PreparedStatement selectStmt = connection.prepareStatement(selectSql)) {
+
+			selectStmt.setString(1, getFormattedCutoff(yearsOld));
+
+			try (ResultSet rs = selectStmt.executeQuery()) {
+				while (rs.next()) {
+					idsToDelete.add(rs.getInt("id"));
 				}
 			}
 		}
 
-		return 0;
-	}
+		if (idsToDelete.isEmpty()) {
+			return 0;
+		}
 
-	/**
-	 * Delete old completed deliveries and all related records
-	 * 
-	 * @param yearsOld Number of years to look back
-	 * @return Number of deliveries deleted
-	 * @throws SQLException
-	 */
-	public int deleteOldCompletedDeliveries(int yearsOld, IntConsumer progressCallback) throws SQLException {
-
-		// Use LocalDateTime instead of LocalDate
-		LocalDateTime cutoffDateTime = LocalDateTime.now().minusYears(yearsOld);
-
+		boolean originalAutoCommit = connection.getAutoCommit();
 		int deletedCount = 0;
-		boolean autoCommit = connection.getAutoCommit();
 
 		try {
 			connection.setAutoCommit(false);
 
-			String selectSql = """
-					    SELECT d.id
-					    FROM delivery d
-					    WHERE d.created_at < ?
-					    AND NOT EXISTS (
-					        SELECT 1
-					        FROM customer_delivery cd
-					        JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
-					        WHERE cd.delivery_id = d.id
-					        AND cp.status = 'pending'
-					    )
-					    AND EXISTS (
-					        SELECT 1
-					        FROM customer_delivery cd
-					        JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
-					        WHERE cd.delivery_id = d.id
-					    )
-					""";
+			String deleteSql = "DELETE FROM delivery WHERE id = ?";
+			try (PreparedStatement deleteStmt = connection.prepareStatement(deleteSql)) {
 
-			List<Integer> idsToDelete = new ArrayList<>();
-
-			try (PreparedStatement selectStmt = connection.prepareStatement(selectSql)) {
-
-				// pass full datetime string
-				selectStmt.setString(1, cutoffDateTime.toString());
-
-				try (ResultSet rs = selectStmt.executeQuery()) {
-					while (rs.next()) {
-						idsToDelete.add(rs.getInt("id"));
-					}
+				for (int id : idsToDelete) {
+					deleteStmt.setInt(1, id);
+					deleteStmt.addBatch();
 				}
-			}
 
-			int total = idsToDelete.size();
+				int[] results = deleteStmt.executeBatch();
 
-			if (total > 0) {
-				String deleteSql = "DELETE FROM delivery WHERE id = ?";
-
-				try (PreparedStatement deleteStmt = connection.prepareStatement(deleteSql)) {
-					for (int deliveryId : idsToDelete) {
-						deleteStmt.setInt(1, deliveryId);
-						deleteStmt.executeUpdate();
+				for (int result : results) {
+					if (result > 0) {
 						deletedCount++;
+					}
 
-						if (progressCallback != null) {
-							int progress = (deletedCount * 100) / total;
-							progressCallback.accept(progress);
-						}
+					if (progressCallback != null) {
+						int progress = (deletedCount * 100) / idsToDelete.size();
+						progressCallback.accept(progress);
 					}
 				}
 			}
@@ -141,29 +138,21 @@ public class MaintenanceDAO {
 			connection.commit();
 
 		} catch (SQLException e) {
-			try {
-				connection.rollback();
-			} catch (SQLException rollbackEx) {
-				rollbackEx.printStackTrace();
-			}
+			connection.rollback();
 			throw e;
 
 		} finally {
-			connection.setAutoCommit(autoCommit);
+			connection.setAutoCommit(originalAutoCommit);
 		}
 
 		return deletedCount;
 	}
 
 	/**
-	 * Get detailed information about what will be deleted
-	 * 
-	 * @param yearsOld Number of years to look back
-	 * @return DeletionPreview object with detailed counts
-	 * @throws SQLException
+	 * Detailed preview
 	 */
 	public DeletionPreview getDetailedPreview(int yearsOld) throws SQLException {
-		LocalDate cutoffDate = LocalDate.now().minusYears(yearsOld);
+
 		DeletionPreview preview = new DeletionPreview();
 
 		String sql = """
@@ -175,29 +164,37 @@ public class MaintenanceDAO {
 				    COUNT(DISTINCT cp.id) as payment_count,
 				    COUNT(DISTINCT ph.id) as payment_history_count
 				FROM delivery d
-				LEFT JOIN customer_delivery cd ON cd.delivery_id = d.id
-				LEFT JOIN branch_delivery bd ON bd.customer_delivery_id = cd.id
-				LEFT JOIN product_delivery pd ON pd.branch_delivery_id = bd.id
-				LEFT JOIN customer_payments cp ON cp.customer_delivery_id = cd.id
-				LEFT JOIN payment_history ph ON ph.customer_payment_id = cp.id
-				WHERE d.created_at < ?
+				LEFT JOIN customer_delivery cd
+				    ON cd.delivery_id = d.id
+				LEFT JOIN branch_delivery bd
+				    ON bd.customer_delivery_id = cd.id
+				LEFT JOIN product_delivery pd
+				    ON pd.branch_delivery_id = bd.id
+				LEFT JOIN customer_payments cp
+				    ON cp.customer_delivery_id = cd.id
+				LEFT JOIN payment_history ph
+				    ON ph.customer_payment_id = cp.id
+				WHERE d.status = 'delivered' AND d.created_at < ?
 				AND NOT EXISTS (
 				    SELECT 1
 				    FROM customer_delivery cd2
-				    JOIN customer_payments cp2 ON cp2.customer_delivery_id = cd2.id
+				    JOIN customer_payments cp2
+				        ON cp2.customer_delivery_id = cd2.id
 				    WHERE cd2.delivery_id = d.id
 				    AND cp2.status = 'pending'
 				)
 				AND EXISTS (
 				    SELECT 1
 				    FROM customer_delivery cd3
-				    JOIN customer_payments cp3 ON cp3.customer_delivery_id = cd3.id
+				    JOIN customer_payments cp3
+				        ON cp3.customer_delivery_id = cd3.id
 				    WHERE cd3.delivery_id = d.id
 				)
 				""";
 
 		try (PreparedStatement pstmt = connection.prepareStatement(sql)) {
-			pstmt.setString(1, cutoffDate.toString());
+
+			pstmt.setString(1, getFormattedCutoff(yearsOld));
 
 			try (ResultSet rs = pstmt.executeQuery()) {
 				if (rs.next()) {
@@ -213,5 +210,4 @@ public class MaintenanceDAO {
 
 		return preview;
 	}
-
 }

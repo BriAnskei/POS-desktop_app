@@ -316,6 +316,12 @@ CREATE TABLE IF NOT EXISTS customer_payments (
 );
 
 
+CREATE INDEX IF NOT EXISTS idx_customer_payments_customer_delivery_id
+ON customer_payments(customer_delivery_id);
+
+CREATE INDEX IF NOT EXISTS idx_customer_payments_status
+ON customer_payments(status);
+
 CREATE INDEX IF NOT EXISTS idx_customer_payments_created_at
 ON customer_payments (created_at);
 
@@ -337,6 +343,10 @@ CREATE TABLE IF NOT EXISTS payment_history (
 
 CREATE INDEX IF NOT EXISTS idx_payment_history_payment_date
 ON payment_history(customer_payment_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_payment_history_created_at
+ON payment_history(created_at);
+
 
 
 

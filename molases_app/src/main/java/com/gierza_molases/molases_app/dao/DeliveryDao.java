@@ -5,7 +5,6 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
@@ -161,10 +160,10 @@ public class DeliveryDao {
 				ps.setString(i++, search + "%");
 			}
 			if (hasStart) {
-				ps.setTimestamp(i++, new Timestamp(startAt.getTime()));
+				ps.setLong(i++, startAt.getTime());
 			}
 			if (hasEnd) {
-				ps.setTimestamp(i++, new Timestamp(endAt.getTime()));
+				ps.setLong(i++, endAt.getTime());
 			}
 
 			ps.setInt(i, pageSize);

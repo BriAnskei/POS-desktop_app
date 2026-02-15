@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -28,29 +29,20 @@ public class DashboardDao {
 
 	private static final String SELECT_REVENUE_SUM_BASE_SQL = """
 			    SELECT
-			        SUM(total_gross) AS total_revenue,
-			        SUM(total_expenses) AS total_expenses,
-			        SUM(net_profit) AS net_profit
+			        COALESCE(SUM(total_gross), 0) AS total_revenue,
+			        COALESCE(SUM(total_expenses), 0) AS total_expenses,
+			        COALESCE(SUM(net_profit), 0) AS net_profit
 			    FROM delivery
 			""";
 
 	private static final String SELECT_MONTHLY_INCOME_SQL = """
-			    WITH RECURSIVE months(m) AS (
-			        SELECT date('now', 'start of year')
-			        UNION ALL
-			        SELECT date(m, '+1 month')
-			        FROM months
-			        WHERE m < date('now', 'start of year', '+11 months')
-			    )
 			    SELECT
-			        strftime('%Y-%m', m) AS month,
-			        COALESCE(SUM(ph.amount), 0) AS monthly_income
-			    FROM months
-			    LEFT JOIN payment_history ph
-			        ON strftime('%Y-%m', ph.created_at) = strftime('%Y-%m', m)
-			    LEFT JOIN customer_payments cp
-			        ON cp.id = ph.customer_payment_id
-			    GROUP BY month
+			        strftime('%Y-%m', created_at) AS month,
+			        SUM(amount) AS monthly_income
+			    FROM payment_history
+			    WHERE created_at >= ?
+			      AND created_at < ?
+			    GROUP BY strftime('%Y-%m', created_at)
 			    ORDER BY month
 			""";
 
@@ -135,21 +127,23 @@ public class DashboardDao {
 
 	public RevenueSummary getRevenueSummary(LocalDate from, LocalDate to) throws SQLException {
 
-		String dateCondition = "";
+		StringBuilder sql = new StringBuilder(SELECT_REVENUE_SUM_BASE_SQL);
 
-		if (from != null && to != null) {
-			dateCondition = " WHERE created_at BETWEEN ? AND ? ";
-		} else if (from != null) {
-			dateCondition = " WHERE created_at >= ? ";
-		} else if (to != null) {
-			dateCondition = " WHERE created_at <= ? ";
+		if (from != null || to != null) {
+			sql.append(" WHERE ");
+
+			if (from != null && to != null) {
+				sql.append("schedule_date BETWEEN ? AND ?");
+			} else if (from != null) {
+				sql.append("schedule_date >= ?");
+			} else {
+				sql.append("schedule_date <= ?");
+			}
 		}
 
-		String sql = SELECT_REVENUE_SUM_BASE_SQL + dateCondition;
+		try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
 
-		try (PreparedStatement ps = conn.prepareStatement(sql)) {
-
-			setDateParams(ps, from, to);
+			setMillisDateParams(ps, from, to);
 
 			try (ResultSet rs = ps.executeQuery()) {
 
@@ -164,7 +158,6 @@ public class DashboardDao {
 			}
 		}
 
-		System.err.println("Failed to fetch revenue summary");
 		return new RevenueSummary(0, 0, 0);
 	}
 
@@ -172,19 +165,35 @@ public class DashboardDao {
 
 		Map<String, BigDecimal> map = new LinkedHashMap<>();
 
-		try (PreparedStatement ps = conn.prepareStatement(SELECT_MONTHLY_INCOME_SQL);
-				ResultSet rs = ps.executeQuery()) {
+		LocalDate startOfYear = LocalDate.now().withDayOfYear(1);
+		LocalDate startOfNextYear = startOfYear.plusYears(1);
 
-			DateTimeFormatter uiFmt = DateTimeFormatter.ofPattern("MMM yy");
+		DateTimeFormatter uiFmt = DateTimeFormatter.ofPattern("MMM yy");
+		DateTimeFormatter dbMonthFmt = DateTimeFormatter.ofPattern("yyyy-MM");
 
-			while (rs.next()) {
+		LocalDate cursor = startOfYear;
+		while (cursor.isBefore(startOfNextYear)) {
+			map.put(cursor.format(uiFmt), BigDecimal.ZERO);
+			cursor = cursor.plusMonths(1);
+		}
 
-				String monthStr = rs.getString("month"); // yyyy-MM
-				BigDecimal income = rs.getBigDecimal("monthly_income");
+		try (PreparedStatement ps = conn.prepareStatement(SELECT_MONTHLY_INCOME_SQL)) {
 
-				LocalDate parsedMonth = LocalDate.parse(monthStr + "-01", DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+			ps.setString(1, startOfYear.atStartOfDay().format(SQLITE_FORMAT));
+			ps.setString(2, startOfNextYear.atStartOfDay().format(SQLITE_FORMAT));
 
-				map.put(parsedMonth.format(uiFmt), income);
+			try (ResultSet rs = ps.executeQuery()) {
+
+				while (rs.next()) {
+
+					String monthStr = rs.getString("month"); // yyyy-MM
+					BigDecimal income = rs.getBigDecimal("monthly_income");
+
+					LocalDate parsedMonth = LocalDate.parse(monthStr + "-01",
+							DateTimeFormatter.ofPattern("yyyy-MM-dd"));
+
+					map.put(parsedMonth.format(uiFmt), income != null ? income : BigDecimal.ZERO);
+				}
 			}
 		}
 
@@ -350,6 +359,33 @@ public class DashboardDao {
 		} else {
 			sql.append("counter_date <= ?");
 		}
+	}
+
+	private void setMillisDateParams(PreparedStatement ps, LocalDate from, LocalDate to) throws SQLException {
+		int i = 1;
+
+		Long fromMillis = toStartOfDayMillis(from);
+		Long toMillis = toEndOfDayMillis(to);
+
+		if (from != null && to != null) {
+			ps.setLong(i++, fromMillis);
+			ps.setLong(i++, toMillis);
+
+		} else if (from != null) {
+			ps.setLong(i++, fromMillis);
+
+		} else if (to != null) {
+			ps.setLong(i++, toMillis);
+		}
+	}
+
+	private static Long toStartOfDayMillis(LocalDate date) {
+		return date == null ? null : date.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli();
+	}
+
+	private static Long toEndOfDayMillis(LocalDate date) {
+		return date == null ? null
+				: date.atTime(23, 59, 59, 999_000_000).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
 	}
 
 }

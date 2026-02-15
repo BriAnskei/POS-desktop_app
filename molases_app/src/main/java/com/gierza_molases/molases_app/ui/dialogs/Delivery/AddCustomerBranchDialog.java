@@ -556,12 +556,19 @@ public class AddCustomerBranchDialog extends JDialog {
 		if (this.addingType.equals("newDelivery")) {
 
 			// Save to state via controller
-			newDeliveryController.addCustomerDelivery(selectedCustomer, branchProductsMap);
+			newDeliveryController.addCustomerDelivery(selectedCustomer, branchProductsMap,
 
-			// Call success callback
-			if (onSuccessCallback != null) {
-				onSuccessCallback.run();
-			}
+					// Success callback
+					() -> {
+						if (onSuccessCallback != null) {
+							onSuccessCallback.run();
+						}
+					},
+
+					// Error callback
+					er -> {
+						ToastNotification.showError(this, "Failed: " + er);
+					});
 
 		} else if (this.addingType.equals("additionalDelivery")) {
 

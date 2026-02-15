@@ -125,8 +125,37 @@ public class NewDeliveryController {
 	 * Add a customer with their branches and products to the delivery This is
 	 * called when AddCustomerBranchDialog saves
 	 */
-	public void addCustomerDelivery(Customer customer, Map<Branch, List<ProductWithQuantity>> branchProducts) {
-		state.newCustomerDelivery(customer, branchProducts);
+	public void addCustomerDelivery(Customer customer, Map<Branch, List<ProductWithQuantity>> branchProducts,
+			Runnable onSuccess, Consumer<String> onError) {
+
+		new SwingWorker<Void, Void>() {
+			private Exception error;
+
+			@Override
+			protected Void doInBackground() {
+				try {
+					state.newCustomerDelivery(customer, branchProducts);
+				} catch (Exception err) {
+					error = err;
+				}
+				return null;
+			}
+
+			@Override
+			protected void done() {
+				if (error != null) {
+					error.printStackTrace();
+					if (onError != null) {
+						onError.accept(error.getMessage());
+					}
+				} else {
+					if (onSuccess != null) {
+						onSuccess.run();
+					}
+				}
+			}
+		}.execute();
+
 	}
 
 	/**

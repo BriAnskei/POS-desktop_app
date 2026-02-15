@@ -9,6 +9,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.text.SimpleDateFormat;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -257,14 +258,36 @@ public class CustomerPaymentDao {
 			ps.setString(i++, statusLow);
 			ps.setString(i++, statusLow);
 
-			Timestamp fromTs = fromDate == null ? null : Timestamp.valueOf(fromDate);
-			Timestamp toTs = toDate == null ? null : Timestamp.valueOf(toDate.plusDays(1));
+			if (fromDate != null) {
+				fromDate = fromDate.toLocalDate().atStartOfDay();
+			}
 
-			ps.setTimestamp(i++, fromTs);
-			ps.setTimestamp(i++, fromTs);
+			if (toDate != null) {
+				toDate = toDate.toLocalDate().atTime(23, 59, 59, 999_000_000);
+			}
 
-			ps.setTimestamp(i++, toTs);
-			ps.setTimestamp(i++, toTs);
+			Long startMillis = fromDate == null ? null
+					: fromDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+			Long endMillis = toDate == null ? null : toDate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+
+			// START DATE
+			if (startMillis == null) {
+				ps.setNull(i++, Types.INTEGER);
+				ps.setNull(i++, Types.INTEGER);
+			} else {
+				ps.setLong(i++, startMillis);
+				ps.setLong(i++, startMillis);
+			}
+
+			// END DATE
+			if (endMillis == null) {
+				ps.setNull(i++, Types.INTEGER);
+				ps.setNull(i++, Types.INTEGER);
+			} else {
+				ps.setLong(i++, endMillis);
+				ps.setLong(i++, endMillis);
+			}
 
 			ps.setInt(i, pageSize);
 

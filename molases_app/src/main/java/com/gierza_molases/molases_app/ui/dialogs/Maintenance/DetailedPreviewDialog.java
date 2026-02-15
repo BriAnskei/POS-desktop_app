@@ -59,7 +59,7 @@ public class DetailedPreviewDialog extends JDialog {
 		this.yearsOld = yearsOld;
 
 		initComponents();
-		setSize(700, 600);
+		setSize(750, 650);
 		setLocationRelativeTo(parent);
 
 		// Start fetching data immediately after initialization
@@ -273,6 +273,7 @@ public class DetailedPreviewDialog extends JDialog {
 		scrollPane.setBorder(null);
 		scrollPane.getVerticalScrollBar().setUnitIncrement(16);
 		scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+		scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
 
 		JPanel container = new JPanel(new BorderLayout());
 		container.setBackground(CONTENT_BG);
@@ -309,7 +310,7 @@ public class DetailedPreviewDialog extends JDialog {
 		panel.setBackground(INFO_BG);
 		panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(INFO_BORDER, 2, true),
 				new EmptyBorder(20, 20, 20, 20)));
-		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 180));
+		// Removed setMaximumSize to allow proper content display
 
 		JPanel contentPanel = new JPanel();
 		contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
@@ -330,7 +331,7 @@ public class DetailedPreviewDialog extends JDialog {
 		criteriaValue.setAlignmentX(0);
 		criteriaValue.setBorder(new EmptyBorder(0, 15, 0, 0));
 		contentPanel.add(criteriaValue);
-		contentPanel.add(Box.createVerticalStrut(8));
+		contentPanel.add(Box.createVerticalStrut(15));
 
 		// Total deliveries
 		JLabel resultsLabel = new JLabel("Total Deliveries to Delete:");
@@ -358,7 +359,7 @@ public class DetailedPreviewDialog extends JDialog {
 		panel.setBackground(PANEL_BG);
 		panel.setBorder(BorderFactory.createCompoundBorder(
 				BorderFactory.createLineBorder(new Color(220, 210, 195), 2, true), new EmptyBorder(20, 20, 20, 20)));
-		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 240));
+		// Removed setMaximumSize to allow proper content display
 
 		JPanel contentPanel = new JPanel();
 		contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));
@@ -398,7 +399,7 @@ public class DetailedPreviewDialog extends JDialog {
 	private void addBreakdownItem(JPanel parent, String label, int count) {
 		JPanel itemPanel = new JPanel(new BorderLayout());
 		itemPanel.setBackground(PANEL_BG);
-		itemPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 25));
+		itemPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 30));
 
 		JLabel nameLabel = new JLabel("  • " + label + ":");
 		nameLabel.setFont(new Font("Arial", Font.PLAIN, 13));
@@ -420,7 +421,7 @@ public class DetailedPreviewDialog extends JDialog {
 		panel.setBackground(WARNING_BG);
 		panel.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createLineBorder(WARNING_BORDER, 2, true),
 				new EmptyBorder(15, 20, 15, 20)));
-		panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 80));
+		// Removed setMaximumSize to allow proper content display
 
 		JPanel contentPanel = new JPanel();
 		contentPanel.setLayout(new BoxLayout(contentPanel, BoxLayout.Y_AXIS));

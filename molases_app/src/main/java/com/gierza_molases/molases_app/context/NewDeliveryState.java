@@ -55,8 +55,13 @@ public class NewDeliveryState {
 	 * Add or update a customer delivery with their branches and products
 	 */
 	public void newCustomerDelivery(Customer customer, Map<Branch, List<ProductWithQuantity>> branchDeliveries) {
+
 		if (customer == null) {
 			throw new IllegalArgumentException("Customer cannot be null");
+		}
+
+		if (customerDeliveries.containsKey(customer)) {
+			throw new IllegalArgumentException("Customer has already been added");
 		}
 		if (branchDeliveries == null || branchDeliveries.isEmpty()) {
 			throw new IllegalArgumentException("Branch deliveries cannot be null or empty");
